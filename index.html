@@ -1,75 +1,368 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <title>AR4PUNKS - AR.js WebApp</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- A-Frame e AR.js -->
+  <meta charset="UTF-8" />
+  <title>AR4PUNKS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- CSP per eseguire script inline e caricamento esterno -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://aframe.io https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: data:;">
+  <!-- A-Frame e AR.js per AR con animazioni GLB -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ar.js@3.3.2/aframe/build/aframe-ar.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+  <!-- model-viewer come fallback -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-    #file-input-container {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255,255,255,0.8);
-      padding: 8px;
-      border-radius: 4px;
-      z-index: 2;
+    body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+    #controls { padding: 10px; background: #fff; display: flex; gap: 10px; align-items: center; z-index: 1000; position: relative; }
+    #upload { display: none; }
+    .upload-btn, .clear-btn, .mode-btn {
+      padding: 10px 20px; border: none; border-radius: 5px; font-size: 1rem;
+      cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: background-color 0.3s;
     }
-    #file-input { display: inline-block; }
+    .upload-btn { background-color: #6200ee; color: #fff; }
+    .upload-btn:hover { background-color: #3700b3; }
+    .clear-btn { background-color: #e0e0e0; color: #333; }
+    .clear-btn:hover { background-color: #bdbdbd; }
+    .mode-btn { background-color: #ff6200; color: #fff; }
+    .mode-btn:hover { background-color: #e55100; }
+    .mode-btn.active { background-color: #4caf50; }
+    model-viewer { flex: 1; width: 100%; background: #fafafa; }
+    #arjs-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    #debug { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 12px; max-width: 300px; z-index: 2000; }
+    .hidden { display: none !important; }
+    #arjs-video { width: 100%; height: 100%; object-fit: cover; }
   </style>
 </head>
 <body>
-
-  <div id="file-input-container">
-    <input type="file" id="file-input" accept=".glb,model/gltf-binary" />
+  <div id="controls">
+    <input type="file" id="upload" accept=".glb,.usdz,model/gltf-binary,application/octet-stream" />
+    <label for="upload" class="upload-btn">Carica Modello</label>
+    <button id="clear-btn" class="clear-btn">Pulisci</button>
+    <button id="mode-btn" class="mode-btn">Modalità AR.js</button>
   </div>
 
-  <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
-    <!-- Marker preset Hiro -->
-    <a-marker preset="hiro">
-      <a-entity id="model"
-                gltf-model="https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb"
-                scale="0.5 0.5 0.5"
-                rotation="0 180 0"
-                animation-mixer="clip: *; loop: repeat"
-                visible="true">
-      </a-entity>
-    </a-marker>
-    <a-entity camera></a-entity>
-  </a-scene>
+  <div id="debug">Debug: Caricamento...</div>
+
+  <!-- AR.js Scene per animazioni GLB in AR -->
+  <div id="arjs-container" class="hidden">
+    <a-scene
+      id="arjs-scene"
+      embedded
+      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true;"
+      loading-screen="enabled: false">
+      
+      <a-assets>
+        <a-asset-item id="animated-model" src="https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb"></a-asset-item>
+      </a-assets>
+
+      <a-marker
+        id="animated-marker"
+        type="pattern"
+        preset="hiro"
+        raycaster="objects: .clickable"
+        emitevents="true"
+        cursor="fuse: false; rayOrigin: mouse;">
+        
+        <a-entity
+          id="model-entity"
+          gltf-model="#animated-model"
+          scale="0.5 0.5 0.5"
+          position="0 0 0"
+          rotation="-90 0 0"
+          animation-mixer="clip: *; loop: repeat; repetitions: Infinity;"
+          class="clickable">
+        </a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+  </div>
+
+  <!-- Model Viewer come fallback -->
+  <model-viewer id="viewer"
+                src="https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb"
+                ios-src=""
+                alt="Modello 3D animato"
+                camera-controls
+                auto-rotate
+                animation-name="*"
+                autoplay
+                environment-image="neutral"
+                ar
+                ar-modes="webxr scene-viewer quick-look"
+                ar-scale="auto"
+                interaction-prompt="auto"
+                style="background: #fff;">
+  </model-viewer>
 
   <script>
-    const fileInput = document.getElementById('file-input');
-    const modelEntity = document.getElementById('model');
+    const viewer = document.getElementById('viewer');
+    const upload = document.getElementById('upload');
+    const clearBtn = document.getElementById('clear-btn');
+    const modeBtn = document.getElementById('mode-btn');
+    const debug = document.getElementById('debug');
+    const arjsContainer = document.getElementById('arjs-container');
+    const arjsScene = document.getElementById('arjs-scene');
+    const modelEntity = document.getElementById('model-entity');
 
-    async function loadGlb(url) {
-      // Imposta il nuovo modello e rendilo visibile
-      modelEntity.setAttribute('gltf-model', url);
-      modelEntity.setAttribute('visible', 'true');
-      console.log(`Caricamento modello: ${url}`);
-      // Avvia animazione al caricamento
-      modelEntity.addEventListener('model-loaded', () => {
-        console.log('Modello glTF pronto, avvio animazione');
-        // animation-mixer con clip '*' parte automaticamente
-      }, { once: true });
+    let isInAR = false;
+    let animationInterval = null;
+    let currentMode = 'model-viewer'; // 'model-viewer' or 'arjs'
+    let arjsInitialized = false;
+
+    function updateDebug(message) {
+      debug.textContent = `Debug: ${message}`;
+      console.log(message);
     }
 
-    // Inizializza con modello di default
-    loadGlb('https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb');
+    // Funzione per cambiare modalità
+    function switchMode() {
+      if (currentMode === 'model-viewer') {
+        currentMode = 'arjs';
+        viewer.classList.add('hidden');
+        arjsContainer.classList.remove('hidden');
+        modeBtn.textContent = 'Modalità Model-Viewer';
+        modeBtn.classList.add('active');
+        updateDebug('Modalità AR.js attivata');
+        initARjs();
+      } else {
+        currentMode = 'model-viewer';
+        arjsContainer.classList.add('hidden');
+        viewer.classList.remove('hidden');
+        modeBtn.textContent = 'Modalità AR.js';
+        modeBtn.classList.remove('active');
+        updateDebug('Modalità Model-Viewer attivata');
+      }
+    }
 
-    // Gestione caricamento file utente
-    fileInput.addEventListener('change', async (e) => {
+    // Inizializzazione AR.js
+    function initARjs() {
+      if (arjsInitialized) return;
+      
+      updateDebug('Inizializzando AR.js...');
+      
+      // Gestione eventi AR.js
+      const marker = document.getElementById('animated-marker');
+      
+      marker.addEventListener('markerFound', () => {
+        updateDebug('Marker trovato - avvio animazioni');
+        startARjsAnimations();
+      });
+      
+      marker.addEventListener('markerLost', () => {
+        updateDebug('Marker perso');
+      });
+      
+      // Avvia animazioni quando il modello è caricato
+      modelEntity.addEventListener('model-loaded', () => {
+        updateDebug('Modello AR.js caricato');
+        startARjsAnimations();
+      });
+      
+      arjsInitialized = true;
+    }
+
+    // Avvia animazioni in AR.js
+    function startARjsAnimations() {
+      if (currentMode !== 'arjs') return;
+      
+      updateDebug('Avvio animazioni AR.js');
+      
+      // Forza l'avvio di tutte le animazioni
+      const animationMixer = modelEntity.getAttribute('animation-mixer');
+      if (animationMixer) {
+        modelEntity.setAttribute('animation-mixer', {
+          clip: '*',
+          loop: 'repeat',
+          repetitions: Infinity,
+          timeScale: 1
+        });
+      }
+      
+      // Aggiungi rotazione continua per test
+      modelEntity.setAttribute('animation', {
+        property: 'rotation',
+        to: '0 360 0',
+        loop: true,
+        dur: 10000
+      });
+    }
+
+    // Event listener per cambio modalità
+    modeBtn.addEventListener('click', switchMode);
+
+    // Funzione per caricare modello personalizzato in AR.js
+    function loadCustomModelARjs(url) {
+      if (currentMode !== 'arjs') return;
+      
+      updateDebug('Caricamento modello personalizzato in AR.js');
+      
+      // Aggiorna l'asset
+      const asset = document.getElementById('animated-model');
+      asset.setAttribute('src', url);
+      
+      // Ricarica il modello
+      modelEntity.setAttribute('gltf-model', '#animated-model');
+      
+      // Riavvia animazioni dopo un delay
+      setTimeout(() => {
+        startARjsAnimations();
+      }, 2000);
+    }
+
+    // Funzione migliorata per avviare animazioni
+    function playAnimation() {
+      const animations = viewer.availableAnimations;
+      if (!animations || animations.length === 0) {
+        updateDebug('Nessuna animazione disponibile');
+        return;
+      }
+      
+      updateDebug(`Trovate ${animations.length} animazioni: ${animations.join(', ')}`);
+      
+      // Prova a riprodurre tutte le animazioni disponibili
+      animations.forEach((animName, index) => {
+        setTimeout(() => {
+          viewer.animationName = animName;
+          viewer.play({ name: animName })
+                .then(() => updateDebug(`Riproduzione animazione: ${animName}`))
+                .catch(err => updateDebug(`Errore animazione ${animName}: ${err.message}`));
+        }, index * 100);
+      });
+    }
+
+    // Funzione per forzare l'avvio delle animazioni in AR
+    function forceARAnimations() {
+      if (!isInAR) return;
+      
+      updateDebug('Forzando animazioni in AR...');
+      
+      // Metodo 1: Usa l'attributo animation-name
+      viewer.setAttribute('animation-name', '*');
+      viewer.setAttribute('autoplay', '');
+      
+      // Metodo 2: Avvia manualmente ogni animazione
+      setTimeout(() => {
+        playAnimation();
+      }, 500);
+      
+      // Metodo 3: Loop continuo per mantenere le animazioni attive
+      if (animationInterval) clearInterval(animationInterval);
+      animationInterval = setInterval(() => {
+        if (isInAR && viewer.availableAnimations && viewer.availableAnimations.length > 0) {
+          const randomAnim = viewer.availableAnimations[Math.floor(Math.random() * viewer.availableAnimations.length)];
+          viewer.play({ name: randomAnim }).catch(() => {});
+        }
+      }, 3000);
+    }
+
+    // Caricamento nuovo file
+    upload.addEventListener('change', e => {
       const file = e.target.files[0];
       if (!file) return;
+      
       const url = URL.createObjectURL(file);
-      loadGlb(url);
-      console.log(`Modello caricato dall'utente: ${file.name}`);
+      const ext = file.name.split('.').pop().toLowerCase();
+      
+      if (ext === 'glb') {
+        // Carica in model-viewer
+        viewer.src = url;
+        viewer.iosSrc = '';
+        
+        // Carica anche in AR.js se attivo
+        if (currentMode === 'arjs') {
+          loadCustomModelARjs(url);
+        }
+      } else if (ext === 'usdz') {
+        viewer.iosSrc = url;
+      }
+      
+      updateDebug(`Caricato ${file.name}`);
     });
-  </script>
 
+    // Reset viewer
+    clearBtn.addEventListener('click', () => {
+      viewer.src = '';
+      viewer.iosSrc = '';
+      upload.value = '';
+      isInAR = false;
+      
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+      
+      // Reset AR.js
+      if (currentMode === 'arjs') {
+        const asset = document.getElementById('animated-model');
+        asset.setAttribute('src', 'https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb');
+        modelEntity.setAttribute('gltf-model', '#animated-model');
+        setTimeout(() => startARjsAnimations(), 1000);
+      } else {
+        viewer.src = 'https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb';
+      }
+      
+      updateDebug('Viewer resettato');
+    });
+
+    // Log animazioni al caricamento
+    viewer.addEventListener('load', () => {
+      const animations = viewer.availableAnimations;
+      updateDebug(`Modello caricato. Animazioni: ${animations ? animations.join(', ') : 'nessuna'}`);
+      
+      // Avvia automaticamente le animazioni in modalità normale
+      if (!isInAR) {
+        setTimeout(playAnimation, 1000);
+      }
+    });
+
+    // Avvio animazione in preview al click
+    viewer.addEventListener('click', () => {
+      if (!isInAR) {
+        playAnimation();
+      }
+    });
+
+    // Gestione eventi AR migliorata
+    viewer.addEventListener('ar-status', event => {
+      const status = event.detail.status;
+      updateDebug(`AR Status: ${status}`);
+      
+      if (status === 'session-started') {
+        isInAR = true;
+        updateDebug('Sessione AR avviata - inizializzando animazioni...');
+        
+        // Multipli tentativi di avvio animazioni
+        setTimeout(() => forceARAnimations(), 200);
+        setTimeout(() => forceARAnimations(), 1000);
+        setTimeout(() => forceARAnimations(), 2000);
+        
+      } else if (status === 'not-presenting') {
+        isInAR = false;
+        if (animationInterval) {
+          clearInterval(animationInterval);
+          animationInterval = null;
+        }
+        updateDebug('Sessione AR terminata');
+      }
+    });
+
+    // Event listener aggiuntivi per debugging
+    viewer.addEventListener('model-visibility', event => {
+      updateDebug(`Model visibility: ${event.detail.visible}`);
+    });
+
+    viewer.addEventListener('camera-change', event => {
+      if (isInAR) {
+        updateDebug('Camera cambiata in AR - riavvio animazioni');
+        setTimeout(() => forceARAnimations(), 100);
+      }
+    });
+
+    // Inizializzazione
+    updateDebug('App inizializzata');
+  </script>
 </body>
 </html>
