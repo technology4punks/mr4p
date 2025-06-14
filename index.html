@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>AR4PUNKS - AR.js WebApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- A-Frame e AR.js -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ar.js@3.3.2/aframe/build/aframe-ar.min.js"></script>
+  <style>
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+    #file-input-container {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.8);
+      padding: 8px;
+      border-radius: 4px;
+      z-index: 2;
+    }
+    #file-input { display: inline-block; }
+  </style>
+</head>
+<body>
+
+  <div id="file-input-container">
+    <input type="file" id="file-input" accept=".glb,model/gltf-binary" />
+  </div>
+
+  <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;">
+    <!-- Marker preset Hiro -->
+    <a-marker preset="hiro">
+      <a-entity id="model"
+                gltf-model="https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb"
+                scale="0.5 0.5 0.5"
+                rotation="0 180 0"
+                animation-mixer="clip: *; loop: repeat"
+                visible="true">
+      </a-entity>
+    </a-marker>
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const modelEntity = document.getElementById('model');
+
+    async function loadGlb(url) {
+      // Imposta il nuovo modello e rendilo visibile
+      modelEntity.setAttribute('gltf-model', url);
+      modelEntity.setAttribute('visible', 'true');
+      console.log(`Caricamento modello: ${url}`);
+      // Avvia animazione al caricamento
+      modelEntity.addEventListener('model-loaded', () => {
+        console.log('Modello glTF pronto, avvio animazione');
+        // animation-mixer con clip '*' parte automaticamente
+      }, { once: true });
+    }
+
+    // Inizializza con modello di default
+    loadGlb('https://raw.githubusercontent.com/technology4punks/3dmodels/main/tungsauron.glb');
+
+    // Gestione caricamento file utente
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      loadGlb(url);
+      console.log(`Modello caricato dall'utente: ${file.name}`);
+    });
+  </script>
+
+</body>
+</html>
