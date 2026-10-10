@@ -149,7 +149,10 @@ export class RealtimeClient {
   }
   private refreshVoice(message?: string) {
     this.patch({
-      state: this.outputPlaying ? "speaking"
+      state: this.snapshot.status === "off" ? "idle"
+        : this.snapshot.status === "error" ? "error"
+          : this.snapshot.status === "connecting" ? "thinking"
+            : this.outputPlaying ? "speaking"
         : (this.responseActive && !this.cancelling) || [...this.utterances.values()].some((u) => u.end !== undefined) ? "thinking" : "listening",
       ...(message ? { message } : {}),
     });

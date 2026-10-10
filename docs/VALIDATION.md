@@ -101,8 +101,8 @@ I run GitHub hanno evidenziato un difetto di feedback Android con il canvas fuor
 
 Il feedback successivo dell’utente descrive un blocco dopo il primo scambio, controlli chiusi ancora legati alla testa e stato di ascolto ambiguo. Il codice distingue ora pausa XR e mute manuale, recupera la coda Realtime e ignora i completamenti tardivi di un altro turno. Pannello e scorciatoie sono entrambi fissi nello spazio. Uno stato con testo/colore/barra si trova presso NEO e nella pagina; **Riprendi ascolto** restituisce il turno nella connessione corrente. [Dettagli e prova fisica](VOICE_UX.md).
 
-- Node: lint, typecheck, build, **141 test** e scanner segreti del bundle superati.
-- Sites: typecheck, **132 test** e build Worker superati; backend, chiave e accesso pubblico conservati.
+- Node: lint, typecheck, build, **142 test** e scanner segreti del bundle superati.
+- Sites: typecheck, **133 test** e build Worker superati; backend, chiave e accesso pubblico conservati.
 - Browser locale: **24/24 superati**, un worker, nessun retry, tre profili. Include tre scambi consecutivi, mute/recupero/stop anche con i frame grafici fermati; audio e WebRTC sono esplicitamente simulati. La simulazione del MediaDevices è fissata sull’oggetto navigator per avere lo stesso comportamento anche su WebKit headless; non richiede permessi o hardware.
 - Nuovi test unitari riproducono cancellazione già conclusa o senza conferma, creazione rifiutata senza perdere il turno, pause XR/device, ritardi di trascrizione e riapertura protetta senza fine-buffer ricevuta. Test 3D verificano anche i controlli chiusi e l’indicatore indipendente dalla testa.
 

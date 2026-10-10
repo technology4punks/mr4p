@@ -470,6 +470,18 @@ describe("consecutive turns and recovery", () => {
     deliver({ type: "input_audio_buffer.speech_stopped", item_id: id, audio_end_ms: 1900 });
     deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: id, transcript });
   };
+  it("does not display listening or request a microphone when XR focus returns with voice off", async () => {
+    client.setInputSuspended(true);
+    client.setInputSuspended(false);
+    expect(client.snapshot.activity).toBe("off");
+    expect(client.snapshot.state).toBe("idle");
+    expect(getUserMedia).not.toHaveBeenCalled();
+    getUserMedia.mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    await client.start();
+    client.setInputSuspended(false);
+    expect(client.snapshot.activity).toBe("error");
+    expect(client.snapshot.state).toBe("error");
+  });
   it("shows a device-paused microphone separately from user mute and resumes on the track event", async () => {
     const { stream, track } = mic();
     getUserMedia.mockResolvedValue(stream);
