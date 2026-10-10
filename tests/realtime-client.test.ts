@@ -50,6 +50,9 @@ const mic = () => {
     enabled: true,
     readyState: "live",
     onended: null,
+    muted: false,
+    onmute: null as ((event: Event) => void) | null,
+    onunmute: null as ((event: Event) => void) | null,
   };
   return {
     track,
@@ -455,5 +458,160 @@ describe("recognizable speech interruptions", () => {
     });
     expect(client.snapshot.status).toBe("connected");
     expect(client.snapshot.message).toContain("ripetere");
+  });
+});
+
+describe("consecutive turns and recovery", () => {
+  const deliver = (event: object) =>
+    (FakePeer.latest.channel.onmessage as (e: { data: string }) => void)({ data: JSON.stringify(event) });
+  const sent = () => FakePeer.latest.channel.send.mock.calls.map(([s]) => JSON.parse(s));
+  const speech = (id: string, transcript: string) => {
+    deliver({ type: "input_audio_buffer.speech_started", item_id: id, audio_start_ms: 1000 });
+    deliver({ type: "input_audio_buffer.speech_stopped", item_id: id, audio_end_ms: 1900 });
+    deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: id, transcript });
+  };
+  it("shows a device-paused microphone separately from user mute and resumes on the track event", async () => {
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    track.muted = true;
+    track.onmute?.(new Event("mute"));
+    expect(client.snapshot.microphone).toBe("paused");
+    expect(client.snapshot.activity).toBe("paused");
+    expect(client.snapshot.muted).toBe(false);
+    track.muted = false;
+    track.onunmute?.(new Event("unmute"));
+    expect(client.snapshot.activity).toBe("ready");
+    expect(client.snapshot.microphone).toBe("live");
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
+  it("resumes input after temporary XR focus loss without overriding a manual mute", async () => {
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    client.setInputSuspended(true);
+    expect(track.enabled).toBe(false);
+    expect(client.snapshot.muted).toBe(false);
+    expect(client.snapshot.activity).toBe("paused");
+    client.setInputSuspended(false);
+    expect(track.enabled).toBe(true);
+    expect(client.snapshot.activity).toBe("ready");
+    client.mute(true);
+    client.setInputSuspended(true);
+    client.setInputSuspended(false);
+    expect(track.enabled).toBe(false);
+    expect(client.snapshot.activity).toBe("muted");
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
+  it("does not leave the response queue locked when cancellation reports no active response", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    deliver({ type: "response.created", response: { id: "first" } });
+    deliver({ type: "output_audio_buffer.started", response_id: "first" });
+    speech("question", "Aspetta, vorrei chiederti una cosa");
+    deliver({ type: "error", error: { code: "response_cancel_not_active" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(client.snapshot.status).toBe("connected");
+  });
+  it("recovers a missing cancellation acknowledgement and ignores the late old completion", async () => {
+    vi.useFakeTimers();
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    deliver({ type: "response.created", response: { id: "old" } });
+    deliver({ type: "output_audio_buffer.started", response_id: "old" });
+    speech("question", "Aspetta, ho una domanda");
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    deliver({ type: "response.created", response: { id: "new" } });
+    deliver({ type: "output_audio_buffer.started", response_id: "new" });
+    deliver({ type: "response.done", response: { id: "old", status: "cancelled" } });
+    expect(client.snapshot.activity).toBe("speaking");
+  });
+  it("preserves a validated user turn if its create races an existing server response", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    speech("question", "Parliamo di sostenibilità");
+    deliver({ type: "error", error: { code: "conversation_already_has_active_response" } });
+    deliver({ type: "response.done", response: { id: "server-active", status: "completed" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(2);
+    expect(client.snapshot.status).toBe("connected");
+  });
+  it("completes three turns and displays when it is ready to listen again", async () => {
+    vi.useFakeTimers();
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    for (let i = 0; i < 3; i++) {
+      expect(client.snapshot.activity).toBe("ready");
+      speech(`user${i}`, i ? "Parlami degli alberi" : "Mi chiamo Luca");
+      deliver({ type: "response.created", response: { id: `reply${i}` } });
+      deliver({ type: "output_audio_buffer.started", response_id: `reply${i}` });
+      expect(client.snapshot.activity).toBe("speaking");
+      deliver({ type: "response.done", response: { id: `reply${i}`, status: "completed" } });
+      expect(client.snapshot.activity).toBe("speaking");
+      deliver({ type: "output_audio_buffer.stopped", response_id: `reply${i}` });
+      await vi.advanceTimersByTimeAsync(350);
+      expect(track.enabled).toBe(true);
+      expect(client.snapshot.microphone).toBe("live");
+    }
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(3);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+  it("ignores late audio-clear and response-done events from a previous turn", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    speech("one", "Ciao");
+    deliver({ type: "response.created", response: { id: "old" } });
+    deliver({ type: "output_audio_buffer.started", response_id: "old" });
+    speech("two", "Aspetta");
+    deliver({ type: "response.done", response: { id: "old", status: "cancelled" } });
+    deliver({ type: "response.created", response: { id: "new" } });
+    deliver({ type: "output_audio_buffer.started", response_id: "new" });
+    deliver({ type: "output_audio_buffer.cleared", response_id: "old" });
+    deliver({ type: "response.done", response: { id: "old", status: "cancelled" } });
+    expect(client.snapshot.activity).toBe("speaking");
+    speech("three", "Un'altra domanda");
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(2);
+    deliver({ type: "response.done", response: { id: "new", status: "cancelled" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(3);
+  });
+  it("reopens protected input after completed playback falls silent even if stopped is missing", async () => {
+    vi.useFakeTimers();
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    client.toggleInterruptions();
+    deliver({ type: "response.created", response: { id: "reply" } });
+    deliver({ type: "output_audio_buffer.started", response_id: "reply" });
+    deliver({ type: "response.done", response: { id: "reply", status: "completed" } });
+    const read = vi.spyOn(client, "levels");
+    read.mockReturnValue({ input: 0, output: 0.1, audible: true });
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(track.enabled).toBe(false);
+    read.mockReturnValue({ input: 0, output: 0, audible: true });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(track.enabled).toBe(true);
+    expect(client.snapshot.activity).toBe("ready");
+    read.mockRestore();
+    speech("next", "Continuiamo");
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+  });
+  it("returns to ready after rejected noise and a lost transcription without dropping the peer", async () => {
+    vi.useFakeTimers();
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    speech("noise", "[rumore]");
+    expect(client.snapshot.activity).toBe("ready");
+    deliver({ type: "input_audio_buffer.speech_started", item_id: "lost", audio_start_ms: 1000 });
+    expect(client.snapshot.activity).toBe("listening");
+    deliver({ type: "input_audio_buffer.speech_stopped", item_id: "lost", audio_end_ms: 1800 });
+    expect(client.snapshot.activity).toBe("processing");
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(client.snapshot.activity).toBe("ready");
+    expect(client.snapshot.message).toContain("ripetere");
+    expect(client.snapshot.status).toBe("connected");
+    deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: "lost", transcript: "Risposta tardiva" });
+    expect(sent().some((e) => e.type === "response.create")).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { VoiceActivity } from "../audio/voicePresentation";
 export type XRAction =
   | "confirm"
   | "reposition"
@@ -18,6 +19,8 @@ export type XRAction =
   | "placement-menu"
   | "talk"
   | "voice-mode"
+  | "suspend-voice"
+  | "resume-voice"
   | "ambience"
   | "theme";
 type Context = "placement" | "reality" | "observatory";
@@ -43,7 +46,6 @@ export class UI3D {
   private keyboardFocus = false;
   private caster = new THREE.Raycaster();
   private forward = new THREE.Vector3(0, 0, -1);
-  private right = new THREE.Vector3();
   constructor() {
     this.canvas.width = 1024;
     this.canvas.height = 160;
@@ -70,12 +72,15 @@ export class UI3D {
     backing.position.set(0, -0.11, -0.008);
     backing.renderOrder = 100;
     this.panel.add(backing, status);
+    // Closed controls use a fixed offset in the menu's world pose so they do
+    // not cover NEO's face after the large panel closes.
+    this.shortcuts.position.set(0.63, -0.4, 0);
     this.root.add(this.panel, this.shortcuts);
     this.makeButton(this.shortcuts, "menu", "Menu · A / X", 0, 0.02, 0.28);
     this.makeButton(
       this.shortcuts,
       "talk",
-      "Parla / interrompi",
+      "Avvia voce",
       0,
       -0.09,
       0.28,
@@ -149,7 +154,7 @@ export class UI3D {
           ]
         : [
             ["voice", "Avvia / stop voce"],
-            ["talk", "Parla / interrompi"],
+            ["talk", "Riprendi ascolto"],
             ["mute", "Mic on / off"],
             ["voice-mode", "Interruzioni on / off"],
             [
@@ -275,7 +280,7 @@ export class UI3D {
     );
     this.texture.needsUpdate = true;
   }
-  setVoiceControls(connected: boolean, muted: boolean, interruptions: boolean) {
+  setVoiceControls(connected: boolean, muted: boolean, interruptions: boolean, activity: VoiceActivity = "off") {
     for (const button of this.buttons) {
       const action = button.mesh.userData.action;
       const label =
@@ -283,6 +288,8 @@ export class UI3D {
           ? connected
             ? "Termina voce"
             : "Avvia voce"
+          : action === "talk"
+            ? !connected ? "Avvia voce" : activity === "speaking" || activity === "processing" ? "Interrompi NEO" : "Riprendi ascolto"
           : action === "mute"
             ? muted
               ? "Riattiva microfono"
@@ -297,22 +304,23 @@ export class UI3D {
     }
   }
   followViewer(position: THREE.Vector3, orientation: THREE.Quaternion) {
-    if (this.open && !this.align) return;
+    // Both the panel and closed shortcuts stay in world space. Only an
+    // explicit menu opening or a new XR reference can request repositioning.
+    if (!this.align) return;
     this.forward.set(0, 0, -1).applyQuaternion(orientation);
     this.forward.y = 0;
     if (this.forward.lengthSq() < 0.001) this.forward.set(0, 0, -1);
     this.forward.normalize();
-    this.right
-      .crossVectors(this.forward, THREE.Object3D.DEFAULT_UP)
-      .normalize();
     this.root.position
       .copy(position)
-      .addScaledVector(this.forward, this.open ? 1.3 : 1.15);
-    if (!this.open) this.root.position.addScaledVector(this.right, 0.63);
-    this.root.position.y -= this.open ? 0.08 : 0.48;
+      .addScaledVector(this.forward, 1.3);
+    this.root.position.y -= 0.08;
     this.root.rotation.set(0, Math.atan2(-this.forward.x, -this.forward.z), 0);
     this.align = false;
     this.root.updateMatrixWorld(true);
+  }
+  resetPlacement() {
+    this.align = true;
   }
   intersection(ray: THREE.Ray) {
     if (!this.root.visible) return;

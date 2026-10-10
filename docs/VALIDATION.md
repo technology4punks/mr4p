@@ -95,3 +95,17 @@ Trasformazioni misurate **8,07–8,73 s**. Conteggi al campione sostenibile: 65�
 Da riprovare sul Quest Pro: tutte le sei scene a 72 Hz, visibilità dal punto sicuro, passthrough occultato in AR, ritorno MR/sessione VR separata, menu controller/mani, sguardo e seguito room scale con ostacoli virtuali, voce durante trasformazioni, rumori/eco e parole d’interruzione. Il filtro ASR attende il riconoscimento dopo una breve pausa e può sbagliare; non è un classificatore acustico garantito. Il nome è memoria della pagina e non persiste dopo reload. I modelli Kenney sono leggeri e stilizzati; la città non è fotorealistica.
 
 I run GitHub hanno evidenziato un difetto di feedback Android con il canvas fuori viewport: il DOM riceveva lo stato narrativo solo dal frame loop. La subscription ora pubblica immediatamente lo snapshot al clic, anche se il rendering è rallentato. Il test arma un MutationObserver prima dell’azione, osserva il progresso e riporta il canvas nel viewport per guardare la città cambiare. Restano la misura minima di 6,5 s, il controllo finale e nessun retry/aumento dei timeout. I campioni software sopra provengono dal run locale iniziale.
+
+
+## Correzione microfono e UX — 10 ottobre 2026
+
+Il feedback successivo dell’utente descrive un blocco dopo il primo scambio, controlli chiusi ancora legati alla testa e stato di ascolto ambiguo. Il codice distingue ora pausa XR e mute manuale, recupera la coda Realtime e ignora i completamenti tardivi di un altro turno. Pannello e scorciatoie sono entrambi fissi nello spazio. Uno stato con testo/colore/barra si trova presso NEO e nella pagina; **Riprendi ascolto** restituisce il turno nella connessione corrente. [Dettagli e prova fisica](VOICE_UX.md).
+
+- Node: lint, typecheck, build, **141 test** e scanner segreti del bundle superati.
+- Sites: typecheck, **132 test** e build Worker superati; backend, chiave e accesso pubblico conservati.
+- Browser locale: **24/24 superati**, un worker, nessun retry, tre profili. Include tre scambi consecutivi, mute/recupero/stop anche con i frame grafici fermati; audio e WebRTC sono esplicitamente simulati. La simulazione del MediaDevices è fissata sull’oggetto navigator per avere lo stesso comportamento anche su WebKit headless; non richiede permessi o hardware.
+- Nuovi test unitari riproducono cancellazione già conclusa o senza conferma, creazione rifiutata senza perdere il turno, pause XR/device, ritardi di trascrizione e riapertura protetta senza fine-buffer ricevuta. Test 3D verificano anche i controlli chiusi e l’indicatore indipendente dalla testa.
+
+Nessun nuovo asset esterno. L’indicatore aggiunge tre piani e una texture; il testo si aggiorna solo al cambio di stato. Campioni software locali, voce spenta: 66–75 draw call e circa 18–22k triangoli, trasformazioni misurate di **8,01–9,88 s**. Campioni FPS **7–36**, non medie stabili. I nove JSON sono in [validation/voice-ux](validation/voice-ux). Questi sono snapshot headless, non misure Quest, né una verifica di 72 FPS. Vedere gli artefatti Playwright e la checklist aggiornata.
+
+Restano da verificare fisicamente: almeno cinque scambi vocali sul visore, perdita/ritorno del focus, interruzione di una risposta, rumori/eco, pannello fermo aperto e chiuso, controller/pinch, passthrough e continuità audio durante le transizioni. Nessuna nuova verifica hardware è dichiarata completata.

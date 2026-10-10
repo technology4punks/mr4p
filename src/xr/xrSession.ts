@@ -170,6 +170,7 @@ export class XRExperience {
       this.checkRestoredPlacement = false;
       this.raySelected = false;
       this.started = performance.now();
+      this.ui.resetPlacement();
       this.ui.root.visible = true;
       this.ui.setContext("placement");
       this.ui.setOpen(!this.diagnostic.calibrated);
@@ -217,6 +218,7 @@ export class XRExperience {
     }
   }
   private onReferenceReset = () => {
+    this.ui.resetPlacement();
     this.autoPlacement = false;
     if (this.narrativeMode) {
       if (!this.anchors?.anchor) {
@@ -241,7 +243,9 @@ export class XRExperience {
     }
   };
   private visibilityChange = () => {
-    if (this.session?.visibilityState !== "visible") this.onAction("mute");
+    // XR focus loss is temporary, not a user mute. Restore only that pause
+    // when the browser returns focus; an explicit user mute stays respected.
+    this.onAction(this.session?.visibilityState === "visible" ? "resume-voice" : "suspend-voice");
   };
   private input(source: XRInputSource): InputState {
     const existing = this.inputs.get(source);

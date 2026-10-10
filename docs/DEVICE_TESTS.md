@@ -122,3 +122,15 @@ Esiti di questa revisione: **NON ESEGUITI sul Quest Pro**. I test automatici usa
 - Verificare il nome attraverso entrata, trasformazione, ritorno e riavvio voce; chiedere di dimenticarlo. Ricaricare: non deve restare salvato.
 - Durante una risposta, produrre un lieve rumore: NEO deve continuare. Dire “Aspetta” o una breve domanda: deve interrompere dopo il riconoscimento e rispondere alla nuova frase. Ripetere a volume basso, con ventilazione, eco e altre voci; annotare latenza e falsi positivi.
 - Verificare mute, modalità protetta, Parla / interrompi e ritorno MR mentre si parla. Misurare FPS/frame time in tutti i sei scenari; nessun risultato headless sostituisce questa prova.
+
+
+## Nuova prova ascolto e menu fisso
+
+La correzione descritta in [VOICE_UX.md](VOICE_UX.md) richiede una nuova prova sul Quest Pro. Stato di ogni voce: **non eseguito su hardware**.
+
+- Almeno cinque scambi consecutivi: alla fine di ogni risposta compare Puoi parlare e il microfono resta disponibile.
+- Aprire un pannello del browser/sistema e tornare: l’ascolto riprende dalla sola pausa XR. Ripetere con mute manuale: resta spento.
+- Girare la testa e camminare poco entro i limiti reali: menu aperto e comandi chiusi non seguono la testa. A/X o presa richiama il pannello, grilletto/pinch seleziona.
+- Stato accanto a NEO coerente durante ascolto, risposta, mute, pausa e permesso revocato; la barra non promette comprensione delle parole.
+- Interrompi NEO e Riprendi ascolto durante una risposta o un turno fermo: nessuna riconnessione richiesta, nessuna risposta duplicata, rispetto del mute quando non si chiede esplicitamente di riattivare.
+- Provare le modalità intelligenti/protette con rumore, una parola reale, pausa lunga, trasformazione di scenario e ritorno MR/VR. Rilevare FPS e latenza audio sul dispositivo.

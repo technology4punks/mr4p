@@ -9,6 +9,7 @@ vi.mock("../src/ui/ui3d", () => ({
     intersection = vi.fn();
     setContext = vi.fn();
     setOpen = vi.fn();
+    resetPlacement = vi.fn();
     toggle = vi.fn();
     highlight = vi.fn();
     pointerFocus = vi.fn();
@@ -99,6 +100,16 @@ afterEach(() => {
   xr.dispose();
 });
 describe("MR orchestration (mocked XR runtime)", () => {
+  it("pauses and resumes voice for XR focus changes instead of toggling a permanent mute", async () => {
+    await xr.enter();
+    session.visibilityState = "visible-blurred";
+    session.dispatchEvent(new Event("visibilitychange"));
+    expect(onAction).toHaveBeenLastCalledWith("suspend-voice");
+    session.visibilityState = "visible";
+    session.dispatchEvent(new Event("visibilitychange"));
+    expect(onAction).toHaveBeenLastCalledWith("resume-voice");
+    expect(onAction).not.toHaveBeenCalledWith("mute");
+  });
   it("automatically places at 1.3m after floor discovery and keeps that world position as the viewer moves", async () => {
     await xr.enter();
     xr.update(frame());

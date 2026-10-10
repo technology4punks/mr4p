@@ -15,6 +15,8 @@ import {
 import { FutureObservatory } from "./observatory/FutureObservatory";
 import { AdaptiveQuality, smoothTransition } from "./observatory/performance";
 import { Ambience } from "./observatory/Ambience";
+import { VoiceIndicator } from "./ui/VoiceIndicator";
+import { voicePresentation } from "./audio/voicePresentation";
 
 export type ExperienceSnapshot = {
   asset: "loading" | "loaded" | "fallback";
@@ -46,6 +48,7 @@ export class Experience {
   private controls: OrbitControls;
   readonly avatar = new AvatarController();
   readonly voice: RealtimeClient;
+  private voiceIndicator = new VoiceIndicator();
   readonly xr: XRExperience;
   private floor = new THREE.Group();
   private previewAmbient = new THREE.HemisphereLight(0xe3fff7, 0x304451, 2.8);
@@ -132,10 +135,15 @@ export class Experience {
     const grid = new THREE.GridHelper(4.4, 22, 0x407166, 0x2b4848);
     grid.position.y = -0.008;
     this.floor.add(surface, grid);
-    this.scene.add(this.floor, this.avatar.root, this.observatory.root);
+    this.scene.add(this.floor, this.avatar.root, this.observatory.root, this.voiceIndicator.root);
     this.voice = new RealtimeClient(
       (snapshot) => {
         this.avatar.setState(snapshot.state);
+        // Voice changes must reach the page even when rendering is throttled.
+        if (this.xr) {
+          const levels = this.voice.levels();
+          this.changed(this.snapshot(levels.input, levels.output));
+        }
       },
       (role, text) => {
         if (this.debug) transcript(role, text);
@@ -155,6 +163,7 @@ export class Experience {
       (action) => this.action(action),
       () => {
         // Session changes do not end the WebRTC connection.
+        this.voice.setInputSuspended(false);
         this.savedRealityPose.position.set(0, 0, 0);
         this.savedRealityPose.orientation.identity();
         if (this.story.snapshot.environment === "observatory") {
@@ -317,20 +326,14 @@ export class Experience {
       ["connected", "connecting"].includes(voice.status),
       voice.muted,
       voice.interruptions,
+      voice.activity,
     );
-    const stateLabels: Record<AvatarState, string> = {
-      idle: "Pronto",
-      greeting: "Ciao!",
-      listening: "Ascolto",
-      thinking: "Attendi",
-      speaking: "Rispondo",
-      positive: "Sì",
-      negative: "No",
-      error: "Errore",
-    };
+    const voiceInfo = voicePresentation(voice);
+    const placing = !this.xr.diagnostic.placed && this.story.snapshot.environment !== "observatory";
     this.xr.ui.setStatus(
-      `${this.xr.diagnostic.placed || this.story.snapshot.environment === "observatory" ? stateLabels[this.avatar.state] : "Posiziona"} · ${voice.muted ? "Mic spento" : voice.inputBlocked ? "NEO parla · mic in pausa" : voice.status === "connected" ? "Ti ascolto" : "Voce spenta"}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : this.message}`,
+      `${placing ? "Posizionamento · " : ""}${voiceInfo.label}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : placing ? this.message : voiceInfo.detail}`,
     );
+    this.voiceIndicator.update(voice, levels.input, this.avatar.root, this.viewerPosition);
     this.renderer.render(this.scene, this.camera);
     this.frames++;
     if (time - this.fpsStart > 1000) {
@@ -383,7 +386,17 @@ export class Experience {
   action(action: XRAction) {
     switch (action) {
       case "talk":
-        this.voice.interrupt();
+        if (this.voice.snapshot.status === "connected") {
+          this.voice.mute(false);
+          void this.voice.unlockAudio();
+          this.voice.interrupt();
+        } else if (this.voice.snapshot.status !== "connecting") void this.voice.start();
+        break;
+      case "suspend-voice":
+        this.voice.setInputSuspended(true);
+        break;
+      case "resume-voice":
+        this.voice.setInputSuspended(false);
         break;
       case "voice-mode":
         this.voice.toggleInterruptions();
@@ -735,6 +748,7 @@ export class Experience {
     this.renderer.setAnimationLoop(null);
     this.resize.disconnect();
     this.voice.dispose();
+    this.voiceIndicator.dispose();
     this.xr.dispose();
     this.controls.dispose();
     this.avatar.dispose();

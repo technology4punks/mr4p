@@ -230,6 +230,25 @@ h1 span {
   width: 100%;
   margin-bottom: 8px;
 }
+.voice-status {
+  --voice-color: #a8bec5;
+  margin: 16px 0;
+  padding: 15px;
+  border: 1px solid #38515a;
+  border-left: 4px solid var(--voice-color);
+  border-radius: 10px;
+  background: #142730;
+}
+.voice-ready, .voice-listening { --voice-color: #7ae1c7; }
+.voice-speaking { --voice-color: #91caff; }
+.voice-processing, .voice-connecting, .voice-paused, .voice-audio-blocked { --voice-color: #ffd38a; }
+.voice-muted, .voice-error { --voice-color: #ffab9e; }
+.voice-status strong { display: flex; align-items: center; gap: 9px; color: var(--voice-color); font-size: 16px; }
+.voice-status p { margin: 8px 0 12px; color: #c2d5db; font-size: 12px; line-height: 1.5; }
+.voice-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--voice-color); flex: none; }
+.voice-meter { height: 5px; overflow: hidden; background: #304451; border-radius: 3px; }
+.voice-meter span { display: block; height: 100%; background: var(--voice-color); transition: width .15s linear; }
+@media (prefers-reduced-motion: reduce) { .voice-meter span { transition: none; } }
 .privacy {
   font-size: 10px;
   color: #8a9fa9;

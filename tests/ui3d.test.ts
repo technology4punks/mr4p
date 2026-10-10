@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { UI3D } from "../src/ui/ui3d";
 import { XRInputLatch } from "../src/xr/input";
+import { VoiceIndicator } from "../src/ui/VoiceIndicator";
+import type { VoiceSnapshot } from "../src/audio/realtimeClient";
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
     fillRect: vi.fn(),
@@ -38,11 +40,45 @@ describe("immersive menu interaction", () => {
     ui.setOpen(false);
     expect(ui.hit(confirm)).toBeUndefined();
     ui.followViewer(new THREE.Vector3(1, 1.6, 0), new THREE.Quaternion());
-    expect(ui.root.position.equals(initial)).toBe(false);
+    expect(ui.root.position.equals(initial)).toBe(true);
     expect(ui.hit(rayTo(ui, "menu"))).toBe("menu");
     ui.root.visible = false;
     expect(ui.hit(rayTo(ui, "menu"))).toBeUndefined();
     ui.dispose();
+  });
+  it("keeps closed controls fixed too, and recenters only on explicit opening or a new session", () => {
+    const ui = new UI3D();
+    ui.root.visible = true;
+    ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
+    const initial = ui.root.position.clone(), orientation = ui.root.quaternion.clone();
+    ui.followViewer(new THREE.Vector3(2, 1.7, 1), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+    expect(ui.root.position.equals(initial)).toBe(true);
+    expect(ui.root.quaternion.equals(orientation)).toBe(true);
+    ui.setOpen(true);
+    ui.followViewer(new THREE.Vector3(2, 1.7, 1), new THREE.Quaternion());
+    expect(ui.root.position.equals(initial)).toBe(false);
+    ui.setOpen(false);
+    ui.resetPlacement();
+    ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
+    expect(ui.root.position.equals(initial)).toBe(true);
+    ui.dispose();
+  });
+  it("shows the listening state beside the robot without moving it with the head", () => {
+    const indicator = new VoiceIndicator();
+    const avatar = new THREE.Group();
+    avatar.position.set(0.7, 0, -1.3);
+    const voice = { activity: "ready", microphone: "live", interruptions: true } as VoiceSnapshot;
+    indicator.update(voice, 0.1, avatar, new THREE.Vector3(0, 1.6, 0));
+    const initial = indicator.root.position.clone();
+    indicator.update(voice, 0.1, avatar, new THREE.Vector3(2, 1.7, 1));
+    expect(indicator.root.position.equals(initial)).toBe(true);
+    avatar.position.x += 0.5;
+    indicator.update(voice, 0, avatar, new THREE.Vector3(2, 1.7, 1));
+    expect(indicator.root.position.x).toBeCloseTo(initial.x + 0.5);
+    avatar.visible = false;
+    indicator.update(voice, 0, avatar, new THREE.Vector3());
+    expect(indicator.root.visible).toBe(false);
+    indicator.dispose();
   });
   it("uses context actions and supports stick navigation without locomotion", () => {
     const ui = new UI3D();

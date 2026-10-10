@@ -3,6 +3,7 @@ import { Experience, type ExperienceSnapshot } from "./Experience";
 import { detectCapabilities, type Capabilities } from "./xr/capabilities";
 import { scenario, scenarios, type Theme } from "./story/scenarios";
 import type { AvatarState } from "./avatar/animations";
+import { voicePresentation } from "./audio/voicePresentation";
 const labels: Record<AvatarState, string> = {
   idle: "Pronto",
   greeting: "Ciao!",
@@ -55,6 +56,10 @@ export default function App() {
     snapshot?.voice.status === "connected" ||
     snapshot?.voice.status === "connecting";
   const state = snapshot?.state ?? "idle";
+  const voiceInfo = voicePresentation(snapshot?.voice);
+  const micLabel = snapshot?.voice.microphone === "live" ? "Mic acceso"
+    : snapshot?.voice.microphone === "ended" ? "Mic interrotto"
+      : snapshot?.voice.microphone === "paused" && !snapshot.voice.muted ? "Mic in pausa" : "Mic spento";
   const story = snapshot?.story;
   const inObservatory = story?.environment === "observatory";
   const storyLabels: Record<string, string> = {
@@ -272,14 +277,18 @@ export default function App() {
           <section className="voice-panel" aria-label="Conversazione">
             <div className="panel-heading">
               <h2>Conversazione</h2>
-              <span className={`status-pill ${voiceOn ? "live" : ""}`}>
-                {snapshot?.voice.status === "connecting"
-                  ? "Connessione"
-                  : voiceOn
-                    ? "Attiva"
-                    : "Spenta"}
+              <span className={`status-pill ${snapshot?.voice.microphone === "live" ? "live" : ""}`}>
+                {micLabel}
               </span>
             </div>
+            <div className={`voice-status voice-${voiceInfo.activity}`} role="status" aria-live="polite">
+              <strong><span className="voice-dot" aria-hidden="true" />{voiceInfo.label}</strong>
+              <p>{voiceInfo.detail}</p>
+              <div className="voice-meter" role="meter" aria-live="off" aria-label="Attività microfono" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1, (snapshot?.input ?? 0) * 8) * 100)}>
+                <span style={{ width: `${Math.min(100, (snapshot?.input ?? 0) * 800)}%` }} />
+              </div>
+            </div>
+            {(!voiceOn || snapshot?.voice.playbackBlocked || /ripetere|ancora rispondendo/.test(snapshot?.voice.message ?? "")) && (
             <p
               className={
                 snapshot?.voice.status === "error" ? "error" : "voice-message"
@@ -288,6 +297,7 @@ export default function App() {
             >
               {snapshot?.voice.message ?? "Avvia quando sei pronto."}
             </p>
+            )}
             <button
               className="primary voice-start"
               disabled={
@@ -302,14 +312,16 @@ export default function App() {
             {voiceOn && (
               <button
                 className="secondary"
+                disabled={snapshot?.voice.status !== "connected"}
                 onClick={() => engine.current?.action("talk")}
               >
-                Parla / interrompi NEO
+                {voiceInfo.activity === "speaking" || voiceInfo.activity === "processing" ? "Interrompi NEO" : "Riprendi ascolto"}
               </button>
             )}
             {voiceOn && (
               <button
                 className="secondary"
+                disabled={snapshot?.voice.status !== "connected"}
                 onClick={() => engine.current?.action("mute")}
               >
                 {snapshot?.voice.muted
@@ -337,7 +349,7 @@ export default function App() {
             <p className="hint">
               {snapshot?.voice.interruptions
                 ? "Pronuncia una parola o una breve frase per interrompere NEO. Il filtro attende parlato riconoscibile e ignora i soli rumori."
-                : "NEO finisce la risposta senza interruzioni da rumori. Per prendere la parola, premi Parla / interrompi."}
+                : "Il microfono si riapre quando NEO finisce. Per parlare prima, premi Interrompi NEO."}
             </p>
             <p className="privacy">
               NEO ascolta la tua voce, non vede la stanza. L’audio viene inviato
@@ -479,6 +491,8 @@ export default function App() {
               Tracking: snapshot?.xr.tracking,
               "Hit test": snapshot?.xr.hitTest,
               Peer: snapshot?.voice.peer,
+              Ascolto: `${voiceInfo.label} · ${snapshot?.voice.microphone ?? "off"}`,
+              "Pausa XR": snapshot?.voice.inputSuspended ? "sì" : "no",
               "Livello microfono": snapshot?.input.toFixed(3),
               "Livello uscita": snapshot?.output.toFixed(3),
               FPS: snapshot?.fps,
