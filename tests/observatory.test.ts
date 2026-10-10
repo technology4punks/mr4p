@@ -180,3 +180,79 @@ describe("environmental contrast and stable geometry", () => {
     scene.dispose();
   });
 });
+
+describe("six authored futures", () => {
+  it.each(["economic", "social"] as const)(
+    "switches %s without leaving environmental effects or allocating transition geometry",
+    (theme) => {
+      const scene = new FutureObservatory();
+      scene.setTheme(theme);
+      scene.setOpacity(1);
+      scene.setFuture(0);
+      const district = theme === "economic" ? scene.economic : scene.social;
+      expect(scene.district.root.visible).toBe(false);
+      expect(district.root.visible).toBe(true);
+      expect(district.critical.visible).toBe(true);
+      expect(district.sustainable.visible).toBe(false);
+      const geometry = new Set<THREE.BufferGeometry>();
+      scene.root.traverse((o) => {
+        if (o instanceof THREE.Mesh) geometry.add(o.geometry);
+      });
+      scene.setFuture(0.5);
+      expect(district.critical.visible && district.sustainable.visible).toBe(
+        true,
+      );
+      const material = (district.critical.children[0] as THREE.Mesh)
+        .material as THREE.Material;
+      expect(material.opacity).toBeCloseTo(0.5);
+      scene.setFuture(1);
+      expect(district.critical.visible).toBe(false);
+      const after = new Set<THREE.BufferGeometry>();
+      scene.root.traverse((o) => {
+        if (o instanceof THREE.Mesh) after.add(o.geometry);
+      });
+      expect(after).toEqual(geometry);
+      expect(
+        scene.narrativeRay(
+          new THREE.Ray(
+            new THREE.Vector3(0, 0.93, 0),
+            new THREE.Vector3(0, 0, -1),
+          ),
+        ),
+      ).toContain(theme === "economic" ? "ripareresti" : "escluso");
+      scene.setTheme("environmental");
+      scene.setFuture(0);
+      expect(district.root.visible).toBe(false);
+      expect(scene.district.root.visible).toBe(true);
+      scene.dispose();
+    },
+  );
+  it("verifies CC0 Kenney payload and all external texture references under 250 KB", () => {
+    const root = new URL("../public/scenarios/kenney/", import.meta.url);
+    const manifest = JSON.parse(
+      readFileSync(new URL("manifest.json", root), "utf8"),
+    );
+    expect(manifest.license).toBe("CC0-1.0");
+    expect(manifest.payloadBytes).toBeLessThan(250000);
+    expect(manifest.assets).toHaveLength(4);
+    for (const file of manifest.files) {
+      const bytes = readFileSync(new URL(file.path, root));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+        file.sha256,
+      );
+    }
+    for (const asset of manifest.assets) {
+      const bytes = readFileSync(new URL(asset.path, root));
+      expect(bytes.readUInt32LE(0)).toBe(0x46546c67);
+      const json = JSON.parse(
+        bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString(),
+      );
+      expect(json.asset.version).toBe("2.0");
+      for (const image of json.images ?? [])
+        if (image.uri)
+          expect(
+            readFileSync(new URL(image.uri, new URL(asset.path, root))).length,
+          ).toBeGreaterThan(100);
+    }
+  });
+});

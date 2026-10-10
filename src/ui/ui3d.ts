@@ -18,7 +18,8 @@ export type XRAction =
   | "placement-menu"
   | "talk"
   | "voice-mode"
-  | "ambience";
+  | "ambience"
+  | "theme";
 type Context = "placement" | "reality" | "observatory";
 type Button = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -59,7 +60,7 @@ export class UI3D {
     status.position.set(0, 0.29, 0.002);
     status.renderOrder = 101;
     const backing = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.12, 0.92),
+      new THREE.PlaneGeometry(1.12, 0.98),
       new THREE.MeshBasicMaterial({
         color: 0x10232b,
         depthTest: false,
@@ -164,8 +165,14 @@ export class UI3D {
                 : "Prepara VR",
             ],
             ["ambience", "Suoni on / off"],
-            ["placement-menu", "Posizionamento"],
+            [
+              this.context === "reality" ? "theme" : "placement-menu",
+              this.context === "reality" ? "Tema: Ambiente" : "Posizionamento",
+            ],
             ["unlock", "Riattiva audio"],
+            ...(this.context === "reality"
+              ? [["placement-menu", "Posizionamento"] as [XRAction, string]]
+              : []),
             ["exit", "Esci da XR"],
             ["menu", "Chiudi menu"],
           ];
@@ -181,6 +188,13 @@ export class UI3D {
     this.focus = -1;
     this.keyboardFocus = false;
     this.updateTargets();
+  }
+  setTheme(title: string) {
+    const button = this.buttons.find((b) => b.mesh.userData.action === "theme");
+    if (button && button.label !== `Tema: ${title}`) {
+      button.label = `Tema: ${title}`;
+      this.draw(button, false);
+    }
   }
   setContext(context: Context) {
     if (context === this.context) return;
@@ -274,7 +288,7 @@ export class UI3D {
               ? "Riattiva microfono"
               : "Spegni microfono"
             : action === "voice-mode"
-              ? "Interruzioni: " + (interruptions ? "ON" : "OFF")
+              ? "Interruzioni: " + (interruptions ? "Filtro voce" : "Protette")
               : button.label;
       if (label !== button.label) {
         button.label = label;

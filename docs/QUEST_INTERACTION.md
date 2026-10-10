@@ -14,13 +14,11 @@ La prova dell'utente sul visore ha confermato che la base era utilizzabile, ma h
 
 ## Voce in un ambiente rumoroso
 
-La modalità predefinita protegge la risposta di NEO. Echo cancellation e noise suppression restano attive; l'auto gain viene disabilitato dove il browser lo supporta. Il backend configura riduzione del rumore near_field, VAD con soglia 0,75, pre-roll 350 ms, pausa 900 ms e interruzione automatica disattivata.
+La modalità predefinita è ora **Interruzioni intelligenti**: il microfono resta aperto durante la voce di NEO, con echo cancellation, noise suppression e auto gain disabilitato dove supportato. VAD 0,60, pre-roll 350 ms, pausa 700 ms, riduzione near_field. Interruzioni e risposte automatiche del server sono disattivate: il client decide dopo una trascrizione riconoscibile. Un solo evento VAD o un rumore non cancella la voce.
 
-Il microfono smette temporaneamente di trasmettere durante la riproduzione della voce remota, fino a 350 ms dopo la fine dell'audio. La fine della generazione non riapre il microfono prima della fine effettiva della riproduzione. Mute manuale, stop e chiusura della pagina hanno precedenza sui timer.
+Una parola reale (anche “sì” o “no”), con durata minima se sovrapposta all’audio, può cancellare la risposta e svuotare l’audio remoto preservando l’input dell’utente. Si attende la fine della vecchia generazione prima di una sola nuova risposta. La trascrizione viene normalmente prodotta dopo una breve pausa: il filtro introduce quella latenza, ma non deve aspettare che NEO termini il monologo. È una euristica basata su ASR, non un classificatore infallibile di rumori o eco.
 
-Per parlare mentre NEO risponde, usare **Parla / interrompi**: cancella la risposta, svuota l'audio remoto e restituisce il turno mantenendo il peer WebRTC. Le **Interruzioni vocali** sono riattivabili nel menu o nella pagina per ambienti silenziosi. In quella modalità si può interrompere parlando, senza premere un pulsante.
-
-Il cambio di ambiente non chiude la conversazione. Le chiavi restano nel backend. La prova automatica verifica le impostazioni e il rilascio del token; sensibilità, latenza ed eco reali richiedono il microfono del visore.
+La modalità **protetta** blocca il microfono fino a 350 ms dopo la fine dell’audio; **Parla / interrompi** restituisce esplicitamente il turno. Mute, stop e background conservano la precedenza. Il cambio di scenario non chiude WebRTC. Sensibilità, rumori, eco e latenza reali richiedono nuova prova sul visore.
 
 ## I due futuri ambientali
 
@@ -38,7 +36,7 @@ La stessa strada cambia gradualmente in otto secondi.
 
 Veicoli e acqua riutilizzano le stesse geometrie e cambiano materiali e quantità. Infrastrutture critiche e sostenibili si dissolvono durante la trasformazione; alberi e pannelli crescono gradualmente. Il fumo è una piccola mesh istanziata, non una simulazione volumetrica o un effetto pesante.
 
-La nuova geometria è procedurale e non richiede download o editor. Gli asset Poly Haven CC0 e RobotExpressive sono conservati; non sono stati aggiunti asset esterni o licenze da verificare. Lo scenario resta un'ipotesi narrativa.
+La nuova geometria è procedurale e non richiede download o editor. Gli asset Poly Haven CC0 e RobotExpressive sono conservati; la successiva estensione economica/sociale integra quattro asset Kenney CC0 verificati. Lo scenario resta un'ipotesi narrativa.
 
 ## Carico e verifiche
 

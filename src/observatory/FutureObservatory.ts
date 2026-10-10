@@ -2,16 +2,10 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import type { Quality } from "./performance";
+import { CivicDistrict } from "./CivicDistrict";
+import { scenario, type Theme } from "../story/scenarios";
 import { EnvironmentalDistrict } from "./EnvironmentalDistrict";
 export type NarrativeObject = "energy" | "water" | "mobility";
-const messages: Record<NarrativeObject, string> = {
-  energy:
-    "Tetti solari e riuso degli edifici: quali scelte energetiche conterebbero per te?",
-  water:
-    "Acqua e verde urbano: come cambierebbe una città che trattiene e riutilizza l’acqua?",
-  mobility:
-    "Il tram collega i quartieri. Come ti muoveresti in una città con meno traffico?",
-};
 export type CityBuilding = {
   x: number;
   z: number;
@@ -49,15 +43,28 @@ export class FutureObservatory {
   readonly city = new THREE.Group();
   readonly room = new THREE.Group();
   readonly companionBounds = new THREE.Box3(
-    new THREE.Vector3(-2.5, 0, -2.5), new THREE.Vector3(2.5, 3, 2.5),
+    new THREE.Vector3(-2.5, 0, -2.5),
+    new THREE.Vector3(2.5, 3, 2.5),
   );
   // Footprints in room-local coordinates, including furniture before it loads.
   readonly companionObstacles = [
-    new THREE.Box3(new THREE.Vector3(-2.5, 0, -2.6), new THREE.Vector3(2.5, 1, -2.05)),
-    new THREE.Box3(new THREE.Vector3(-2.15, 0, 1.125), new THREE.Vector3(-0.55, 0.6, 1.675)),
-    new THREE.Box3(new THREE.Vector3(1.2, 0, 0.45), new THREE.Vector3(2.5, 1, 1.75)),
+    new THREE.Box3(
+      new THREE.Vector3(-2.5, 0, -2.6),
+      new THREE.Vector3(2.5, 1, -2.05),
+    ),
+    new THREE.Box3(
+      new THREE.Vector3(-2.15, 0, 1.125),
+      new THREE.Vector3(-0.55, 0.6, 1.675),
+    ),
+    new THREE.Box3(
+      new THREE.Vector3(1.2, 0, 0.45),
+      new THREE.Vector3(2.5, 1, 1.75),
+    ),
   ];
   readonly district = new EnvironmentalDistrict();
+  readonly economic = new CivicDistrict("economic");
+  readonly social = new CivicDistrict("social");
+  private theme: Theme = "environmental";
   readonly directional = new THREE.DirectionalLight(0xffd9ad, 2.2);
   readonly hemisphere = new THREE.HemisphereLight(0xabc8d8, 0x766956, 1.3);
   private materials = new Set<THREE.Material>();
@@ -88,6 +95,7 @@ export class FutureObservatory {
   private profile: Quality = "high";
   private cachedState = -1;
   private cachedOpacity = -1;
+  private immersionOpacity = 0;
   assetStatus = "procedurale";
   private hdri?: THREE.Texture;
   private environment?: THREE.WebGLRenderTarget;
@@ -95,8 +103,13 @@ export class FutureObservatory {
     this.root.name = "Future Observatory";
     this.root.visible = false;
     this.root.add(this.room, this.city, this.directional, this.hemisphere);
-    this.city.add(this.district.root);
-    this.district.materials.forEach((m) => {
+    this.city.add(this.district.root, this.economic.root, this.social.root);
+    this.economic.root.visible = this.social.root.visible = false;
+    [
+      ...this.district.materials,
+      ...this.economic.materials,
+      ...this.social.materials,
+    ].forEach((m) => {
       this.materials.add(m);
       if (m instanceof THREE.MeshStandardMaterial) this.solids.push(m);
     });
@@ -164,11 +177,15 @@ export class FutureObservatory {
     this.sky = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
-      uniforms: { amount: { value: 0 }, opacity: { value: 0 } },
+      uniforms: {
+        amount: { value: 0 },
+        opacity: { value: 0 },
+        badSky: { value: new THREE.Color(0x9e5e2b) },
+      },
       vertexShader:
         "varying vec3 vDirection; void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
       fragmentShader:
-        "varying vec3 vDirection; uniform float amount; uniform float opacity; void main(){float h=clamp(normalize(vDirection).y,0.0,1.0);vec3 bad=mix(vec3(0.62,0.37,0.17),vec3(0.22,0.23,0.23),pow(h,0.6));vec3 good=mix(vec3(0.87,0.93,0.91),vec3(0.14,0.43,0.73),pow(h,0.6));gl_FragColor=vec4(mix(bad,good,amount),opacity);}",
+        "varying vec3 vDirection; uniform float amount; uniform float opacity; uniform vec3 badSky; void main(){float h=clamp(normalize(vDirection).y,0.0,1.0);vec3 bad=mix(badSky,vec3(0.22,0.23,0.23),pow(h,0.6));vec3 good=mix(vec3(0.87,0.93,0.91),vec3(0.14,0.43,0.73),pow(h,0.6));gl_FragColor=vec4(mix(bad,good,amount),opacity);}",
       transparent: true,
     });
     const skyMesh = new THREE.Mesh(
@@ -454,8 +471,11 @@ export class FutureObservatory {
         this.room.add(this.table);
         // Include the actual loaded footprint if it exceeds the reserved envelope.
         this.root.updateWorldMatrix(true, true);
-        this.companionObstacles[2].union(new THREE.Box3().setFromObject(this.table)
-          .applyMatrix4(this.root.matrixWorld.clone().invert()));
+        this.companionObstacles[2].union(
+          new THREE.Box3()
+            .setFromObject(this.table)
+            .applyMatrix4(this.root.matrixWorld.clone().invert()),
+        );
         loaded++;
       } catch {
         /* No visual or narrative dependency on external furniture. */
@@ -481,8 +501,20 @@ export class FutureObservatory {
       } catch {
         /* The static sun/hemisphere lighting does not depend on HDRI. */
       }
+      await Promise.all([this.economic.preload(), this.social.preload()]);
+      if (this.disposed) return;
+      for (const district of [this.economic, this.social])
+        for (const m of district.materials) {
+          if (!this.materials.has(m)) {
+            this.materials.add(m);
+            this.solids.push(m);
+          }
+          if (m.map) this.textures.add(m.map);
+          m.envMap = this.environment?.texture ?? null;
+        }
       this.cachedOpacity = -1;
       this.setQuality(this.profile);
+      this.setOpacity(Math.max(0, this.immersionOpacity));
       this.assetStatus =
         loaded === 4
           ? "Poly Haven · PBR + glTF + HDRI"
@@ -491,6 +523,7 @@ export class FutureObservatory {
     return this.loadPromise;
   }
   setOpacity(value: number) {
+    this.immersionOpacity = value;
     if (Math.abs(value - this.cachedOpacity) < 0.002) return;
     this.cachedOpacity = value;
     this.root.visible = value > 0.002;
@@ -517,11 +550,26 @@ export class FutureObservatory {
     this.directional.intensity =
       (1.7 + Math.max(0, this.cachedState) * 1.1) * value;
   }
+  setTheme(theme: Theme) {
+    this.theme = theme;
+    this.district.root.visible = theme === "environmental";
+    this.economic.root.visible = theme === "economic";
+    this.social.root.visible = theme === "social";
+    this.sky.uniforms.badSky.value.set(scenario(theme).badSky);
+    const current = Math.max(0, this.cachedState);
+    this.cachedState = -1;
+    this.setFuture(current);
+  }
+  get districtAssetStatus() {
+    return `Kenney CC0 · ${this.economic.assetCount + this.social.assetCount}/4 GLB`;
+  }
   setFuture(amount: number) {
     if (Math.abs(amount - this.cachedState) < 0.001) return;
     this.cachedState = THREE.MathUtils.clamp(amount, 0, 1);
     amount = this.cachedState;
     this.district.setFuture(amount);
+    this.economic.setFuture(amount);
+    this.social.setFuture(amount);
     this.crowns.visible = amount > 0.01;
     this.leaves.visible = amount > 0.001;
     const opacity = this.cachedOpacity;
@@ -541,7 +589,8 @@ export class FutureObservatory {
     this.directional.intensity =
       (1.7 + amount * 1.1) * Math.max(0, this.cachedOpacity);
     this.sky.uniforms.amount.value = amount;
-    this.energyObjects.visible = amount > 0.01;
+    this.energyObjects.visible =
+      this.theme === "environmental" && amount > 0.01;
     for (let i = 0; i < this.leaves.count; i++) {
       this.dummy.matrix.copy(this.leavesMatrix[i]);
       this.dummy.matrix.scale(
@@ -578,7 +627,8 @@ export class FutureObservatory {
     this.tram.scale.setScalar(Math.max(0.001, amount));
   }
   update(time: number) {
-    if (this.root.visible) this.district.update(time);
+    if (this.root.visible && this.district.root.visible)
+      this.district.update(time);
     if (this.energyObjects.visible)
       this.tram.position.x = Math.sin(time / 18000) * 15;
   }
@@ -586,6 +636,8 @@ export class FutureObservatory {
     this.far.visible = quality !== "low";
     this.profile = quality;
     this.district.setQuality(quality === "low");
+    this.economic.setQuality(quality === "low");
+    this.social.setQuality(quality === "low");
     this.leaves.count = this.trunks.count = quality === "low" ? 15 : 30;
     this.crowns.count = quality === "low" ? 30 : 60;
     (
@@ -607,7 +659,9 @@ export class FutureObservatory {
     this.root.updateMatrixWorld(true);
     const hit = this.caster.intersectObjects(this.targets, false)[0];
     return hit
-      ? messages[hit.object.userData.narrative as NarrativeObject]
+      ? scenario(this.theme).questions[
+          this.targets.indexOf(hit.object as THREE.Mesh)
+        ]
       : undefined;
   }
   narrativePointer(x: number, y: number, camera: THREE.Camera) {
@@ -615,13 +669,14 @@ export class FutureObservatory {
     return this.narrativeRay(this.caster.ray);
   }
   get fogColor() {
-    return new THREE.Color(0x997549).lerp(
+    return new THREE.Color(scenario(this.theme).badSky).lerp(
       new THREE.Color(0xb5cfda),
       Math.max(0, this.cachedState),
     );
   }
   get fogDensity() {
-    return 0.032 - Math.max(0, this.cachedState) * 0.0285;
+    const [bad, good] = scenario(this.theme).fog;
+    return THREE.MathUtils.lerp(bad, good, Math.max(0, this.cachedState));
   }
   private disposeObject(root: THREE.Object3D) {
     root.traverse((obj) => {
@@ -645,6 +700,8 @@ export class FutureObservatory {
   }
   dispose() {
     this.disposed = true;
+    this.economic.dispose();
+    this.social.dispose();
     this.disposeObject(this.root);
     this.textures.forEach((t) => t.dispose());
     this.environment?.dispose();

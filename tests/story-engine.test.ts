@@ -56,18 +56,32 @@ describe("authorized narrative flow", () => {
     engine.dispatch({ type: "start_discovery" });
     expect(listener).toHaveBeenCalledTimes(9);
   });
-  it.each(["social", "economic"])(
-    "recognizes %s without pretending it has a scene",
+  it.each(["environmental", "social", "economic"])(
+    "visits and transforms both authored %s futures with explicit consent",
     (theme) => {
       const engine = new StoryEngine();
       expect(
         engine.tool("select_theme", JSON.stringify({ theme })).accepted,
       ).toBe(true);
       expect(engine.snapshot.theme).toBe(theme);
-      expect(engine.snapshot.state).toBe("DISCOVER_INTEREST");
+      expect(engine.snapshot.state).toBe("INVITATION");
+      expect(
+        engine.tool("enter_observatory", '{"consent":false}').accepted,
+      ).toBe(false);
       expect(
         engine.tool("enter_observatory", '{"consent":true}').accepted,
-      ).toBe(false);
+      ).toBe(true);
+      engine.dispatch({ type: "entry_complete" });
+      const critical = engine.snapshot.message;
+      expect(
+        engine.tool(
+          "transform_future",
+          '{"future":"sustainable","consent":true}',
+        ).accepted,
+      ).toBe(true);
+      engine.dispatch({ type: "transformation_complete" });
+      expect(engine.snapshot.state).toBe("SUSTAINABLE_FUTURE");
+      expect(engine.snapshot.message).not.toBe(critical);
     },
   );
   it.each(["entry", "critical", "transformation", "sustainable"])(
@@ -147,4 +161,30 @@ describe("comfort and quality", () => {
     expect(smoothTransition(12, 8)).toBe(1);
     expect(smoothTransition(0.01, 8)).toBeLessThan(0.00001);
   });
+});
+
+describe("name memory scoped to the current page", () => {
+  it("remembers a declared name through every transition and can forget it", () => {
+    const engine = new StoryEngine();
+    expect(engine.tool("remember_name", '{"name":"Anna Maria"}').accepted).toBe(
+      true,
+    );
+    enter(engine);
+    engine.tool("return_to_reality", "{}");
+    engine.dispatch({ type: "return_complete" });
+    expect(engine.snapshot.name).toBe("Anna Maria");
+    expect(new StoryEngine().snapshot.name).toBeNull();
+    expect(engine.tool("forget_name", "{}").accepted).toBe(true);
+    expect(engine.snapshot.name).toBeNull();
+  });
+  it.each(["", "x".repeat(41), "https://example.com", "<script>", "Anna123"])(
+    "rejects invalid names: %s",
+    (name) => {
+      const engine = new StoryEngine();
+      expect(
+        engine.tool("remember_name", JSON.stringify({ name })).accepted,
+      ).toBe(false);
+      expect(engine.snapshot.name).toBeNull();
+    },
+  );
 });

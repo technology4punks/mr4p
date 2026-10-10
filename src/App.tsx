@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Experience, type ExperienceSnapshot } from "./Experience";
 import { detectCapabilities, type Capabilities } from "./xr/capabilities";
+import { scenario, scenarios, type Theme } from "./story/scenarios";
 import type { AvatarState } from "./avatar/animations";
 const labels: Record<AvatarState, string> = {
   idle: "Pronto",
@@ -146,8 +147,9 @@ export default function App() {
             <p className="hint">
               Nel visore: A/X o presa apre e chiude il menu. Punta e premi il
               grilletto, oppure usa il joystick per scegliere. Con le mani:
-              punta e fai pinch. NEO appare a 1,3 metri dopo circa tre secondi
-              e si volta verso di te. Per correggere la posizione, apri Posizionamento.
+              punta e fai pinch. NEO appare a 1,3 metri dopo circa tre secondi e
+              si volta verso di te. Per correggere la posizione, apri
+              Posizionamento.
             </p>
           )}
           {caps && !caps.topLevel && (
@@ -164,6 +166,25 @@ export default function App() {
             <p className="story-message" role="status">
               {story?.message ?? "Un incontro, poi una finestra sul 2050."}
             </p>
+            {!inObservatory && (
+              <label className="theme-picker">
+                Tema della visita
+                <select
+                  aria-label="Tema della visita"
+                  value={story?.theme ?? "environmental"}
+                  disabled={!snapshot || story?.transitioning}
+                  onChange={(e) =>
+                    engine.current?.selectTheme(e.target.value as Theme)
+                  }
+                >
+                  {Object.entries(scenarios).map(([key, value]) => (
+                    <option key={key} value={key}>
+                      {value.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="story-actions">
               {!inObservatory && (
                 <button
@@ -237,13 +258,14 @@ export default function App() {
               />
             )}
             <p className="story-note">
-              Scenario ambientale ipotetico, non una previsione scientifica.
-              Visita da fermo; rispetta sempre i confini reali del visore.
+              Scenari ipotetici, non previsioni scientifiche. Visita da fermo;
+              rispetta sempre i confini reali del visore.
             </p>
             {inObservatory && (
               <p className="story-note">
-                I tre oggetti sul davanzale aprono riflessioni su energia, acqua
-                e mobilità. Tocca o seleziona con il controller.
+                Sul davanzale:{" "}
+                {scenario(story?.theme ?? null).objects.join(" · ")}. Tocca o
+                seleziona con il controller.
               </p>
             )}
           </section>
@@ -310,16 +332,17 @@ export default function App() {
               onClick={() => engine.current?.action("voice-mode")}
             >
               Interruzioni vocali:{" "}
-              {snapshot?.voice.interruptions ? "attive" : "disattivate"}
+              {snapshot?.voice.interruptions ? "intelligenti" : "protette"}
             </button>
             <p className="hint">
               {snapshot?.voice.interruptions
-                ? "Puoi interrompere NEO parlando. Se l’ambiente è rumoroso, disattiva le interruzioni vocali."
+                ? "Pronuncia una parola o una breve frase per interrompere NEO. Il filtro attende parlato riconoscibile e ignora i soli rumori."
                 : "NEO finisce la risposta senza interruzioni da rumori. Per prendere la parola, premi Parla / interrompi."}
             </p>
             <p className="privacy">
               NEO ascolta la tua voce, non vede la stanza. L’audio viene inviato
-              a OpenAI durante la conversazione.
+              a OpenAI durante la conversazione. Il nome resta nella pagina fino
+              alla chiusura o alla richiesta di dimenticarlo.
             </p>
           </section>
         </section>
@@ -465,6 +488,7 @@ export default function App() {
               "Texture GPU": snapshot?.textures,
               "Qualità adattiva": snapshot?.quality,
               "Asset osservatorio": snapshot?.observatoryAssets,
+              "Asset quartieri": snapshot?.districtAssets,
               "Compositing XR": snapshot?.compositor,
               "Stato storia": story?.state,
               Tema: story?.theme ?? "da scoprire",

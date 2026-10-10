@@ -56,10 +56,10 @@ export function tokenHandler(
                   },
                   turn_detection: {
                     type: "server_vad",
-                    threshold: 0.75,
+                    threshold: 0.6,
                     prefix_padding_ms: 350,
-                    silence_duration_ms: 900,
-                    create_response: true,
+                    silence_duration_ms: 700,
+                    create_response: false,
                     interrupt_response: false,
                   },
                 },

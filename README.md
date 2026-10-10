@@ -2,7 +2,7 @@
 
 MVP React + TypeScript + Vite + Three.js/WebXR, con backend Node e voce OpenAI Realtime via WebRTC. RobotExpressive e gli asset Poly Haven CC0 sono inclusi nel repository: nessun asset remoto a runtime. [Architettura e prova dell’osservatorio](docs/FUTURE_OBSERVATORY.md).
 
-Estensione narrativa dell’MVP: stanza 3D, città a profondità reale e trasformazione ambientale critico → sostenibile. **MR, voce live, persistenza e compatibilità su dispositivi fisici restano da validare.** [Risultati e limiti](docs/VALIDATION.md), [checklist hardware](docs/DEVICE_TESTS.md), [specifica](SPEC.md), [istruzioni progetto](AGENTS.md).
+Estensione narrativa dell’MVP: stanza 3D, città a profondità reale e sei futuri e trasformazione critico → sostenibile. **MR, voce live, persistenza e compatibilità su dispositivi fisici restano da validare.** [Risultati e limiti](docs/VALIDATION.md), [checklist hardware](docs/DEVICE_TESTS.md), [specifica](SPEC.md), [istruzioni progetto](AGENTS.md).
 
 ## Avvio locale
 
@@ -28,7 +28,7 @@ npm start
 
 ## Funzionamento
 
-- **Future Observatory:** visita ambientale, stanza 5 × 5 m, skyline 3D a tre profondità, vera parallasse, transizione di otto secondi, oggetti narrativi e ritorno sempre disponibile. Pulsanti e voce condividono lo Story Engine; scena e WebRTC restano separati.
+- **Future Observatory:** sei futuri ambientali, economici e sociali, stanza 5 × 5 m, skyline 3D a tre profondità, vera parallasse, transizione di otto secondi, oggetti narrativi e ritorno sempre disponibile. Pulsanti e voce condividono lo Story Engine; scena e WebRTC restano separati.
 
 - **Anteprima 3D:** scena orbitabile con mouse/touch, zoom, statura 1,5–1,7 m, saluto, approvazione e dissenso. Nessuna simulazione AR tramite videocamera su iPhone.
 - **MR:** pulsante soltanto dopo `isSessionSupported('immersive-ar')`; sfondo trasparente e `local-floor`, oppure `local` con calibrazione manuale obbligatoria. L’avatar è nel world space della scena e si volta gradualmente verso il visore, anche quando gli si passa dietro.
@@ -85,6 +85,6 @@ Il Quest può conservare al massimo otto anchor persistenti per origin; modalit�
 
 ## Controlli Quest e voce protetta
 
-Il menu si chiude dopo il posizionamento: A/X o presa lo richiamano, grilletto/pinch selezionano e lo stick sceglie i pulsanti. NEO completa le risposte senza interruzioni dovute ai rumori; **Parla / interrompi** restituisce il turno, e le interruzioni vocali restano riattivabili. I futuri ambientali ora hanno traffico/degrado industriale oppure auto elettriche, ricarica, verde e rinnovabili. [Controlli, scenari e limiti](docs/QUEST_INTERACTION.md).
+Il menu si chiude dopo il posizionamento: A/X o presa lo richiamano, grilletto/pinch selezionano e lo stick sceglie i pulsanti. Le interruzioni intelligenti attendono una parola trascritta, mentre la modalità protetta e **Parla / interrompi** restano disponibili. Il selettore del tema e il menu Quest aprono sei futuri. NEO si presenta, chiede il nome e lo ricorda nella pagina; risponde normalmente in 15–35 parole. [Scenari e dialogo](docs/SIX_SCENARIOS.md). [Controlli, scenari e limiti](docs/QUEST_INTERACTION.md).
 
 NEO guarda il visore a 360° in tutti gli stati. Nell’osservatorio room scale segue lentamente di fianco, con collisioni su pareti e arredi virtuali; in MR resta ancorato e si volta, perché i piani WebXR non garantiscono una mappa completa dei mobili reali. [Posizionamento, seguito e limiti](docs/ROOM_SCALE.md).

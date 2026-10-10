@@ -1,5 +1,10 @@
 // Quiet procedural soundscape; no downloads, microphone input or extra audio context.
+import type { Theme } from "../story/scenarios";
 export class Ambience {
+  private theme: Theme = "environmental";
+  setTheme(theme: Theme) {
+    this.theme = theme;
+  }
   private gain?: GainNode;
   private noise?: AudioBufferSourceNode;
   private hum?: OscillatorNode;
@@ -69,8 +74,14 @@ export class Ambience {
       now,
       0.15,
     );
-    this.filter.frequency.setTargetAtTime(180 + this.amount * 650, now, 0.3);
-    this.hum.frequency.setTargetAtTime(65 - this.amount * 15, now, 0.3);
+    const frequency =
+      this.theme === "economic" ? 95 : this.theme === "social" ? 42 : 65;
+    this.filter.frequency.setTargetAtTime(
+      180 + this.amount * (this.theme === "social" ? 950 : 650),
+      now,
+      0.3,
+    );
+    this.hum.frequency.setTargetAtTime(frequency - this.amount * 15, now, 0.3);
   }
   dispose() {
     this.noise?.stop();

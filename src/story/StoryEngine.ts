@@ -1,4 +1,5 @@
-export type Theme = "environmental" | "social" | "economic";
+import { scenario, scenarios, type Theme } from "./scenarios";
+export type { Theme } from "./scenarios";
 export type StoryState =
   | "INTRODUCTION"
   | "DISCOVER_INTEREST"
@@ -10,6 +11,7 @@ export type StoryState =
   | "RETURN_TO_REALITY"
   | "CONCLUSION";
 export type StorySnapshot = {
+  name: string | null;
   state: StoryState;
   theme: Theme | null;
   environment: "reality" | "observatory";
@@ -34,16 +36,10 @@ export type StoryResult = {
   reason: string;
   snapshot: StorySnapshot;
 };
-export const scenarioRegistry: Record<
-  Theme,
-  { available: boolean; title: string }
-> = {
-  environmental: { available: true, title: "Ambiente" },
-  social: { available: false, title: "Società" },
-  economic: { available: false, title: "Economia" },
-};
+export const scenarioRegistry = scenarios;
 export class StoryEngine {
   snapshot: StorySnapshot = {
+    name: null,
     state: "INTRODUCTION",
     theme: null,
     environment: "reality",
@@ -87,25 +83,15 @@ export class StoryEngine {
           return reject("Il tema si sceglie prima della visita.");
         patch = {
           theme: event.theme,
-          state: scenarioRegistry[event.theme].available
-            ? "INVITATION"
-            : "DISCOVER_INTEREST",
-          message: scenarioRegistry[event.theme].available
-            ? "Vieni con NEO nel 2050. Puoi scegliere di entrare quando vuoi."
-            : "Interesse riconosciuto. Questa prima visita è disponibile soltanto per l’ambiente.",
+          state: "INVITATION",
+          message: `Vieni nel 2050: ${scenario(event.theme).title.toLowerCase()}. Puoi scegliere quando entrare.`,
         };
         break;
       case "enter_observatory":
         if (!event.consent)
           return reject("È necessario il tuo consenso per entrare.");
-        if (
-          s.state !== "INVITATION" ||
-          s.theme !== "environmental" ||
-          s.transitioning
-        )
-          return reject(
-            "Scegli prima lo scenario ambientale e attendi l’invito.",
-          );
+        if (s.state !== "INVITATION" || !s.theme || s.transitioning)
+          return reject("Scegli prima un tema e attendi l’invito.");
         patch = {
           state: "ENTER_OBSERVATORY",
           environment: "observatory",
@@ -121,8 +107,7 @@ export class StoryEngine {
         patch = {
           state: "CRITICAL_FUTURE",
           transitioning: false,
-          message:
-            "2050 · Smog, traffico, alberi spogli e acqua scarsa. Un futuro critico ipotetico dalla stessa finestra.",
+          message: scenario(s.theme).critical,
         };
         break;
       case "show_future":
@@ -137,8 +122,7 @@ export class StoryEngine {
           );
         patch = {
           state: "CRITICAL_FUTURE",
-          message:
-            "Caldo, smog e verde secco: conseguenze possibili, non una previsione.",
+          message: scenario(s.theme).critical,
         };
         break;
       case "reflect":
@@ -176,8 +160,7 @@ export class StoryEngine {
         patch = {
           state: "SUSTAINABLE_FUTURE",
           transitioning: false,
-          message:
-            "2050 · Un futuro sostenibile possibile. Stessa città, decisioni diverse.",
+          message: scenario(s.theme).sustainable,
         };
         break;
       case "return_to_reality":
@@ -226,6 +209,29 @@ export class StoryEngine {
       args = value as Record<string, unknown>;
     } catch {
       return reject("JSON non valido.");
+    }
+    if (name === "remember_name" || name === "forget_name") {
+      const value =
+        typeof args.name === "string" ? args.name.trim().normalize("NFC") : "";
+      if (
+        name === "remember_name" &&
+        (Object.keys(args).length !== 1 ||
+          !/^[\p{L}][\p{L} ’'-]{0,39}$/u.test(value))
+      )
+        return reject("Nome non valido.");
+      if (name === "forget_name" && Object.keys(args).length)
+        return reject("Parametri non validi.");
+      this.snapshot = {
+        ...this.snapshot,
+        name: name === "forget_name" ? null : value,
+        revision: this.snapshot.revision + 1,
+      };
+      this.listeners.forEach((listener) => listener({ ...this.snapshot }));
+      return {
+        accepted: true,
+        reason: "Memoria della pagina aggiornata.",
+        snapshot: { ...this.snapshot },
+      };
     }
     const keys: Record<string, string[]> = {
       select_theme: ["theme"],

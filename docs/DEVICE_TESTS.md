@@ -114,3 +114,11 @@ Per i limiti di sessione/compositing e i fallback, vedere FUTURE_OBSERVATORY.md.
 - In MR non è attivo il seguito fisico: piani incompleti e ostacoli non rilevati non sono considerati una stanza libera. Le collisioni virtuali non sostituiscono Guardian.
 
 Esiti di questa revisione: **NON ESEGUITI sul Quest Pro**. I test automatici usano geometrie note e pose simulate.
+
+
+## Nuova prova: sei scenari e voce filtrata
+
+- Visitare ambiente, economia e società dal selettore e da Tema nel menu Quest; confrontare ciascuna coppia dalla stessa posizione. Controllare edifici, rampe, piazze e oggetti narrativi dopo il caricamento.
+- Verificare il nome attraverso entrata, trasformazione, ritorno e riavvio voce; chiedere di dimenticarlo. Ricaricare: non deve restare salvato.
+- Durante una risposta, produrre un lieve rumore: NEO deve continuare. Dire “Aspetta” o una breve domanda: deve interrompere dopo il riconoscimento e rispondere alla nuova frase. Ripetere a volume basso, con ventilazione, eco e altre voci; annotare latenza e falsi positivi.
+- Verificare mute, modalità protetta, Parla / interrompi e ritorno MR mentre si parla. Misurare FPS/frame time in tutti i sei scenari; nessun risultato headless sostituisce questa prova.

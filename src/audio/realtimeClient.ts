@@ -1,3 +1,4 @@
+import { recognizableSpeech } from "./speechGate";
 import { AudioLevel } from "./audioLevel";
 import type { StoryResult, StorySnapshot } from "../story/StoryEngine";
 import type { AvatarState } from "../avatar/animations";
@@ -14,6 +15,10 @@ export type VoiceSnapshot = {
 export type RealtimeEvent = {
   type: string;
   transcript?: string;
+  delta?: string;
+  item_id?: string;
+  audio_start_ms?: number;
+  audio_end_ms?: number;
   response?: { status?: string };
   error?: { code?: string };
   call_id?: string;
@@ -42,7 +47,7 @@ export class RealtimeClient {
     state: "idle",
     muted: false,
     inputBlocked: false,
-    interruptions: false,
+    interruptions: true,
     playbackBlocked: false,
     peer: "closed",
     message: "Conversazione spenta",
@@ -66,6 +71,18 @@ export class RealtimeClient {
   private outputPlaying = false;
   private micResumeTimer?: ReturnType<typeof setTimeout>;
   private pendingNarration = false;
+  private pendingUserResponse = false;
+  private utterances = new Map<
+    string,
+    {
+      start: number;
+      end?: number;
+      overlap: boolean;
+      text: string;
+      interrupted: boolean;
+    }
+  >();
+  private answeredItems = new Set<string>();
   private storyContext?: StorySnapshot;
   constructor(
     private changed: (snapshot: VoiceSnapshot) => void,
@@ -332,11 +349,101 @@ export class RealtimeClient {
       })
     )
       return false;
-    if (this.responseActive) this.pendingNarration = true;
-    else this.send({ type: "response.create" });
+    this.pendingNarration = true;
+    this.flushResponse();
     return true;
   }
+  private flushResponse() {
+    if (
+      this.responseActive ||
+      this.outputPlaying ||
+      !(
+        this.pendingUserResponse ||
+        this.pendingNarration ||
+        this.pendingToolResponse
+      )
+    )
+      return;
+    this.pendingUserResponse =
+      this.pendingNarration =
+      this.pendingToolResponse =
+        false;
+    if (this.send({ type: "response.create" })) this.responseActive = true;
+  }
+  private acceptSpeech(event: RealtimeEvent) {
+    const id = event.item_id;
+    if (!id || this.answeredItems.has(id)) return;
+    const utterance = this.utterances.get(id) ?? {
+      start: 0,
+      end: 0,
+      overlap: this.outputPlaying,
+      text: "",
+      interrupted: false,
+    };
+    utterance.text = event.transcript ?? utterance.text + (event.delta ?? "");
+    this.utterances.set(id, utterance);
+    const duration = (utterance.end ?? utterance.start) - utterance.start;
+    const valid =
+      !this.snapshot.muted &&
+      recognizableSpeech(utterance.text, duration, utterance.overlap);
+    const completed = event.type.endsWith(".completed");
+    if (
+      valid &&
+      utterance.overlap &&
+      this.snapshot.interruptions &&
+      !utterance.interrupted
+    ) {
+      utterance.interrupted = true;
+      this.pendingNarration = this.pendingToolResponse = false;
+      if (this.responseActive) this.send({ type: "response.cancel" });
+      if (this.outputPlaying) this.send({ type: "output_audio_buffer.clear" });
+      this.outputPlaying = false;
+      this.patch({ state: "listening", message: "Ti ascolto." });
+      // Preserve the committed user audio: never clear the input buffer here.
+    }
+    if (!completed) return;
+    this.utterances.delete(id);
+    if (this.answeredItems.size >= 64)
+      this.answeredItems.delete(this.answeredItems.values().next().value!);
+    this.answeredItems.add(id);
+    if (!valid || (utterance.overlap && !this.snapshot.interruptions)) {
+      this.send({ type: "conversation.item.delete", item_id: id });
+      return;
+    }
+    this.transcript("Tu", utterance.text);
+    this.pendingUserResponse = true;
+    this.flushResponse();
+  }
   private event(event: RealtimeEvent) {
+    if (event.type === "input_audio_buffer.speech_started" && event.item_id) {
+      if (this.utterances.size >= 32)
+        this.utterances.delete(this.utterances.keys().next().value!);
+      this.utterances.set(event.item_id, {
+        start: event.audio_start_ms ?? 0,
+        overlap: this.outputPlaying,
+        text: "",
+        interrupted: false,
+      });
+    }
+    if (event.type === "input_audio_buffer.speech_stopped" && event.item_id) {
+      const utterance = this.utterances.get(event.item_id);
+      if (utterance) utterance.end = event.audio_end_ms ?? utterance.start;
+    }
+    if (
+      event.type === "conversation.item.input_audio_transcription.delta" ||
+      event.type === "conversation.item.input_audio_transcription.completed"
+    ) {
+      this.acceptSpeech(event);
+      return;
+    }
+    if (event.type === "conversation.item.input_audio_transcription.failed") {
+      if (event.item_id) {
+        this.utterances.delete(event.item_id);
+        this.send({ type: "conversation.item.delete", item_id: event.item_id });
+      }
+      this.patch({ message: "Non ho capito. Puoi ripetere?" });
+      return;
+    }
     if (event.type === "output_audio_buffer.started") {
       clearTimeout(this.micResumeTimer);
       this.outputPlaying = true;
@@ -347,6 +454,7 @@ export class RealtimeClient {
       event.type === "output_audio_buffer.cleared"
     ) {
       this.outputPlaying = false;
+      this.flushResponse();
       const generation = this.generation;
       clearTimeout(this.micResumeTimer);
       this.micResumeTimer = setTimeout(() => {
@@ -385,17 +493,16 @@ export class RealtimeClient {
     }
     if (event.type === "response.done") {
       this.responseActive = false;
-      const shouldRespond =
-        this.pendingNarration ||
-        (this.pendingToolResponse && event.response?.status === "completed");
-      this.pendingToolResponse = false;
-      this.pendingNarration = false;
-      if (shouldRespond && event.response?.status !== "failed")
-        this.send({ type: "response.create" });
+      if (event.response?.status !== "completed")
+        this.pendingToolResponse = false;
+      if (event.response?.status !== "failed") this.flushResponse();
     }
     if (
       event.type === "error" &&
-      event.error?.code === "conversation_already_has_active_response"
+      [
+        "conversation_already_has_active_response",
+        "response_cancel_not_active",
+      ].includes(event.error?.code ?? "")
     )
       return;
 
@@ -411,17 +518,10 @@ export class RealtimeClient {
       return;
     }
     const state =
-      this.outputPlaying &&
-      !this.snapshot.interruptions &&
-      event.type.startsWith("input_audio_buffer.speech_")
+      this.outputPlaying && event.type.startsWith("input_audio_buffer.speech_")
         ? undefined
         : stateForEvent(event.type);
     if (state) this.patch({ state });
-    if (
-      event.type === "conversation.item.input_audio_transcription.completed" &&
-      event.transcript
-    )
-      this.transcript("Tu", event.transcript);
     if (
       event.type === "response.output_audio_transcript.done" &&
       event.transcript
@@ -468,11 +568,11 @@ export class RealtimeClient {
             noise_reduction: { type: "near_field" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.75,
+              threshold: 0.6,
               prefix_padding_ms: 350,
-              silence_duration_ms: 900,
-              create_response: true,
-              interrupt_response: this.snapshot.interruptions,
+              silence_duration_ms: 700,
+              create_response: false,
+              interrupt_response: false,
             },
           },
         },
@@ -487,7 +587,10 @@ export class RealtimeClient {
   interrupt() {
     if (this.snapshot.status !== "connected") return;
     clearTimeout(this.micResumeTimer);
-    this.pendingNarration = this.pendingToolResponse = false;
+    this.pendingUserResponse =
+      this.pendingNarration =
+      this.pendingToolResponse =
+        false;
     if (this.responseActive) this.send({ type: "response.cancel" });
     if (this.outputPlaying) this.send({ type: "output_audio_buffer.clear" });
     this.send({ type: "input_audio_buffer.clear" });
@@ -525,6 +628,9 @@ export class RealtimeClient {
   stop(message = "Conversazione spenta") {
     this.generation++;
     this.processedCalls.clear();
+    this.utterances.clear();
+    this.answeredItems.clear();
+    this.pendingUserResponse = false;
     this.pendingToolResponse = false;
     this.responseActive = false;
     this.outputPlaying = false;
@@ -547,11 +653,13 @@ export class RealtimeClient {
     }
     this.mic?.getTracks().forEach((track) => {
       track.onended = null;
+      track.enabled = false;
       track.stop();
     });
     this.mic = undefined;
     this.remote?.getTracks().forEach((track) => {
       track.onended = null;
+      track.enabled = false;
       track.stop();
     });
     this.remote = undefined;

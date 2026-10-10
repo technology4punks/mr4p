@@ -30,10 +30,26 @@ Acquisiti e verificati il 10 ottobre 2026. Tutti **CC0 1.0 Universal**, come dic
 ### Fonti valutate senza integrazione
 
 - [Quaternius Downtown City MegaKit](https://quaternius.com/packs/downtowncitymegakit.html): pagina consultata, licenza CC0 e sezione gratuita distinte dall’intero kit a pagamento. Nessun elemento non gratuito acquisito; per la prima città si usano istanze procedurali per controllare il carico e conservare una resa coerente fra stati.
-- [Kenney Furniture Kit](https://kenney.nl/assets/furniture-kit), [Industrial](https://kenney.nl/assets/city-kit-industrial), [Commercial](https://kenney.nl/assets/city-kit-commercial): fonti gratuite CC0 valutate; nessun file Kenney incluso. Per la stanza è stato scelto il tavolino realistico Poly Haven.
+- Per la stanza è stato conservato il tavolino realistico Poly Haven. I quattro asset Kenney acquisiti successivamente sono elencati sotto.
 
 La città, il cielo a gradiente, gli oggetti narrativi, il tram e la vegetazione sono generati deterministicamente da geometrie Three.js. I suoni ambiente sono sintetizzati dall’app e non contengono registrazioni di terzi.
 
 ## Revisione ambientale e controlli Quest
 
 Auto, ruote, colonnine, pensilina, turbine, fumo, macerie, canale, arbusti e chiome stratificate sono geometrie procedurali originali del progetto (EnvironmentalDistrict.ts e FutureObservatory.ts). I pulsanti e i cursori XR sono generati dall’app. Nessun nuovo modello, texture o suono di terzi è stato aggiunto; le licenze e il manifest degli asset CC0 precedenti restano invariati.
+
+
+## Sei scenari — Kenney CC0
+
+Acquisiti il 10 ottobre 2026 da download ufficiali gratuiti; licenze originali incluse in ogni directory. Autore **Kenney**, licenza [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Quattro GLB e due texture PNG 512 × 512, **241.590 byte** inclusi i file di licenza. Nessun CDN o account richiesto a runtime.
+
+| Asset / fonte | Uso effettivo | Triangoli sorgente |
+|---|---|---:|
+| `industrial/building-h.glb` — [Industrial 2.0](https://kenney.nl/assets/city-kit-industrial) | Fabbrica/officina nello scenario economico | 698 |
+| `industrial/solar-panel-flat.glb` — Industrial 2.0 | Due moduli fotovoltaici condivisi | 164 |
+| `commercial/building-e.glb` — [Commercial 2.1](https://kenney.nl/assets/city-kit-commercial) | Due edifici di servizi nello scenario sociale | 1.509 |
+| `furniture/bench.glb` — [Furniture Kit 2.0](https://kenney.nl/assets/furniture-kit) | Panchine dello spazio pubblico sociale | 170 |
+
+Manifest: `public/scenarios/kenney/manifest.json`, URL download, SHA-256, dipendenze, bounding box e assi verificati con GLTFLoader nel browser. I GLB industriali/commerciali referenziano `Textures/colormap.png`: file preservati. Supporto Three.js a KHR_texture_transform; il materiale unlit della panca è sostituito con MeshStandardMaterial. Normalizzazione delle dimensioni e rotazione degli ingressi verso la finestra; istanze per primitiva, materiali PBR ruvidi e illuminazione statica. Questi piccoli modelli hanno un dettaglio stilizzato: non sono presentati come asset fotorealistici. Quaternius non è stato acquisito.
+
+Cancelli, rampe, percorsi tattili, tavoli, sagome a distanza, materiali scartati/ordinati e banchi di riparazione sono geometrie procedurali originali; nessuna modellazione manuale. Non si generano ambienti AI durante il dialogo. Se un modello non carica, il quartiere conserva edifici procedurali e narrazione funzionanti.

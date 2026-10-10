@@ -1,17 +1,17 @@
 # Future Observatory — estensione MVP
 
-L’avatar, il backend Node, WebRTC OpenAI Realtime e il posizionamento MR dell’MVP sono riutilizzati. Questa prima esperienza realizza lo scenario **ambientale**; sociale ed economico sono riconosciuti nella conversazione e registrati come non disponibili, senza scene finte.
+L’avatar, il backend Node, WebRTC OpenAI Realtime e il posizionamento MR dell’MVP sono riutilizzati. Sono disponibili **sei futuri predefiniti**: ambiente, economia e società, ciascuno critico e sostenibile.
 
 ## Prova rapida
 
-Aprire la pagina HTTPS direttamente, avviare **Parla con l’avatar**, raccontare un interesse e accettare l’invito al 2050. Il modello usa funzioni strutturate e riceve lo stato autorevole dopo ogni evento. In alternativa **Visita il 2050** permette di provare la grafica senza API né microfono. Dopo il futuro critico, **Mostra il futuro sostenibile** autorizza una trasformazione di otto secondi; **Torna alla realtà** interrompe anche ingresso e trasformazione. I tre oggetti sul davanzale aprono riflessioni su energia, acqua e mobilità. **Suoni ambiente** è facoltativo e richiede un gesto.
+Aprire la pagina HTTPS direttamente, avviare **Parla con l’avatar**, raccontare un interesse e accettare l’invito al 2050. Il modello usa funzioni strutturate e riceve lo stato autorevole dopo ogni evento. Prima della visita scegliere il tema nel selettore, oppure nel menu Quest con **Tema**. In alternativa **Visita il 2050** permette di provare la grafica senza API né microfono. Dopo il futuro critico, **Mostra il futuro sostenibile** autorizza una trasformazione di otto secondi; **Torna alla realtà** interrompe anche ingresso e trasformazione. I tre oggetti sul davanzale aprono riflessioni su energia, acqua e mobilità. **Suoni ambiente** è facoltativo e richiede un gesto.
 
 Sul Quest iniziare con **Entra in realtà mista**, attendere il posizionamento automatico del robot a 1,3 m (calibrare se richiesto) e poi visitare. La stanza viene allineata una volta alla posa della testa e alla quota del pavimento, poi resta nel mondo: nessuna locomozione artificiale della camera. Il robot può avvicinarsi lentamente al fianco dell’utente nella stanza virtuale, rispettando pareti e arredi predefiniti. La posizione MR dell’avatar è conservata e ripristinata al ritorno. Nessun movimento fisico è necessario; il confine virtuale non sostituisce il Guardian reale.
 
 ## Moduli
 
 - `src/story/StoryEngine.ts`: macchina a stati pura, registry dei temi, consenso, validazione esatta degli argomenti, rifiuto di eventi fuori sequenza, ritorno interrompibile.
-- `server/story-config.ts`: prompt italiano e sei strumenti Realtime. Nessuna geometria è creata dal modello. Il tema sociale/economico richiede un nuovo consenso prima della visita ambientale.
+- `server/story-config.ts`: prompt italiano e otto strumenti Realtime, inclusi memoria e cancellazione del nome nella pagina. Nessuna geometria è creata dal modello. Tutti i temi richiedono consenso prima dell’ingresso.
 - `src/audio/realtimeClient.ts`: usa solo `response.function_call_arguments.done`, deduplica i call ID, invia `function_call_output` e attende `response.done` per la risposta successiva. Deltas e trascrizioni non attivano eventi. Lo stato è risincronizzato quando il data channel apre. Domande vocali e barge-in continuano nel medesimo peer.
 - `src/observatory/FutureObservatory.ts`: stanza 5 × 5 × 3 m, apertura panoramica geometrica, PBR, arredo glTF, luce naturale, skyline e oggetti narrativi. Nessun video o generazione AI di ambienti.
 - `src/Experience.ts`: applica gli eventi autorizzati, allinea la stanza, interpola ingresso 3 s / trasformazione 8 s / ritorno 2,5 s, ripristina avatar e camera. Gli anchor MR non aggiornano l’avatar mentre è figlio dell’osservatorio.
@@ -23,7 +23,7 @@ Sul Quest iniziare con **Entra in realtà mista**, attendere il posizionamento a
 | Stato | Uscita autorizzata |
 |---|---|
 | INTRODUCTION | Avvio voce → DISCOVER_INTEREST |
-| DISCOVER_INTEREST | `select_theme` ambientale → INVITATION; altri temi restano nella scoperta |
+| DISCOVER_INTEREST | `select_theme` per uno dei tre temi → INVITATION |
 | INVITATION | `enter_observatory(consent: true)` → ENTER_OBSERVATORY |
 | ENTER_OBSERVATORY | Completamento interno del renderer → CRITICAL_FUTURE |
 | CRITICAL_FUTURE | `reflect` → REFLECTION; consenso alternativo → trasformazione |
@@ -60,7 +60,7 @@ Android conserva AR dove supportata, altrimenti usa il browser 3D. iPhone usa We
 
 ## Estensioni successive
 
-Aggiungere i temi social/economic al registry solo dopo aver realizzato scene predefinite e messaggi coerenti. Conservare il protocollo autorizzato; non dare accesso Three.js al modello. Prima di aumentare il realismo, misurare sul Quest Pro i tempi CPU/GPU e ridurre il carico per mantenere comfort. La città è uno scenario ipotetico del 2050, non una previsione scientifica.
+Per aggiungere altri temi seguire il registry `src/story/scenarios.ts` e scene predefinite con messaggi coerenti. Conservare il protocollo autorizzato; non dare accesso Three.js al modello. Prima di aumentare il realismo, misurare sul Quest Pro i tempi CPU/GPU e ridurre il carico per mantenere comfort. La città è uno scenario ipotetico del 2050, non una previsione scientifica.
 
 ## Anteprime browser
 
@@ -70,4 +70,4 @@ Screenshot della stessa stanza, prima e dopo la trasformazione, in Chromium desk
 |---|---|
 | ![Futuro critico](screenshots/future-critical.png) | ![Futuro sostenibile](screenshots/future-sustainable.png) |
 
-La revisione successiva alla prova Quest aggiunge menu richiudibile, selezione controller/mani, voce protetta e un confronto ambientale più marcato. Vedere [QUEST_INTERACTION.md](QUEST_INTERACTION.md).
+La revisione successiva alla prova Quest aggiunge menu richiudibile, selezione controller/mani, interruzioni filtrate e un confronto ambientale più marcato. Vedere [QUEST_INTERACTION.md](QUEST_INTERACTION.md).

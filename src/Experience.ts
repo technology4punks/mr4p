@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { AvatarController } from "./avatar/AvatarController";
 import { CompanionFollow } from "./avatar/CompanionFollow";
+import { scenario, type Theme } from "./story/scenarios";
 import type { AvatarState } from "./avatar/animations";
 import { RealtimeClient, type VoiceSnapshot } from "./audio/realtimeClient";
 import { XRExperience, type XRDiagnostic } from "./xr/xrSession";
@@ -34,6 +35,7 @@ export type ExperienceSnapshot = {
   textures: number;
   quality: string;
   observatoryAssets: string;
+  districtAssets: string;
   compositor: string;
   companion: string;
 };
@@ -62,7 +64,10 @@ export class Experience {
   private viewerPosition = new THREE.Vector3();
   readonly story = new StoryEngine();
   readonly observatory = new FutureObservatory();
-  private companion = new CompanionFollow(this.observatory.companionBounds, this.observatory.companionObstacles);
+  private companion = new CompanionFollow(
+    this.observatory.companionBounds,
+    this.observatory.companionObstacles,
+  );
   private companionViewer = new THREE.Vector3();
   private companionOrientation = new THREE.Quaternion();
   private roomOrientation = new THREE.Quaternion();
@@ -76,6 +81,7 @@ export class Experience {
   private transitionTime = 0;
   private transitionStart = 0;
   private needsAlignment = false;
+  private visualStoryKey = "";
   private savedRealityPose = {
     position: new THREE.Vector3(),
     orientation: new THREE.Quaternion(),
@@ -225,12 +231,15 @@ export class Experience {
       textures: this.renderer.info.memory.textures,
       quality: this.quality.quality,
       observatoryAssets: this.observatory.assetStatus,
+      districtAssets: this.observatory.districtAssetStatus,
       compositor: this.xr.session
         ? `${this.xr.diagnostic.mode} / ${this.xr.diagnostic.blendMode} · occultamento da verificare`
         : "3D browser",
-      companion: this.companionMoving ? "seguito laterale · collisioni virtuali" :
-        this.xr.session && this.story.snapshot.environment === "reality"
-          ? "sguardo 360° · posizione fissa in MR" : "sguardo 360°",
+      companion: this.companionMoving
+        ? "seguito laterale · collisioni virtuali"
+        : this.xr.session && this.story.snapshot.environment === "reality"
+          ? "sguardo 360° · posizione fissa in MR"
+          : "sguardo 360°",
     };
   }
   private render = (time: number, frame?: XRFrame) => {
@@ -272,16 +281,23 @@ export class Experience {
     const camera = frame ? this.renderer.xr.getCamera() : this.camera;
     camera.getWorldPosition(this.viewerPosition);
     this.companionMoving = false;
-    if (frame && this.xr.isViewerTracked && this.immersion > 0.99 &&
-        this.story.snapshot.environment === "observatory" &&
-        this.story.snapshot.state !== "RETURN_TO_REALITY") {
+    if (
+      frame &&
+      this.xr.isViewerTracked &&
+      this.immersion > 0.99 &&
+      this.story.snapshot.environment === "observatory" &&
+      this.story.snapshot.state !== "RETURN_TO_REALITY"
+    ) {
       this.companionViewer.copy(this.viewerPosition);
       this.observatory.root.worldToLocal(this.companionViewer);
       camera.getWorldQuaternion(this.companionOrientation);
       this.observatory.root.getWorldQuaternion(this.roomOrientation).invert();
       this.companionOrientation.premultiply(this.roomOrientation);
       this.companionMoving = this.companion.update(
-        this.avatar.root.position, this.companionViewer, this.companionOrientation, delta,
+        this.avatar.root.position,
+        this.companionViewer,
+        this.companionOrientation,
+        delta,
       );
     } else this.companion.reset();
     this.avatar.setMoving(this.companionMoving);
@@ -292,6 +308,7 @@ export class Experience {
       !frame || this.xr.isViewerTracked ? this.viewerPosition : undefined,
     );
     const voice = this.voice.snapshot;
+    this.xr.ui.setTheme(scenario(this.story.snapshot.theme).title);
     this.xr.ui.setVoiceControls(
       ["connected", "connecting"].includes(voice.status),
       voice.muted,
@@ -373,6 +390,16 @@ export class Experience {
       case "prepare-vr":
         void this.prepareVR();
         break;
+      case "theme": {
+        const themes: Theme[] = ["environmental", "economic", "social"];
+        this.selectTheme(
+          themes[
+            (themes.indexOf(this.story.snapshot.theme ?? "environmental") + 1) %
+              3
+          ],
+        );
+        break;
+      }
       case "observatory":
         this.visit();
         break;
@@ -477,7 +504,13 @@ export class Experience {
   private storyChanged(snapshot: StorySnapshot) {
     this.voice.synchronizeStory(snapshot);
     this.message = snapshot.message;
+    this.xr.ui.setTheme(scenario(snapshot.theme).title);
+    const key = `${snapshot.state}:${snapshot.transitioning}`;
+    if (key === this.visualStoryKey) return;
+    this.visualStoryKey = key;
     if (snapshot.state === "ENTER_OBSERVATORY") {
+      this.observatory.setTheme(snapshot.theme ?? "environmental");
+      this.ambience.setTheme(snapshot.theme ?? "environmental");
       this.savedRealityPose.position.copy(this.avatar.root.position);
       this.savedRealityPose.orientation.copy(this.avatar.root.quaternion);
       this.observatory.root.add(this.avatar.root);
@@ -503,7 +536,7 @@ export class Experience {
     }
     if (snapshot.state === "CRITICAL_FUTURE")
       this.voice.requestNarration(
-        "L’ingresso è completo. Presenta il futuro ambientale critico del 2050 come scenario ipotetico, poi invita a riflettere sulle alternative senza avviare trasformazioni senza consenso.",
+        `Ingresso completo. ${scenario(snapshot.theme).critical} Descrivi un solo dettaglio in una frase e chiedi cosa nota l’utente.`,
       );
   }
   private alignObservatory() {
@@ -572,14 +605,17 @@ export class Experience {
     } else this.scene.fog = null;
     if (this.xr.session) this.renderer.setClearColor(0x000000, 0);
   }
-  visit() {
+  selectTheme(theme: Theme) {
+    this.story.dispatch({ type: "select_theme", theme });
+  }
+  visit(theme: Theme = this.story.snapshot.theme ?? "environmental") {
     if (this.story.snapshot.environment === "observatory") return;
-    this.story.dispatch({ type: "select_theme", theme: "environmental" });
+    this.story.dispatch({ type: "select_theme", theme });
     const result = this.storyTool("enter_observatory", '{"consent":true}');
     if (!result.accepted) this.message = result.reason;
     else
       this.voice.requestNarration(
-        "Ho scelto di visitare il futuro ambientale. Accompagnami e descrivi il futuro critico quando l’ingresso è completo.",
+        `Ho scelto ${scenario(theme).title.toLowerCase()}. Attendi il completamento dell’ingresso prima di descrivere il futuro.`,
       );
   }
   alternative() {
@@ -590,7 +626,7 @@ export class Experience {
     if (!result.accepted) this.message = result.reason;
     else
       this.voice.requestNarration(
-        "Sì, voglio vedere il futuro sostenibile dalla stessa finestra. Raccontami le scelte diverse durante la trasformazione.",
+        "Ho accettato il futuro sostenibile. Una sola frase su una scelta diversa, poi lascia spazio alla mia osservazione.",
       );
   }
   returnToReality() {
@@ -600,7 +636,7 @@ export class Experience {
   startDiscovery() {
     this.story.dispatch({ type: "start_discovery" });
     this.voice.requestNarration(
-      "Iniziamo un dialogo sui miei interessi nella sostenibilità, una domanda naturale alla volta.",
+      "Presentati in una frase e chiedimi il nome, se non lo conosci già. Aspetta la mia risposta.",
     );
   }
   async prepareVR() {

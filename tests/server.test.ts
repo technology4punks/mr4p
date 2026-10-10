@@ -51,6 +51,8 @@ describe("token endpoint", () => {
     expect(body.session.type).toBe("realtime");
     expect(body.session.model).toBe("gpt-realtime-2.1-mini");
     expect(body.session.tools.map((t: { name: string }) => t.name)).toEqual([
+      "remember_name",
+      "forget_name",
       "select_theme",
       "enter_observatory",
       "show_future",
@@ -69,9 +71,9 @@ describe("token endpoint", () => {
     expect(body.session.audio.input.turn_detection.interrupt_response).toBe(
       false,
     );
-    expect(body.session.audio.input.turn_detection.threshold).toBe(0.75);
+    expect(body.session.audio.input.turn_detection.threshold).toBe(0.6);
     expect(body.session.audio.input.turn_detection.silence_duration_ms).toBe(
-      900,
+      700,
     );
     expect(body.session.audio.input.noise_reduction.type).toBe("near_field");
     expect(response.text).not.toContain(config.apiKey);

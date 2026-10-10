@@ -39,7 +39,7 @@ Asset nuovi: 6.308.432 byte dei 12 file Poly Haven CC0; tavolino 4.504 triangoli
 
 Il Site esistente è **pubblico** su richiesta dell’utente: **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. L’adattamento riusa il frontend e abilita esplicitamente l’avvio voce anonimo, con controllo origine e limiti per isolate (5 avvii/minuto nel bucket anonimo condiviso, 30 globali). Il backend Node separato conserva la protezione del proxy. Il runtime conserva OPENAI_API_KEY come segreto backend (revisione 5); nessun valore è copiato nel checkout o nel browser. Presenza del segreto non dimostra autorizzazione/quota OpenAI. L’accesso pubblico già autorizzato viene mantenuto.
 
-Restano **NON VERIFICATI sul dispositivo fisico**: Quest Pro passthrough completamente coperto in AR, floor/anchor/drift, Guardian, recenter reale, continuità audio durante cambio sessione, refresh e 72 FPS; ARCore Android, Safari iPhone e voce OpenAI live. AR e VR richiedono rilevamento distinto: il compositor additive è rifiutato; session switching richiede chiusura e un nuovo gesto, mantenendo il peer dove il browser conserva la pagina attiva. Social/economic non hanno ambientazioni nella prima versione. La città è un compromesso procedurale, non una ricostruzione fotorealistica di una metropoli.
+Restano **NON VERIFICATI sul dispositivo fisico**: Quest Pro passthrough completamente coperto in AR, floor/anchor/drift, Guardian, recenter reale, continuità audio durante cambio sessione, refresh e 72 FPS; ARCore Android, Safari iPhone e voce OpenAI live. AR e VR richiedono rilevamento distinto: il compositor additive è rifiutato; session switching richiede chiusura e un nuovo gesto, mantenendo il peer dove il browser conserva la pagina attiva. Social/economic sono stati aggiunti nella revisione descritta in SIX_SCENARIOS.md. La città è un compromesso procedurale, non una ricostruzione fotorealistica di una metropoli.
 
 La checklist hardware rimane in [DEVICE_TESTS.md](DEVICE_TESTS.md), le scelte e i limiti WebXR in [FUTURE_OBSERVATORY.md](FUTURE_OBSERVATORY.md), gli asset e le licenze in [ASSET_CREDITS.md](../ASSET_CREDITS.md).
 
@@ -73,3 +73,23 @@ Campioni diagnostici browser software dopo il futuro sostenibile: desktop 9 FPS,
 Passthrough, posizione iniziale, tracking, gaze e seguito immersivo restano **da verificare fisicamente sul Quest Pro**. La precedente prova dell’utente non certifica questa revisione. [Dettagli e limiti](ROOM_SCALE.md), checklist in DEVICE_TESTS.md.
 
 La prima CI di questa revisione (run 38060366210) ha passato tutti i quality gate e 11/12 browser test, ma il test Android ha superato i 5 s aspettando il progressbar della trasformazione, con due worker in parallelo. Il download della traccia CI ha restituito 403; i log e i risultati locali rimangono disponibili. Playwright ora usa un solo worker quando CI è attivo, come nella prova locale 12/12; assert, timeout e retry restano invariati. Il risultato finale della nuova esecuzione è nei Checks della PR.
+
+
+## Sei scenari, nome e interruzioni intelligenti — 10 ottobre 2026
+
+- `npm run check`: lint, typecheck frontend/backend, build, **128 test unitari** e controllo bundle senza chiavi/endpoints server: PASS.
+- Adapter Sites: typecheck, **119 test**, build Worker Vinext: PASS. Nessun cambio del segreto runtime.
+- Playwright: **18/18** su desktop Chromium, profilo Android Chromium e iPhone WebKit, un worker, nessun retry. Tutti i temi: ingresso, asset Poly Haven/Kenney, cambio prospettiva, trasformazione >= 6,5 s, ritorno e assenza di richieste microfono non autorizzate/errori JS. Controlli XR, nomi e interruzioni sono coperti da unit test; voce live e hardware non sono certificati.
+- Quattro nuovi GLB CC0, texture e licenze: **241.590 byte**, checksum e riferimenti validati. Solo il quartiere selezionato viene renderizzato; le scene possono funzionare con fallback offline.
+
+Campioni **software headless**, qualità low e voce spenta; FPS istantanei in diagnostica, non medie hardware o stima delle prestazioni Quest. Conteggi GPU non esprimono memoria in byte. La riduzione automatica di qualità è entrata in funzione.
+
+| Tema | Desktop FPS / draw / triangoli | Android FPS / draw / triangoli | WebKit FPS / draw / triangoli |
+|---|---|---|---|
+| Ambiente | 5 / 73 / 22.277 | 10 / 73 / 22.277 | 48 / 73 / 22.277 |
+| Economia | 9 / 67 / 18.379 | 14 / 66 / 18.377 | 55 / 66 / 18.377 |
+| Società | 9 / 65 / 20.687 | 7 / 64 / 20.685 | 51 / 64 / 20.685 |
+
+Trasformazioni misurate **8,07–8,73 s**. Conteggi al campione sostenibile: 65–71 geometrie GPU, 13–17 texture. Questi risultati mostrano il percorso di test e il budget della scena, senza dimostrare 72 FPS sul visore. Browser software e carico del container influenzano molto gli FPS.
+
+Da riprovare sul Quest Pro: tutte le sei scene a 72 Hz, visibilità dal punto sicuro, passthrough occultato in AR, ritorno MR/sessione VR separata, menu controller/mani, sguardo e seguito room scale con ostacoli virtuali, voce durante trasformazioni, rumori/eco e parole d’interruzione. Il filtro ASR attende il riconoscimento dopo una breve pausa e può sbagliare; non è un classificatore acustico garantito. Il nome è memoria della pagina e non persiste dopo reload. I modelli Kenney sono leggeri e stilizzati; la città non è fotorealistica.

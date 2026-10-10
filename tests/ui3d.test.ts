@@ -87,3 +87,21 @@ describe("native and polled XR input deduplication", () => {
     expect(latch.axis(-0.9, 0, 1401)).toEqual([-1, 0]);
   });
 });
+
+it("offers theme selection in the Quest menu without exposing it during the visit", () => {
+  const ui = new UI3D();
+  ui.root.visible = true;
+  ui.setContext("reality");
+  ui.setOpen(true);
+  ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
+  ui.setTheme("Economia");
+  expect(ui.hit(rayTo(ui, "theme"))).toBe("theme");
+  expect(ui.hit(rayTo(ui, "placement-menu"))).toBe("placement-menu");
+  ui.setContext("observatory");
+  const actions: string[] = [];
+  ui.root.traverse((o) => {
+    if (o.userData.action) actions.push(o.userData.action);
+  });
+  expect(actions).not.toContain("theme");
+  ui.dispose();
+});

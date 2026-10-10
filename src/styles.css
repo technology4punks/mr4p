@@ -533,3 +533,19 @@ select {
     height: 490px;
   }
 }
+
+.theme-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+}
+.theme-picker select {
+  background: #142c32;
+  color: #fff;
+  border: 1px solid #53766d;
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+  min-width: 9rem;
+}

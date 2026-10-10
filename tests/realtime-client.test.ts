@@ -286,6 +286,7 @@ describe("WebRTC voice lifecycle (mocked transport)", () => {
 });
 
 describe("protected conversation in a noisy headset", () => {
+  beforeEach(() => client.toggleInterruptions());
   const deliver = (event: object) =>
     (FakePeer.latest.channel.onmessage as (event: { data: string }) => void)({
       data: JSON.stringify(event),
@@ -367,9 +368,92 @@ describe("protected conversation in a noisy headset", () => {
       .filter((e) => e.type === "session.update");
     expect(
       updates.at(-1).session.audio.input.turn_detection.interrupt_response,
-    ).toBe(true);
+    ).toBe(false);
     client.toggleInterruptions();
     expect(track.enabled).toBe(false);
     expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
+});
+
+describe("recognizable speech interruptions", () => {
+  const deliver = (event: object) =>
+    (FakePeer.latest.channel.onmessage as (e: { data: string }) => void)({
+      data: JSON.stringify(event),
+    });
+  const sent = () =>
+    FakePeer.latest.channel.send.mock.calls.map(([s]) => JSON.parse(s));
+  const speech = (id: string, text: string, duration = 900) => {
+    deliver({
+      type: "input_audio_buffer.speech_started",
+      item_id: id,
+      audio_start_ms: 1000,
+    });
+    deliver({
+      type: "input_audio_buffer.speech_stopped",
+      item_id: id,
+      audio_end_ms: 1000 + duration,
+    });
+    deliver({
+      type: "conversation.item.input_audio_transcription.completed",
+      item_id: id,
+      transcript: text,
+    });
+  };
+  it("leaves microphone open but does not cancel audio for VAD, coughs or very short noise", async () => {
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    deliver({ type: "response.created" });
+    deliver({ type: "output_audio_buffer.started" });
+    expect(track.enabled).toBe(true);
+    speech("noise", "[rumore]");
+    speech("cough", "eh");
+    speech("click", "ciao", 100);
+    expect(sent().some((e) => e.type === "response.cancel")).toBe(false);
+    expect(
+      sent().filter((e) => e.type === "conversation.item.delete"),
+    ).toHaveLength(3);
+    expect(client.snapshot.state).toBe("speaking");
+  });
+  it("interrupts a real phrase, keeps the user audio and waits for cancellation before answering once", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    deliver({ type: "response.created" });
+    deliver({ type: "output_audio_buffer.started" });
+    speech("word", "Aspetta, ho una domanda");
+    expect(sent().map((e) => e.type)).toContain("response.cancel");
+    expect(sent().map((e) => e.type)).toContain("output_audio_buffer.clear");
+    expect(sent().map((e) => e.type)).not.toContain("input_audio_buffer.clear");
+    expect(sent().some((e) => e.type === "response.create")).toBe(false);
+    deliver({ type: "response.done", response: { status: "cancelled" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    deliver({
+      type: "conversation.item.input_audio_transcription.completed",
+      item_id: "word",
+      transcript: "Aspetta",
+    });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
+  it("recognizes a single word even when generation already finished and audio is buffered", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    deliver({ type: "output_audio_buffer.started" });
+    deliver({ type: "response.done", response: { status: "completed" } });
+    speech("no", "No", 550);
+    expect(sent().map((e) => e.type)).toContain("output_audio_buffer.clear");
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+  });
+  it("responds to short normal answers and recovers from failed transcription without disconnecting", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    speech("yes", "Sì", 400);
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    deliver({
+      type: "conversation.item.input_audio_transcription.failed",
+      item_id: "bad",
+    });
+    expect(client.snapshot.status).toBe("connected");
+    expect(client.snapshot.message).toContain("ripetere");
   });
 });
