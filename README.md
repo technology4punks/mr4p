@@ -2,6 +2,8 @@
 
 MVP React + TypeScript + Vite + Three.js/WebXR, con backend Node e voce OpenAI Realtime via WebRTC. RobotExpressive e gli asset Poly Haven CC0 sono inclusi nel repository: nessun asset remoto a runtime. [Architettura e prova dell’osservatorio](docs/FUTURE_OBSERVATORY.md).
 
+Nuova revisione 3D: tram e treno visibili in tutti i temi, traffico critico che avanza, pedoni e ciclisti, officine e piazze animate. [Dettagli delle sei ambientazioni](docs/SIX_SCENARIOS.md). [Candidato umanoide futuristico](docs/HUMANOID_CANDIDATE.md), separato dal robot attuale.
+
 Estensione narrativa dell’MVP: stanza 3D, città a profondità reale e sei futuri e trasformazione critico → sostenibile. **MR, voce live, persistenza e compatibilità su dispositivi fisici restano da validare.** [Risultati e limiti](docs/VALIDATION.md), [checklist hardware](docs/DEVICE_TESTS.md), [specifica](SPEC.md), [istruzioni progetto](AGENTS.md).
 
 ## Avvio locale

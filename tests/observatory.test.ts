@@ -53,7 +53,7 @@ describe("three-dimensional observatory", () => {
     camera.updateMatrixWorld();
     expect(near.clone().project(camera).x).not.toBeCloseTo((a.x + b.x) / 2, 4);
     expect(
-      layout.filter((b) => b.layer === "near").every((b) => b.z > -25),
+      layout.filter((b) => b.layer === "near").every((b) => b.z > -35 && b.z < -21),
     ).toBe(true);
     expect(
       layout.filter((b) => b.layer === "far").every((b) => b.z < -70),
@@ -116,6 +116,90 @@ describe("three-dimensional observatory", () => {
 });
 
 describe("environmental contrast and stable geometry", () => {
+  it("moves critical traffic down the road and keeps lane spacing during both transformations", () => {
+    const scene = new FutureObservatory();
+    scene.setOpacity(1);
+    scene.setQuality("low");
+    const cars = scene.city.getObjectByName("Street vehicles") as THREE.InstancedMesh;
+    const pose = new THREE.Matrix4();
+    scene.update(0);
+    cars.getMatrixAt(0, pose);
+    const start = pose.elements[12];
+    for (let time = 40; time <= 4000; time += 40) scene.update(time);
+    cars.getMatrixAt(0, pose);
+    expect(pose.elements[12] - start).toBeGreaterThan(1);
+    for (let step = 0; step < 200; step++) {
+      scene.setFuture(step < 100 ? step / 99 : (199 - step) / 99);
+      scene.update(4040 + step * 40);
+      const lanes: number[][] = [[], []];
+      for (let i = 0; i < cars.count; i++) {
+        cars.getMatrixAt(i, pose);
+        lanes[i % 2].push(pose.elements[12]);
+      }
+      for (const lane of lanes) for (let a = 0; a < lane.length; a++) for (let b = a + 1; b < lane.length; b++) {
+        const distance = Math.abs(lane[a] - lane[b]);
+        expect(Math.min(distance, 56 - distance)).toBeGreaterThan(6.9);
+      }
+    }
+    scene.dispose();
+  });
+  it.each(["environmental", "economic", "social"] as const)("shows tram and train immediately in both %s futures with stable geometry and safe culling bounds", (theme) => {
+    const scene = new FutureObservatory();
+    scene.setTheme(theme);
+    scene.setOpacity(1);
+    scene.setQuality("low");
+    const vehicles = scene.city.getObjectByName("Moving tram and train carriages") as THREE.InstancedMesh;
+    const geometry = vehicles.geometry;
+    const camera = new THREE.PerspectiveCamera(52, 1, 0.05, 150);
+    camera.position.set(0, 1.6, 0.35);
+    camera.lookAt(0, 1.6, -20);
+    camera.updateMatrixWorld();
+    const pose = new THREE.Matrix4(), position = new THREE.Vector3();
+    for (const future of [0, 1]) {
+      scene.setFuture(future);
+      scene.update(0);
+      for (const index of [0, 4]) {
+        vehicles.getMatrixAt(index, pose);
+        position.setFromMatrixPosition(pose).project(camera);
+        expect(Math.abs(position.x)).toBeLessThan(1);
+        expect(Math.abs(position.y)).toBeLessThan(1);
+      }
+      const before = pose.clone();
+      scene.update(1000);
+      vehicles.getMatrixAt(4, pose);
+      expect(pose.equals(before)).toBe(false);
+      for (const time of [30000, 36667, 90000, 120000]) {
+        scene.update(time);
+        for (let i = 0; i < vehicles.count; i++) {
+          vehicles.getMatrixAt(i, pose);
+          expect(vehicles.boundingSphere!.containsPoint(position.setFromMatrixPosition(pose))).toBe(true);
+        }
+      }
+    }
+    expect(vehicles.geometry).toBe(geometry);
+    scene.dispose();
+  });
+  it("keeps residents in the environmental future and reveals animated cyclists on the protected lane", () => {
+    const scene = new FutureObservatory();
+    scene.setOpacity(1);
+    scene.setQuality("low");
+    const people = scene.district.root.getObjectByName("Walking residents · bodies") as THREE.InstancedMesh;
+    const cyclists = scene.district.root.getObjectByName("Bicycle wheels") as THREE.InstancedMesh;
+    expect(people.instanceColor).not.toBeNull();
+    scene.update(0);
+    expect(people.count).toBe(6);
+    expect(scene.district.sustainable.visible).toBe(false);
+    scene.setFuture(1);
+    scene.update(100);
+    const before = new THREE.Matrix4(), after = new THREE.Matrix4();
+    cyclists.getMatrixAt(0, before);
+    scene.update(1100);
+    cyclists.getMatrixAt(0, after);
+    expect(after.equals(before)).toBe(false);
+    expect(scene.district.sustainable.visible).toBe(true);
+    expect(cyclists.boundingSphere!.containsPoint(new THREE.Vector3().setFromMatrixPosition(after))).toBe(true);
+    scene.dispose();
+  });
   it("removes industrial decay while revealing charging, renewables and dense trees", () => {
     const scene = new FutureObservatory();
     scene.setOpacity(1);
@@ -216,9 +300,9 @@ describe("six authored futures", () => {
       for (const future of [0, 1]) {
         scene.setFuture(future);
         scene.update(0);
-        mesh.getMatrixAt(0, start);
+        mesh.getMatrixAt(theme === "economic" ? 1 : 0, start);
         scene.update(2000);
-        mesh.getMatrixAt(0, end);
+        mesh.getMatrixAt(theme === "economic" ? 1 : 0, end);
         expect(end.equals(start)).toBe(false);
         for (const time of [5000, 120000]) {
           scene.update(time);

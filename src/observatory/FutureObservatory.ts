@@ -4,6 +4,7 @@ import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import type { Quality } from "./performance";
 import { CivicDistrict } from "./CivicDistrict";
 import { scenario, type Theme } from "../story/scenarios";
+import { CityTransit } from "./CityTransit";
 import { EnvironmentalDistrict } from "./EnvironmentalDistrict";
 export type NarrativeObject = "energy" | "water" | "mobility";
 export type CityBuilding = {
@@ -22,7 +23,7 @@ export function cityLayout(): CityBuilding[] {
     return seed / 4294967296;
   };
   for (const [count, zBase, layer] of [
-    [18, 12, "near"],
+    [18, 22, "near"],
     [32, 38, "middle"],
     [38, 72, "far"],
   ] as const) {
@@ -80,7 +81,7 @@ export class FutureObservatory {
   private sky: THREE.ShaderMaterial;
   private sun = new THREE.Mesh();
   private targets: THREE.Mesh[] = [];
-  private tram: THREE.Group;
+  readonly transit = new CityTransit();
   private disposed = false;
   private loadPromise?: Promise<void>;
   private table?: THREE.Group;
@@ -103,9 +104,10 @@ export class FutureObservatory {
     this.root.name = "Future Observatory";
     this.root.visible = false;
     this.root.add(this.room, this.city, this.directional, this.hemisphere);
-    this.city.add(this.district.root, this.economic.root, this.social.root);
+    this.city.add(this.district.root, this.economic.root, this.social.root, this.transit.root);
     this.economic.root.visible = this.social.root.visible = false;
     [
+      ...this.transit.materials,
       ...this.district.materials,
       ...this.economic.materials,
       ...this.social.materials,
@@ -308,8 +310,9 @@ export class FutureObservatory {
     );
     this.crowns.name = "Layered tree foliage";
     for (let i = 0; i < 30; i++) {
-      const x = ((i % 15) - 7) * 3.7,
-        z = i < 15 ? -7 : -13;
+      const column = (i % 15) - 7;
+      const x = column * 3.7 + (column < 0 ? -2.8 : 2.8),
+        z = i < 15 ? -7 : -16;
       this.dummy.position.set(x, 0.8, z);
       this.dummy.scale.set(1, 1, 1);
       this.dummy.updateMatrix();
@@ -346,9 +349,9 @@ export class FutureObservatory {
       const tree = Math.floor(i / 2),
         side = i % 2 ? 1 : -1;
       this.dummy.position.set(
-        ((tree % 15) - 7) * 3.7 + side * 0.26,
+        ((tree % 15) - 7) * 3.7 + (tree % 15 < 7 ? -2.8 : 2.8) + side * 0.26,
         1.55,
-        tree < 15 ? -7 : -13,
+        tree < 15 ? -7 : -16,
       );
       this.dummy.rotation.set(0, 0, side * 0.65);
       this.dummy.scale.set(1, 1, 1);
@@ -358,11 +361,6 @@ export class FutureObservatory {
     branches.computeBoundingSphere();
     this.city.add(branches);
     this.dummy.rotation.set(0, 0, 0);
-    this.tram = new THREE.Group();
-    box(this.tram, [5.5, 1.1, 1], [0, 0.65, 0], mat(0xa9cdb7, 0.35, 0.3));
-    box(this.tram, [5.2, 0.5, 1.02], [0, 0.85, 0], glass);
-    this.tram.position.set(0, 0, -10);
-    this.energyObjects.add(this.tram);
     // Deteriorated facade bands gradually become pale efficient envelopes.
     const cracks = mat(0x4a423b);
     cracks.userData.futureFade = "critical";
@@ -569,6 +567,7 @@ export class FutureObservatory {
     if (Math.abs(amount - this.cachedState) < 0.001) return;
     this.cachedState = THREE.MathUtils.clamp(amount, 0, 1);
     amount = this.cachedState;
+    this.transit.setFuture(amount);
     this.district.setFuture(amount);
     this.economic.setFuture(amount);
     this.social.setFuture(amount);
@@ -626,7 +625,7 @@ export class FutureObservatory {
       this.solar.setMatrixAt(i, matrix);
     }
     this.solar.instanceMatrix.needsUpdate = true;
-    this.tram.scale.setScalar(Math.max(0.001, amount));
+
   }
   update(time: number) {
     if (!this.root.visible) return;
@@ -634,8 +633,7 @@ export class FutureObservatory {
     if (this.district.root.visible) this.district.update(time);
     if (this.economic.root.visible) this.economic.update(time);
     if (this.social.root.visible) this.social.update(time);
-    if (this.energyObjects.visible)
-      this.tram.position.x = Math.sin(time / 18000) * 15;
+    this.transit.update(time);
   }
   setQuality(quality: Quality) {
     this.far.visible = quality !== "low";

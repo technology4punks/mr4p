@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { CycleTraffic } from "./CycleTraffic";
+import { UrbanLife } from "./UrbanLife";
 
 export class EnvironmentalDistrict {
   readonly root = new THREE.Group();
@@ -7,6 +9,8 @@ export class EnvironmentalDistrict {
   readonly materials = new Set<
     THREE.MeshStandardMaterial | THREE.MeshBasicMaterial
   >();
+  readonly cyclists = new CycleTraffic();
+  readonly activity = new UrbanLife("environmental");
   private vehicles: THREE.InstancedMesh[] = [];
   private smoke: THREE.InstancedMesh;
   private blades: THREE.InstancedMesh;
@@ -14,12 +18,17 @@ export class EnvironmentalDistrict {
   private body: THREE.MeshStandardMaterial;
   private future = 0;
   private time = -Infinity;
+  private trafficTime = -Infinity;
+  private trafficDistance = 0;
   private dummy = new THREE.Object3D();
   constructor() {
     this.root.name = "Environmental district";
     this.critical.name = "Critical infrastructure";
     this.sustainable.name = "Sustainable infrastructure";
-    this.root.add(this.critical, this.sustainable);
+    this.root.add(this.critical, this.sustainable, this.activity.root);
+    this.sustainable.add(this.cyclists.root);
+    this.cyclists.materials.forEach(m => this.materials.add(m));
+    this.activity.materials.forEach(m => this.materials.add(m));
     const material = (color: number, roughness = 0.8, metalness = 0) => {
       const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
       this.materials.add(m);
@@ -272,6 +281,7 @@ export class EnvironmentalDistrict {
   }
   setFuture(value: number) {
     this.future = THREE.MathUtils.clamp(value, 0, 1);
+    this.activity.setFuture(this.future);
     this.critical.visible = this.future < 0.999;
     this.sustainable.visible = this.future > 0.002;
     this.body.color.set(0x594a3c).lerp(new THREE.Color(0xd3e7e5), this.future);
@@ -281,21 +291,31 @@ export class EnvironmentalDistrict {
     this.water.roughness = 0.97 - this.future * 0.67;
     this.vehicles.forEach((mesh, i) => {
       mesh.count =
-        this.future >= 0.999 ? (i === 2 ? 20 : 5) : i === 2 ? 60 : 15;
+        this.future >= 0.999 ? (i === 2 ? 32 : 8) : i === 2 ? 60 : 15;
     });
     this.time = -Infinity;
   }
   update(time: number) {
     if (time - this.time < 33) return; // Decorative animation at 30 Hz, not XR locomotion.
     this.time = time;
+    if (Number.isFinite(this.trafficTime) && time >= this.trafficTime) {
+      const seconds = time / 1000;
+      const criticalSpeed = 0.62 + Math.cos(seconds * 0.9) * 0.38;
+      this.trafficDistance += Math.min(0.5, (time - this.trafficTime) / 1000) * THREE.MathUtils.lerp(criticalSpeed, 2.3, this.future);
+    }
+    this.trafficTime = time;
+    this.activity.update(time);
+    if (this.sustainable.visible) this.cyclists.update(time);
     for (let i = 0; i < 15; i++) {
-      const visible = i < 5 ? 1 : Math.max(0.001, 1 - this.future);
-      const parked = (i - 7) * 2.3 + Math.sin(time / 4000 + i * 0.6) * 0.38;
-      const moving = ((time * 0.0016 + i * 8 + 40) % 80) - 40;
-      const x = THREE.MathUtils.lerp(parked, moving, this.future);
-      const z = i % 2 ? -10.8 : -9.15;
+      const visible = i < 8 ? 1 : Math.max(0.001, 1 - this.future);
+      // Persistent cars occupy every second slot; critical-only cars fill the
+      // gaps. Fading extra traffic never moves two cars into the same slot.
+      const lane = i % 2;
+      const slot = i < 8 ? Math.floor(i / 2) : Math.floor((i - 8) / 2) + 0.5;
+      const x = (((this.trafficDistance + slot * 14 + (lane ? 32 : 28)) % 56) - 28) * (lane ? -1 : 1);
+      const z = lane ? -11.05 : -9.95;
       this.dummy.position.set(x, 0.17, z);
-      this.dummy.rotation.set(0, 0, 0);
+      this.dummy.rotation.set(0, lane ? Math.PI : 0, 0);
       this.dummy.scale.setScalar(visible);
       this.dummy.updateMatrix();
       this.vehicles[0].setMatrixAt(i, this.dummy.matrix);
@@ -350,5 +370,6 @@ export class EnvironmentalDistrict {
   }
   setQuality(low: boolean) {
     this.smoke.count = low ? 9 : 18;
+    this.activity.setQuality(low);
   }
 }

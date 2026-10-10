@@ -57,3 +57,10 @@ Cancelli, rampe, percorsi tattili, tavoli, sagome a distanza, materiali scartati
 ## Animazione dei sei futuri e dock discreto
 
 `UrbanLife.ts` aggiunge persone articolate a distanza, furgone/navetta, componenti di riuso in circolazione e segnalazioni luminose usando geometrie Three.js originali. Il cielo animato usa uno shader procedurale; menu e indicatore vocale usano canvas con bordi arrotondati. Nessun nuovo asset, font esterno, traccia audio o dipendenza è stato scaricato. Modelli e texture Poly Haven, Kenney e RobotExpressive restano quelli CC0 verificati nei manifest precedenti.
+
+
+## Candidato umanoide opzionale — non attivo nell’esperienza
+
+“Rigged robot” di **joney_lol**, via [Poly Pizza](https://poly.pizza/m/BwjA6Thdzd), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Il modello e la licenza sono inclusi in `public/models/humanoid/`, con attribuzione, checksum e modifiche in `manifest.json` / `LICENSE.md`. L’immagine `preview.png` è un render locale del modello adattato, soggetto alla stessa attribuzione. Nessun avallo dell’autore è implicato. Non viene precaricato né sostituisce RobotExpressive. [Valutazione tecnica](docs/HUMANOID_CANDIDATE.md).
+
+I cittadini, le biciclette, tram/treno e le attività aggiunte alle sei scene sono geometrie originali procedurali, senza file o texture esterni nuovi. I materiali PBR Poly Haven e moduli Kenney già documentati sono conservati.

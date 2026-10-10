@@ -1,0 +1,14 @@
+{
+  "retrieved_on": "2026-10-10",
+  "source_url": "https://poly.pizza/m/BwjA6Thdzd",
+  "title": "Rigged robot",
+  "creator": "joney_lol",
+  "licence_from_model_page": "CC-BY 3.0",
+  "original_upload_date": "2023-01-04T01:15:05.836Z",
+  "resource_id": "d6a9c09f-5e0f-46af-9ec0-577e91dda457",
+  "source_page_sha256": "69d0aedfca39ab884ffdf5eab0b94f1104ba9127ba740a3a4e3cc9f4a1695b55",
+  "download_url": "https://static.poly.pizza/d6a9c09f-5e0f-46af-9ec0-577e91dda457.glb",
+  "license_url": "https://creativecommons.org/licenses/by/3.0/",
+  "license_legalcode": "https://creativecommons.org/licenses/by/3.0/legalcode.en",
+  "modified": "Eight non-finite skin-weight vectors repaired to [1,0,0,0] without changing joint indices, geometry or materials."
+}

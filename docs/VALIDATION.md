@@ -137,3 +137,27 @@ Da verificare fisicamente: leggibilità periferica e comfort del dock world-lock
 ### Regressione del timer durante frame lenti
 
 Nella prima esecuzione, una scena sociale Android ha impiegato 21,70 s sotto forte carico software (1 FPS): il delta della grafica era limitato a un secondo e quel limite veniva applicato anche alla narrazione. Il campione è conservato in `docs/validation/timing-regression/pre-fix-android-social.json`. Ingresso, confronto e ritorno ora usano tempo monotono assoluto; avatar/seguito mantengono il delta limitato. Il cambio tema non riavvia il timer. Un nuovo test browser simula frame ogni 2,2 s e verifica il completamento del confronto senza perdere tempo; i test di trasformazione ordinari controllano anche il limite superiore di 12 s per il renderer software. Questo corregge la durata, non rende fluido un renderer a 1 FPS. Il requisito di comfort rimane una verifica hardware.
+
+
+## Città vive e trasporti visibili — 10 ottobre 2026
+
+Revisione concentrata sulle scene 3D. Nessuna modifica nuova a menu, prompt, backend o voce. Traffico critico con avanzamento reale, tram e treno comuni ai tre temi, persone ambientali, ciclisti, riparazioni e incontri. Geometry/material instancing, animazioni decorative a 30 Hz e profilo low restano attivi. Il candidato umanoide è separato e non viene caricato dall’app.
+
+- `npm run check`: **PASS**, lint, typecheck, build, **156 test unitari/API**, scanner client. La suite aggiunge cinque controlli della città (spaziatura auto durante entrambe le trasformazioni, trasporti visibili/culling per ogni tema, residenti e ciclisti) e un controllo di integrità/skin/budget del candidato umanoide.
+- Adapter Sites: typecheck, **147 test unitari**, build Vinext/Worker **PASS**. Asset e codice della scena condivisi con il repository Node; segreto OpenAI invariato.
+- Playwright scene: **9/9 PASS**, tre temi × Chromium desktop, Android Chromium emulato e iPhone WebKit emulato. Ingresso, due futuri, asset, cambio prospettiva/touch, durata trasformazione, ritorno, nessun errore JS o richiesta microfono.
+- Record diagnostici integrali in `docs/validation/living-city/`: rendering software headless, qualità low, voce spenta; FPS istantanei, non benchmark del visore.
+
+| Tema | Profilo | FPS software | Draw call | Triangoli | Trasformazione |
+|---|---|---:|---:|---:|---:|
+| economic | android-chromium | 12 | 82 | 22075 | 8.025 s |
+| economic | desktop-chromium | 7 | 83 | 22077 | 8.019 s |
+| economic | iphone-webkit | 38 | 82 | 22075 | 8.017 s |
+| environmental | android-chromium | 12 | 88 | 28439 | 8.040 s |
+| environmental | desktop-chromium | 9 | 88 | 28439 | 8.046 s |
+| environmental | iphone-webkit | 35 | 88 | 28439 | 8.031 s |
+| social | android-chromium | 13 | 83 | 24559 | 8.010 s |
+| social | desktop-chromium | 7 | 80 | 24365 | 8.074 s |
+| social | iphone-webkit | 36 | 79 | 24363 | 8.023 s |
+
+Questi campioni contengono la scena completa, NEO e gli indicatori. L’ambiente positivo rimane sotto 29 mila triangoli e 90 draw call nei campioni; le nuove geometrie della città non aggiungono texture scaricate. La maggiore ricchezza non certifica 72 FPS: frame rate, leggibilità, compositing AR, comfort e room scale devono essere misurati fisicamente sul Quest Pro. L’ASR e la voce live non sono oggetto di questa revisione.

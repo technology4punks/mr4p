@@ -125,6 +125,14 @@ export class CivicDistrict {
           [5.5, 5.2, -16, 6.6, 0.1, 4.5],
         ],
       );
+      batch(this.sustainable, "Workshop tool racks and reusable crates", clean, [
+        [-5.8, 1.18, -6.15, 0.07, 0.65, 0.08], [-5.6, 1.18, -6.15, 0.07, 0.65, 0.08],
+        [4.6, 0.88, -6, 0.42, 0.18, 0.3], [5.5, 0.92, -6, 0.35, 0.26, 0.3],
+        [7, 0.32, -5.7, 0.8, 0.64, 0.6], [8, 0.32, -5.7, 0.8, 0.64, 0.6],
+      ]);
+      batch(this.critical, "Waste drums and closed delivery bollards", rust,
+        [-8, -7.3, 7.3, 8].map(x => [x, 0.4, -5.8, 0.55, 0.8, 0.55]),
+        new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
       this.sign("ATTIVITÀ CHIUSE", -6, 3.3, -12.2, "critical");
       this.sign("PRODUZIONE FERMA", 5.5, 3.3, -13.2, "critical");
       this.sign("OFFICINA · RIUSO", -6, 3.3, -12.2);
@@ -178,6 +186,12 @@ export class CivicDistrict {
         [-8, 0.32, -5.7, 2.5, 0.65, 1],
         [8, 0.32, -5.7, 2.5, 0.65, 1],
       ]);
+      batch(this.sustainable, "Community book exchange and shared reading", clean, [
+        [0, 0.9, -5.5, 1.1, 1.8, 0.35], [0, 1.83, -5.5, 1.25, 0.08, 0.5],
+        [-3, 0.85, -6, 0.4, 0.07, 0.3], [3, 0.85, -6, 0.4, 0.07, 0.3],
+      ]);
+      batch(this.sustainable, "Colourful shared library books", green,
+        Array.from({ length: 15 }, (_, i) => [-0.42 + i % 5 * 0.2, 0.65 + Math.floor(i / 5) * 0.4, -5.28, 0.12, 0.28, 0.17]));
       this.detail.add(this.wheelchair);
       batch(
         this.wheelchair,
