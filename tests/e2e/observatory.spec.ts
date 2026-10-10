@@ -211,6 +211,7 @@ test("changes theme inside the observatory and during transformation, then rever
 test("keeps the eight-second fade on wall time when graphics run at less than one FPS", async ({ page }) => {
   test.setTimeout(45000);
   await page.goto("/");
+  await page.getByRole("combobox", { name: "Tema della visita" }).selectOption("social");
   await page.getByRole("button", { name: "Visita il 2050" }).click();
   await expect(page.getByRole("heading", { name: "Futuro critico", exact: true })).toBeVisible({ timeout: 20000 });
   await page.locator("canvas").scrollIntoViewIfNeeded();
@@ -220,7 +221,8 @@ test("keeps the eight-second fade on wall time when graphics run at less than on
   // Deliberately avoid Playwright's RAF actionability wait in this regression.
   const started = Date.now();
   await page.getByRole("button", { name: "Mostra il futuro sostenibile" }).dispatchEvent("click");
-  await page.getByRole("combobox", { name: "Tema della visita" }).selectOption("social");
+  // Keep the canvas in the viewport: auto-scrolling a control on a phone can
+  // suspend rendering entirely, which is a different condition from slow RAF.
   await expect(page.getByRole("heading", { name: "Futuro sostenibile", exact: true })).toBeVisible({ timeout: 13000 });
   expect(Date.now() - started).toBeGreaterThan(7000);
   expect(Date.now() - started).toBeLessThan(13000);
@@ -237,6 +239,8 @@ test("acknowledges narrative controls while graphics frames are paused", async (
   await expect(
     page.getByRole("heading", { name: "Futuro critico", exact: true }),
   ).toBeVisible({ timeout: 20000 });
+  // Start from an actively rendering canvas before installing the RAF pause.
+  await page.locator("canvas").scrollIntoViewIfNeeded();
   await page.evaluate(() => {
     const original = window.requestAnimationFrame.bind(window);
     const pending: FrameRequestCallback[] = [];
