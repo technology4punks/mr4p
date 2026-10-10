@@ -17,3 +17,5 @@ Le **interruzioni intelligenti** mantengono il microfono aperto, ma VAD da solo 
 API verificate sulla documentazione ufficiale: [VAD senza risposta automatica](https://developers.openai.com/api/docs/guides/realtime-conversations), [eventi e cancellazione audio WebRTC](https://developers.openai.com/api/reference/resources/realtime/client-events). Nessuna nuova chiave: si riusa il segreto già presente solo nel backend.
 
 I risultati della build e dei browser sono registrati in VALIDATION.md. Questi test non certificano passthrough, mani/controller reali, room scale, comfort, voce o 72 FPS su Quest Pro.
+
+Gli arredi vengono normalizzati separatamente sugli assi: panchina larga 1,6 m e alta 0,94 m; fabbrica alta 4 m, sotto la pensilina solare. Un test di caricamento controlla quota del pavimento e dimensioni, anche con modelli sorgente decentrati.

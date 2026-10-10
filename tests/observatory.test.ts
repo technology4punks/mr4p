@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { CivicDistrict } from "../src/observatory/CivicDistrict";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -255,4 +256,45 @@ describe("six authored futures", () => {
           ).toBeGreaterThan(100);
     }
   });
+});
+
+it("loads instanced models with floor-aligned factory roof and human-sized furniture", async () => {
+  const loader = vi
+    .spyOn(GLTFLoader.prototype, "loadAsync")
+    .mockImplementation(async () => {
+      const scene = new THREE.Group();
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.47, 0.2),
+        new THREE.MeshStandardMaterial(),
+      );
+      mesh.position.set(2, 0.235, 1);
+      scene.add(mesh);
+      return { scene } as never;
+    });
+  const factory = new CivicDistrict("economic"),
+    social = new CivicDistrict("social");
+  try {
+    await factory.preload();
+    await social.preload();
+    const factoryBounds = new THREE.Box3().setFromObject(
+      factory.root.getObjectByName("Kenney industrial/building-h.glb")!,
+    );
+    expect(factoryBounds.min.y).toBeCloseTo(0);
+    expect(factoryBounds.max.y).toBeCloseTo(4);
+    const benchBounds = new THREE.Box3().setFromObject(
+      social.root.getObjectByName("Kenney furniture/bench.glb")!,
+    );
+    expect(benchBounds.min.y).toBeCloseTo(0);
+    expect(benchBounds.max.y).toBeCloseTo(0.94);
+    expect(social.assetCount).toBe(2);
+  } finally {
+    for (const district of [factory, social]) {
+      district.dispose();
+      district.root.traverse((o) => {
+        if (o instanceof THREE.Mesh) o.geometry.dispose();
+      });
+      district.materials.forEach((m) => m.dispose());
+    }
+    loader.mockRestore();
+  }
 });

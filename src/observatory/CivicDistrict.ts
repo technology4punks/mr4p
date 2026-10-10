@@ -299,9 +299,19 @@ export class CivicDistrict {
         gltf.scene.updateMatrixWorld(true);
         const bounds = new THREE.Box3().setFromObject(gltf.scene),
           center = bounds.getCenter(new THREE.Vector3());
-        const scale = asset.width / bounds.getSize(new THREE.Vector3()).x;
+        const size = bounds.getSize(new THREE.Vector3());
+        const scale = asset.width / size.x;
+        // Pack units differ: keep street furniture human-sized and the factory
+        // roof flush with the authored solar canopy instead of floating below it.
+        const furniture = asset.path === "furniture/bench.glb";
+        const scaleY = furniture
+          ? scale / 2
+          : asset.path === "industrial/building-h.glb"
+            ? 4 / size.y
+            : scale;
+        const scaleZ = furniture ? scale / 2 : scale;
         const normalize = new THREE.Matrix4()
-          .makeScale(scale, scale, scale)
+          .makeScale(scale, scaleY, scaleZ)
           .multiply(
             new THREE.Matrix4().makeTranslation(
               -center.x,

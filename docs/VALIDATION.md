@@ -77,8 +77,8 @@ La prima CI di questa revisione (run 38060366210) ha passato tutti i quality gat
 
 ## Sei scenari, nome e interruzioni intelligenti — 10 ottobre 2026
 
-- `npm run check`: lint, typecheck frontend/backend, build, **128 test unitari** e controllo bundle senza chiavi/endpoints server: PASS.
-- Adapter Sites: typecheck, **119 test**, build Worker Vinext: PASS. Nessun cambio del segreto runtime.
+- `npm run check`: lint, typecheck frontend/backend, build, **129 test unitari** e controllo bundle senza chiavi/endpoints server: PASS.
+- Adapter Sites: typecheck, **120 test**, build Worker Vinext: PASS. Nessun cambio del segreto runtime.
 - Playwright: **18/18** su desktop Chromium, profilo Android Chromium e iPhone WebKit, un worker, nessun retry. Tutti i temi: ingresso, asset Poly Haven/Kenney, cambio prospettiva, trasformazione >= 6,5 s, ritorno e assenza di richieste microfono non autorizzate/errori JS. Controlli XR, nomi e interruzioni sono coperti da unit test; voce live e hardware non sono certificati.
 - Quattro nuovi GLB CC0, texture e licenze: **241.590 byte**, checksum e riferimenti validati. Solo il quartiere selezionato viene renderizzato; le scene possono funzionare con fallback offline.
 
