@@ -1,5 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { writeFileSync } from "node:fs";
+type TransitionProbe = {
+  start: number | null;
+  end: number | null;
+  visible: boolean;
+};
+declare global {
+  interface Window {
+    futureTransitionProbe: TransitionProbe;
+  }
+}
 for (const theme of ["environmental", "economic", "social"])
   test(`explores ${theme}, transforms in eight seconds and returns on desktop and touch`, async ({
     page,
@@ -54,17 +64,48 @@ for (const theme of ["environmental", "economic", "social"])
       path: `test-results/critical-${theme}-${test.info().project.name}.png`,
       fullPage: true,
     });
+    // Observe before dispatch: software rendering can delay the click acknowledgement
+    // until a transient progress element is gone. Keep duration/visibility assertions.
+    await page.evaluate(() => {
+      const probe: TransitionProbe = { start: null, end: null, visible: false };
+      window.futureTransitionProbe = probe;
+      const observer = new MutationObserver(() => {
+        const progress = document.querySelector(
+          'progress[aria-label="Trasformazione del futuro"]',
+        );
+        if (progress && progress.getClientRects().length) {
+          probe.visible = true;
+          probe.start ??= performance.now();
+        }
+        const complete = [...document.querySelectorAll("h2")].some(
+          (h) => h.textContent === "Futuro sostenibile",
+        );
+        if (complete && probe.start !== null) {
+          probe.end = performance.now();
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    });
     await page
       .getByRole("button", { name: "Mostra il futuro sostenibile" })
       .click();
-    const start = Date.now();
-    await expect(
-      page.getByRole("progressbar", { name: "Trasformazione del futuro" }),
-    ).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.futureTransitionProbe.visible))
+      .toBe(true);
     await expect(
       page.getByRole("heading", { name: "Futuro sostenibile", exact: true }),
     ).toBeVisible({ timeout: 18000 });
-    expect(Date.now() - start).toBeGreaterThan(6500);
+    const measured = await page.evaluate(() => window.futureTransitionProbe);
+    expect(measured.start).not.toBeNull();
+    expect(measured.end).not.toBeNull();
+    const transformationMs = measured.end! - measured.start!;
+    expect(transformationMs).toBeGreaterThan(6500);
     const diagnostics = await page.locator(".debug dl").innerText();
     writeFileSync(
       `test-results/performance-${theme}-${test.info().project.name}.json`,
@@ -72,7 +113,7 @@ for (const theme of ["environmental", "economic", "social"])
         {
           theme,
           profile: test.info().project.name,
-          transformationMs: Date.now() - start,
+          transformationMs,
           diagnostics,
           hardware: "headless browser; not Quest Pro",
         },
@@ -83,7 +124,7 @@ for (const theme of ["environmental", "economic", "social"])
     await test.info().attach("browser-performance", {
       body: JSON.stringify({
         profile: test.info().project.name,
-        transformationMs: Date.now() - start,
+        transformationMs,
         diagnostics,
         hardware: "headless browser; not Quest Pro",
       }),
