@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RealtimeClient, stateForEvent } from "../src/audio/realtimeClient";
+import { StoryEngine } from "../src/story/StoryEngine";
 class FakeContext {
   state = "running";
   sampleRate = 48000;
@@ -23,6 +24,9 @@ class FakePeer {
   ontrack?: (event: unknown) => void;
   channel = {
     onmessage: undefined as unknown,
+    onopen: undefined as unknown,
+    readyState: "open",
+    send: vi.fn(),
     onerror: null,
     onclose: null,
     close: vi.fn(),
@@ -82,6 +86,90 @@ beforeEach(() => {
     ),
   );
   client = new RealtimeClient(vi.fn(), vi.fn());
+});
+describe("Realtime narrative transport", () => {
+  const deliver = (event: object) => {
+    (FakePeer.latest.channel.onmessage as (event: { data: string }) => void)({
+      data: JSON.stringify(event),
+    });
+  };
+  const sent = () =>
+    FakePeer.latest.channel.send.mock.calls.map(([text]) => JSON.parse(text));
+  it("sends authoritative state on channel readiness and starts discovery only when ready", async () => {
+    client.dispose();
+    const engine = new StoryEngine();
+    const ready = vi.fn(() =>
+      client.requestNarration("Inizia la conversazione."),
+    );
+    client = new RealtimeClient(
+      vi.fn(),
+      vi.fn(),
+      (name, args) => engine.tool(name, args),
+      ready,
+    );
+    client.synchronizeStory(engine.snapshot);
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    expect(ready).not.toHaveBeenCalled();
+    (FakePeer.latest.channel.onopen as () => void)();
+    expect(ready).toHaveBeenCalledTimes(1);
+    expect(sent()[0].item.content[0].text).toContain("INTRODUCTION");
+    expect(sent().at(-1).type).toBe("response.create");
+  });
+  it("executes full validated calls once, returns rejection and waits until response completion", async () => {
+    client.dispose();
+    const engine = new StoryEngine();
+    const onTool = vi.fn((name: string, args: string) =>
+      engine.tool(name, args),
+    );
+    client = new RealtimeClient(vi.fn(), vi.fn(), onTool);
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    const call = {
+      type: "response.function_call_arguments.done",
+      call_id: "call1",
+      name: "select_theme",
+      arguments: '{"theme":"environmental"}',
+    };
+    deliver({ ...call, type: "response.function_call_arguments.delta" });
+    expect(onTool).not.toHaveBeenCalled();
+    deliver(call);
+    deliver(call);
+    expect(onTool).toHaveBeenCalledTimes(1);
+    expect(engine.snapshot.state).toBe("INVITATION");
+    expect(JSON.parse(sent()[0].item.output).accepted).toBe(true);
+    expect(sent().some((e) => e.type === "response.create")).toBe(false);
+    deliver({ type: "response.done", response: { status: "completed" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    deliver({
+      ...call,
+      call_id: "call2",
+      name: "enter_observatory",
+      arguments: '{"consent":"true"}',
+    });
+    expect(JSON.parse(sent().at(-1).item.output).accepted).toBe(false);
+    expect(client.snapshot.status).toBe("connected");
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
+  it("preserves the peer while scene updates queue narration and does not resume cancelled tools", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    deliver({ type: "response.created" });
+    client.synchronizeStory(new StoryEngine().snapshot);
+    client.requestNarration("La stanza è pronta.");
+    expect(sent().some((e) => e.type === "response.create")).toBe(false);
+    deliver({ type: "response.done", response: { status: "completed" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    deliver({
+      type: "response.function_call_arguments.done",
+      call_id: "cancelled",
+      name: "return_to_reality",
+      arguments: "{}",
+    });
+    deliver({ type: "response.done", response: { status: "cancelled" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
 });
 afterEach(() => {
   client.dispose();

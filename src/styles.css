@@ -476,3 +476,60 @@ select {
     transition: none;
   }
 }
+
+.story-panel {
+  margin-top: 28px;
+  max-width: 450px;
+  padding: 22px;
+  border: 1px solid #456355;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #162b27, #101e27);
+}
+.year-tag {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #cfdbc0;
+}
+.story-message {
+  margin: 16px 0;
+  color: #c5d3ce;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.story-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.story-actions button {
+  font-size: 12px;
+  padding: 10px 12px;
+}
+.story-note {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #92aaa5;
+  margin-top: 14px;
+}
+.story-panel progress {
+  width: 100%;
+  height: 6px;
+  accent-color: #86ccb3;
+  margin-top: 18px;
+}
+.stage {
+  min-height: 700px;
+  height: 700px;
+  align-self: start;
+}
+@media (max-width: 850px) {
+  .story-panel {
+    max-width: none;
+    margin: 0;
+  }
+  .stage {
+    grid-row: auto;
+    min-height: 490px;
+    height: 490px;
+  }
+}

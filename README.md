@@ -1,8 +1,8 @@
-# NEO — Conversational Mixed Reality Avatar
+# NEO — Future Observatory
 
-MVP React + TypeScript + Vite + Three.js/WebXR, con backend Node e voce OpenAI Realtime via WebRTC. RobotExpressive CC0 è incluso nel repository: nessun asset remoto a runtime.
+MVP React + TypeScript + Vite + Three.js/WebXR, con backend Node e voce OpenAI Realtime via WebRTC. RobotExpressive e gli asset Poly Haven CC0 sono inclusi nel repository: nessun asset remoto a runtime. [Architettura e prova dell’osservatorio](docs/FUTURE_OBSERVATORY.md).
 
-Il codice è implementato e verificabile con i controlli automatici. **MR, voce live, persistenza e compatibilità su dispositivi fisici non sono ancora validate. Nessun sito di produzione è stato pubblicato.** [Risultati e limiti](docs/VALIDATION.md), [checklist hardware](docs/DEVICE_TESTS.md), [specifica](SPEC.md), [istruzioni progetto](AGENTS.md).
+Estensione narrativa dell’MVP: stanza 3D, città a profondità reale e trasformazione ambientale critico → sostenibile. **MR, voce live, persistenza e compatibilità su dispositivi fisici restano da validare.** [Risultati e limiti](docs/VALIDATION.md), [checklist hardware](docs/DEVICE_TESTS.md), [specifica](SPEC.md), [istruzioni progetto](AGENTS.md).
 
 ## Avvio locale
 
@@ -28,6 +28,8 @@ npm start
 
 ## Funzionamento
 
+- **Future Observatory:** visita ambientale, stanza 5 × 5 m, skyline 3D a tre profondità, vera parallasse, transizione di otto secondi, oggetti narrativi e ritorno sempre disponibile. Pulsanti e voce condividono lo Story Engine; scena e WebRTC restano separati.
+
 - **Anteprima 3D:** scena orbitabile con mouse/touch, zoom, statura 1,5–1,7 m, saluto, approvazione e dissenso. Nessuna simulazione AR tramite videocamera su iPhone.
 - **MR:** pulsante soltanto dopo `isSessionSupported('immersive-ar')`; sfondo trasparente e `local-floor`, oppure `local` con calibrazione manuale obbligatoria. Solo la UI 3D segue l'utente; l'avatar è nel world space della scena.
 - **Posizionamento:** marker a circa 1,75 m, attesa di tre secondi prima di valutare i piani sul `XRFrame`, quota/estensione/orientamento per escludere tavoli, hit-test opzionale vicino al pavimento, scelta con ray/controller o tocco, quota ±5 cm e conferma esplicita. Le superfici sono suggerimenti da verificare visivamente.
@@ -42,7 +44,7 @@ Nel visore punta il controller e usa il grilletto sul pannello 3D: Conferma, Rip
 
 Il progetto produce `dist/` e `dist-server/`. Serve **entrambi** con Node dietro un reverse proxy HTTPS; un hosting esclusivamente statico non può erogare la route voce. Non occorrono WebSocket custom: l'audio WebRTC va dal browser a OpenAI, il backend usa soltanto HTTPS.
 
-È incluso un esempio [Caddy](deploy/Caddyfile) per un host scelto dall'utente. Non è stato eseguito alcun deploy esterno. Configura nel runtime del server:
+È incluso un esempio [Caddy](deploy/Caddyfile) per un host scelto dall'utente. L’adattamento Sites è pubblicato separatamente; il backend Node rimane disponibile per hosting autonomo. Configura nel runtime del server:
 
 | Variabile | Valore / comportamento |
 |---|---|
@@ -65,13 +67,13 @@ I limiter sono in memoria **per processo**: per questo MVP usa una sola istanza.
 
 ### Sites
 
-[Guida Sites](https://learn.chatgpt.com/docs/sites) consultata il 10 ottobre 2026. Disponibilità nel territorio/workspace e comportamento WebXR top-level devono essere verificati prima di scegliere il runtime. Questa PR implementa il backend Node richiesto da `AGENTS.md`; **non presume che Sites esegua un processo Express persistente** e non include una configurazione di hosting fittizia.
+Sito di test privato: **https://neo-mr-avatar-test.sk1kko.chatgpt.site** (accedere con l’account proprietario e aprire top-level sul visore). Il sorgente Sites usa Vinext e route server Worker native con identità verificata dalla piattaforma; non esegue Express nel Worker. La chiave esistente rimane un segreto backend, senza variabili `VITE_*`. Dopo modifiche ai segreti occorre ridistribuire la versione perché il deployment usa una revisione del runtime.
 
-Per adattare a Sites: usare una route server nativa del runtime per `/api/realtime-token`, mantenere configurazione GA/allowlist delle risposte, verificare l'identità server della piattaforma, rate limit e segreti runtime, servire localmente il GLB e aprire l'URL HTTPS top-level sui device. Caricare soltanto `dist/` come sito statico lascia la voce senza backend e non soddisfa la specifica. Non è stata verificata una distribuzione Sites e non esiste un URL di produzione da attestare.
+Questa repository conserva il backend Node richiesto da AGENTS.md; l’adattamento Sites riusa lo stesso frontend e protocollo Story Engine. Servire solo `dist/` su hosting statico non abilita la voce. Lo stato dettagliato delle verifiche è in `docs/VALIDATION.md`; hardware e OpenAI live non sono attestati dai test automatici.
 
 ## Struttura
 
-`src/App.tsx` contiene l'interfaccia React; `src/Experience.ts` gestisce scena e lifecycle. `src/xr` isola capability, pavimento, sessione e anchor; `src/avatar` animazioni e bocca; `src/audio` WebRTC/RMS; `src/ui/ui3d.ts` il pannello immersivo. `server/` contiene backend sicuro e configurazione; `tests/` test unitari, API e browser. [Crediti asset](ASSET_CREDITS.md).
+`src/App.tsx` contiene l'interfaccia React; `src/Experience.ts` gestisce scena e lifecycle. `src/xr` isola capability, pavimento, sessione e anchor; `src/avatar` animazioni e bocca; `src/audio` WebRTC/RMS; `src/ui/ui3d.ts` il pannello immersivo. `src/story` valida la narrazione; `src/observatory` contiene stanza, città, qualità e suoni. `server/` contiene backend sicuro e configurazione Realtime/Story; `tests/` test unitari, API e browser. [Crediti asset](ASSET_CREDITS.md).
 
 ## Fonti verificate
 

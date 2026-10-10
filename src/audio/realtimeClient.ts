@@ -1,4 +1,5 @@
 import { AudioLevel } from "./audioLevel";
+import type { StoryResult, StorySnapshot } from "../story/StoryEngine";
 import type { AvatarState } from "../avatar/animations";
 export type VoiceSnapshot = {
   status: "off" | "connecting" | "connected" | "error";
@@ -13,6 +14,9 @@ export type RealtimeEvent = {
   transcript?: string;
   response?: { status?: string };
   error?: { code?: string };
+  call_id?: string;
+  name?: string;
+  arguments?: string;
 };
 export function stateForEvent(type: string): AvatarState | undefined {
   switch (type) {
@@ -52,14 +56,21 @@ export class RealtimeClient {
   private connectTimer?: ReturnType<typeof setTimeout>;
   private durationTimer?: ReturnType<typeof setTimeout>;
   private disconnectTimer?: ReturnType<typeof setTimeout>;
+  private processedCalls = new Set<string>();
+  private pendingToolResponse = false;
+  private responseActive = false;
+  private pendingNarration = false;
+  private storyContext?: StorySnapshot;
   constructor(
     private changed: (snapshot: VoiceSnapshot) => void,
     private transcript: (role: string, text: string) => void,
+    private onTool?: (name: string, args: string) => StoryResult,
+    private onReady?: () => void,
   ) {
     this.audio.autoplay = true;
     this.audio.setAttribute("playsinline", "");
     this.audio.hidden = true;
-    document.body.append(this.audio);
+    document.body.appendChild(this.audio);
     document.addEventListener("visibilitychange", this.background);
     window.addEventListener("pagehide", this.background);
     this.audio.addEventListener("pause", this.paused);
@@ -169,6 +180,11 @@ export class RealtimeClient {
         throw new Error("Token voce non valido o scaduto. Riprova.");
       const pc = (this.pc = new RTCPeerConnection());
       this.channel = pc.createDataChannel("oai-events");
+      this.channel.onopen = () => {
+        if (generation !== this.generation) return;
+        if (this.storyContext) this.synchronizeStory(this.storyContext);
+        this.onReady?.();
+      };
       this.channel.onmessage = (event) => {
         if (generation !== this.generation) return;
         try {
@@ -270,7 +286,95 @@ export class RealtimeClient {
       );
     }
   }
+  private send(value: object) {
+    if (this.channel?.readyState !== "open") return false;
+    this.channel.send(JSON.stringify(value));
+    return true;
+  }
+  get audioContext() {
+    return this.context;
+  }
+  synchronizeStory(snapshot: StorySnapshot) {
+    this.storyContext = { ...snapshot };
+    this.send({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text:
+              "Stato narrativo autorevole: " +
+              JSON.stringify(snapshot) +
+              ". Rispetta i consensi e continua a rispondere alle domande.",
+          },
+        ],
+      },
+    });
+  }
+  requestNarration(text: string) {
+    if (
+      !this.send({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: text.slice(0, 1000) }],
+        },
+      })
+    )
+      return false;
+    if (this.responseActive) this.pendingNarration = true;
+    else this.send({ type: "response.create" });
+    return true;
+  }
   private event(event: RealtimeEvent) {
+    if (event.type === "response.created") this.responseActive = true;
+    // Full function arguments only: never act on argument deltas or transcripts.
+    if (event.type === "response.function_call_arguments.done") {
+      if (
+        !event.call_id ||
+        event.call_id.length > 160 ||
+        !event.name ||
+        typeof event.arguments !== "string" ||
+        this.processedCalls.has(event.call_id)
+      )
+        return;
+      if (this.processedCalls.size >= 64)
+        this.processedCalls.delete(this.processedCalls.values().next().value!);
+      this.processedCalls.add(event.call_id);
+      const result = this.onTool?.(event.name, event.arguments) ?? {
+        accepted: false,
+        reason: "Story Engine non disponibile.",
+      };
+      this.send({
+        type: "conversation.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: event.call_id,
+          output: JSON.stringify(result),
+        },
+      });
+      this.pendingToolResponse = true;
+      return;
+    }
+    if (event.type === "response.done") {
+      this.responseActive = false;
+      const shouldRespond =
+        this.pendingNarration ||
+        (this.pendingToolResponse && event.response?.status === "completed");
+      this.pendingToolResponse = false;
+      this.pendingNarration = false;
+      if (shouldRespond && event.response?.status !== "failed")
+        this.send({ type: "response.create" });
+    }
+    if (
+      event.type === "error" &&
+      event.error?.code === "conversation_already_has_active_response"
+    )
+      return;
+
     if (
       event.type === "error" ||
       (event.type === "response.done" && event.response?.status === "failed")
@@ -340,6 +444,10 @@ export class RealtimeClient {
   }
   stop(message = "Conversazione spenta") {
     this.generation++;
+    this.processedCalls.clear();
+    this.pendingToolResponse = false;
+    this.responseActive = false;
+    this.pendingNarration = false;
     this.abort?.abort();
     this.abort = undefined;
     clearTimeout(this.connectTimer);

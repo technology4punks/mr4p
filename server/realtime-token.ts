@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
+import { storyInstructions, storyTools } from "./story-config.js";
 
-export const instructions = `Sei NEO, un avatar tridimensionale visualizzato nella stanza dell'utente tramite realtà mista oppure in un'anteprima 3D. Parla in italiano in modo naturale, amichevole e sintetico. Usa frasi brevi adatte al dialogo vocale. NON hai accesso alle telecamere e non riconosci oggetti, persone o gesti. Se ti chiedono cosa vedi, dichiara il limite e chiedi una descrizione. Non affermare di muoverti o interagire fisicamente con gli oggetti.`;
+export const instructions = storyInstructions;
 export type ServerConfig = {
   apiKey?: string;
   model?: string;
@@ -43,6 +44,8 @@ export function tokenHandler(
               type: "realtime",
               model: config.model || "gpt-realtime-2.1-mini",
               instructions,
+              tools: storyTools,
+              tool_choice: "auto",
               output_modalities: ["audio"],
               audio: {
                 input: {

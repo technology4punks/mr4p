@@ -87,6 +87,34 @@ afterEach(() => {
   xr.dispose();
 });
 describe("MR orchestration (mocked XR runtime)", () => {
+  it("requests a distinct immersive VR session only on explicit enter", async () => {
+    expect(navigator.xr!.requestSession).not.toHaveBeenCalled();
+    await xr.enter("immersive-vr");
+    expect(navigator.xr!.requestSession).toHaveBeenCalledWith(
+      "immersive-vr",
+      expect.objectContaining({ optionalFeatures: ["local-floor"] }),
+    );
+    expect(xr.diagnostic.mode).toBe("immersive-vr");
+    localStorage.setItem("neo-persistent-anchor-v1", "mr-handle");
+    await xr.exit();
+    await xr.enter("immersive-vr");
+    expect(localStorage.getItem("neo-persistent-anchor-v1")).toBe("mr-handle");
+  });
+  it("keeps narrative avatar coordinates separate from placement and physical head motion", async () => {
+    await xr.enter();
+    xr.update(frame());
+    xr.confirm();
+    xr.update(frame());
+    xr.setNarrativeMode(true);
+    root.position.set(1.25, 0, -0.65);
+    xr.update(frame(new Map(), 1));
+    expect(root.position.toArray()).toEqual([1.25, 0, -0.65]);
+    expect(xr.viewerPose.position.x).toBe(1);
+    xr.confirm();
+    await xr.reposition();
+    expect(root.position.toArray()).toEqual([1.25, 0, -0.65]);
+    expect(root.visible).toBe(true);
+  });
   it("requests immersive AR and optional features then uses local-floor", async () => {
     await xr.enter();
     expect(navigator.xr!.requestSession).toHaveBeenCalledWith(
@@ -184,5 +212,23 @@ describe("MR orchestration (mocked XR runtime)", () => {
     expect(report).toHaveBeenCalledWith(
       "Posizione non recuperata — riposiziona.",
     );
+  });
+});
+
+describe("narrative reference reset", () => {
+  it("requires fresh MR placement after an unanchored recenter in the observatory", async () => {
+    await xr.enter();
+    xr.update(frame());
+    xr.confirm();
+    xr.update(frame());
+    xr.setNarrativeMode(true);
+    root.position.set(0.75, 0, -1);
+    session.reference.dispatchEvent(new Event("reset"));
+    expect(xr.diagnostic.placed).toBe(false);
+    expect(root.visible).toBe(true);
+    xr.setNarrativeMode(false);
+    expect(root.visible).toBe(false);
+    xr.update(frame());
+    expect(xr.diagnostic.placed).toBe(false);
   });
 });

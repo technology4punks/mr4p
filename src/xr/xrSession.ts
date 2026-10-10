@@ -13,6 +13,8 @@ import { UI3D, type XRAction } from "../ui/ui3d";
 
 export type XRDiagnostic = {
   active: boolean;
+  mode: XRSessionMode;
+  blendMode: string;
   reference: string;
   planes: number;
   floor: string;
@@ -43,8 +45,12 @@ export class XRExperience {
   private viewerQuaternion = new THREE.Quaternion();
   private floorOffset = 0;
   private raySelected = false;
+  private narrativeMode = false;
+  onWorldRay?: (ray: THREE.Ray) => void;
   diagnostic: XRDiagnostic = {
     active: false,
+    mode: "immersive-ar",
+    blendMode: "da verificare",
     reference: "preview",
     planes: 0,
     floor: "simulato",
@@ -86,7 +92,7 @@ export class XRExperience {
       scene.add(controller);
     }
   }
-  async enter() {
+  async enter(mode: XRSessionMode = "immersive-ar") {
     if (this.session || this.busy) return;
     if (!navigator.xr)
       throw new Error("WebXR non disponibile. Usa Anteprima 3D.");
@@ -94,13 +100,11 @@ export class XRExperience {
     let session: ExtendedSession | undefined;
     try {
       try {
-        session = await navigator.xr.requestSession("immersive-ar", {
-          optionalFeatures: [
-            "local-floor",
-            "plane-detection",
-            "hit-test",
-            "anchors",
-          ],
+        session = await navigator.xr.requestSession(mode, {
+          optionalFeatures:
+            mode === "immersive-vr"
+              ? ["local-floor"]
+              : ["local-floor", "plane-detection", "hit-test", "anchors"],
         });
       } catch (error) {
         if (
@@ -111,11 +115,14 @@ export class XRExperience {
         this.report(
           "Funzionalità opzionali non disponibili: avvio MR ridotta.",
         );
-        session = await navigator.xr.requestSession("immersive-ar", {
+        session = await navigator.xr.requestSession(mode, {
           optionalFeatures: ["local-floor"],
         });
       }
       this.session = session;
+      this.diagnostic.mode = mode;
+      this.diagnostic.blendMode =
+        session.environmentBlendMode ?? "non dichiarato";
       let reference: XRReferenceSpace;
       try {
         reference = await session.requestReferenceSpace("local-floor");
@@ -147,6 +154,7 @@ export class XRExperience {
         : "non disponibile";
       this.floorY = 0;
       this.floorOffset = 0;
+      this.diagnostic.feetY = 0;
       this.candidate = undefined;
       this.raySelected = false;
       this.started = performance.now();
@@ -161,7 +169,7 @@ export class XRExperience {
           ? "Posiziona: guarda il pavimento, scegli un punto e conferma."
           : "Calibrazione richiesta: regola la quota piedi e premi Quota corretta.",
       );
-      if (session.requestHitTestSource) {
+      if (mode === "immersive-ar" && session.requestHitTestSource) {
         try {
           const viewer = await session.requestReferenceSpace("viewer");
           this.hitSource = await session.requestHitTestSource({
@@ -172,8 +180,10 @@ export class XRExperience {
           this.diagnostic.hitTest = "non disponibile";
         }
       }
-      this.restored = await this.anchors.restore();
-      if (!this.restored) await this.anchors?.clear();
+      this.restored =
+        mode === "immersive-ar" ? await this.anchors.restore() : false;
+      if (mode === "immersive-ar" && !this.restored)
+        await this.anchors?.clear();
       if (this.restored) {
         this.diagnostic.placed = true;
         this.report("Anchor ripristinato: attendo tracking della posa.");
@@ -187,6 +197,18 @@ export class XRExperience {
     }
   }
   private onReferenceReset = () => {
+    if (this.narrativeMode) {
+      if (!this.anchors?.anchor) {
+        this.diagnostic.placed = false;
+        this.candidate = undefined;
+        this.pendingConfirm = false;
+      }
+      this.report(
+        "Riferimento ricentrato: ritorno alla realtà per verificare il posizionamento.",
+      );
+      this.onAction("reality");
+      return;
+    }
     if (!this.anchors?.anchor) {
       // A local coordinate is not an anchor; after recenter ask for placement again.
       this.diagnostic.placed = false;
@@ -223,6 +245,10 @@ export class XRExperience {
       this.onAction(action);
       return;
     }
+    if (this.narrativeMode) {
+      this.onWorldRay?.(ray);
+      return;
+    }
     if (this.diagnostic.placed) return;
     const point = floorIntersection(
       ray.origin,
@@ -241,7 +267,20 @@ export class XRExperience {
       this.report("Punto selezionato. Conferma la posizione.");
     }
   };
+  setNarrativeMode(active: boolean) {
+    this.narrativeMode = active;
+    if (active) this.marker.visible = false;
+    else if (this.session && !this.diagnostic.placed)
+      this.avatar.visible = false;
+  }
+  get viewerPose() {
+    return {
+      position: this.viewerPosition,
+      orientation: this.viewerQuaternion,
+    };
+  }
   confirm() {
+    if (this.narrativeMode) return;
     if (this.diagnostic.placed || this.pendingConfirm || !this.candidate)
       return;
     if (!this.diagnostic.calibrated) {
@@ -270,6 +309,10 @@ export class XRExperience {
       this.candidate.position.y = this.floorY + this.floorOffset;
   }
   async reposition() {
+    if (this.narrativeMode) {
+      this.report("Torna alla realtà prima di riposizionare.");
+      return;
+    }
     if (this.busy) return;
     this.busy = true;
     this.pendingConfirm = false;
@@ -301,6 +344,11 @@ export class XRExperience {
     this.viewerPosition.set(p.x, p.y, p.z);
     this.viewerQuaternion.set(q.x, q.y, q.z, q.w);
     this.ui.followViewer(this.viewerPosition, this.viewerQuaternion);
+    if (this.narrativeMode) {
+      this.marker.visible = false;
+      this.diagnostic.tracking = "osservatorio · posa stanza fissa";
+      return;
+    }
     this.diagnostic.anchors = frame.createAnchor
       ? "API disponibile"
       : "non disponibile";
@@ -432,6 +480,7 @@ export class XRExperience {
     this.reference = undefined;
     this.pendingConfirm = false;
     this.restored = false;
+    this.narrativeMode = false;
     this.ui.root.visible = false;
     this.marker.visible = false;
     this.diagnostic.active = false;

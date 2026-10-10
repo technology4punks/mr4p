@@ -54,6 +54,19 @@ export default function App() {
     snapshot?.voice.status === "connected" ||
     snapshot?.voice.status === "connecting";
   const state = snapshot?.state ?? "idle";
+  const story = snapshot?.story;
+  const inObservatory = story?.environment === "observatory";
+  const storyLabels: Record<string, string> = {
+    INTRODUCTION: "L’incontro",
+    DISCOVER_INTEREST: "Le tue scelte",
+    INVITATION: "Un invito al 2050",
+    ENTER_OBSERVATORY: "Verso il futuro",
+    CRITICAL_FUTURE: "Futuro critico",
+    REFLECTION: "Decisioni diverse",
+    SUSTAINABLE_FUTURE: "Futuro sostenibile",
+    RETURN_TO_REALITY: "Ritorno al presente",
+    CONCLUSION: "Portalo nel presente",
+  };
   const toggleDebug = () => {
     const next = !debug;
     setDebug(next);
@@ -67,7 +80,7 @@ export default function App() {
           <span className="brand-mark">N</span> NEO{" "}
           <span className="badge">LAB / MVP</span>
         </a>
-        <span className="header-note">Una presenza. Una conversazione.</span>
+        <span className="header-note">FUTURE OBSERVATORY · 2050</span>
         <button
           className="text-button"
           onClick={toggleDebug}
@@ -79,17 +92,17 @@ export default function App() {
       <main>
         <section className="intro">
           <p className="eyebrow">
-            <span className="dot" /> MIXED REALITY COMPANION
+            <span className="dot" /> FUTURE OBSERVATORY
           </p>
           <h1>
-            Incontra NEO.
+            Il futuro ha
             <br />
-            <span>Parliamone.</span>
+            <span>una finestra.</span>
           </h1>
           <p className="description">
-            Un avatar 3D con cui conversare in italiano. Nella tua stanza sui
-            dispositivi WebXR compatibili, in una scena orbitabile su ogni altro
-            browser.
+            Incontra NEO, raccontagli cosa ti interessa e visita una città del
+            2050. Dalla stessa finestra, guarda come decisioni diverse possono
+            cambiare il futuro.
           </p>
           <div className="capabilities">
             <span>
@@ -135,6 +148,97 @@ export default function App() {
               microfono.
             </p>
           )}
+          <section className="story-panel" aria-label="Future Observatory">
+            <div className="panel-heading">
+              <h2>{storyLabels[story?.state ?? "INTRODUCTION"]}</h2>
+              <span className="year-tag">2050</span>
+            </div>
+            <p className="story-message" role="status">
+              {story?.message ?? "Un incontro, poi una finestra sul 2050."}
+            </p>
+            <div className="story-actions">
+              {!inObservatory && (
+                <button
+                  className="primary"
+                  disabled={!snapshot || !!failure || story?.transitioning}
+                  onClick={() => engine.current?.visit()}
+                >
+                  Visita il 2050
+                </button>
+              )}
+              {inObservatory && (
+                <>
+                  <button
+                    className="primary"
+                    disabled={
+                      story?.transitioning || story?.future === "sustainable"
+                    }
+                    onClick={() => engine.current?.alternative()}
+                  >
+                    Mostra il futuro sostenibile
+                  </button>
+                  <button
+                    className="secondary"
+                    disabled={story?.state === "RETURN_TO_REALITY"}
+                    onClick={() => engine.current?.returnToReality()}
+                  >
+                    Torna alla realtà
+                  </button>
+                </>
+              )}
+              <button
+                className="secondary"
+                disabled={!snapshot}
+                onClick={() => engine.current?.toggleAmbience()}
+              >
+                Suoni ambiente on / off
+              </button>
+              {caps?.vr && !active && (
+                <button
+                  className="secondary"
+                  disabled={!snapshot}
+                  onClick={() => void engine.current?.enterVR()}
+                >
+                  Entra in VR
+                </button>
+              )}
+              {caps?.vr && active && (
+                <button
+                  className="secondary"
+                  onClick={() => void engine.current?.prepareVR()}
+                >
+                  Prepara sessione VR separata
+                </button>
+              )}
+            </div>
+            {story?.transitioning && (
+              <progress
+                aria-label={
+                  story.state === "REFLECTION"
+                    ? "Trasformazione del futuro"
+                    : "Transizione della stanza"
+                }
+                max="1"
+                value={
+                  story.state === "REFLECTION"
+                    ? snapshot?.transformation
+                    : story.state === "RETURN_TO_REALITY"
+                      ? 1 - (snapshot?.immersion ?? 1)
+                      : snapshot?.immersion
+                }
+              />
+            )}
+            <p className="story-note">
+              Scenario ambientale ipotetico, non una previsione scientifica.
+              Visita da fermo; rispetta sempre i confini reali del visore.
+            </p>
+            {inObservatory && (
+              <p className="story-note">
+                I tre oggetti sul davanzale aprono riflessioni su energia, acqua
+                e mobilità. Tocca o seleziona con il controller.
+              </p>
+            )}
+          </section>
           <section className="voice-panel" aria-label="Conversazione">
             <div className="panel-heading">
               <h2>Conversazione</h2>
@@ -192,7 +296,11 @@ export default function App() {
         <section className="stage" aria-label="Anteprima avatar">
           <div className="stage-top">
             <span className="stage-label">
-              {active ? "REALTÀ MISTA" : "ANTEPRIMA 3D"}
+              {inObservatory
+                ? "FUTURE OBSERVATORY · 2050"
+                : active
+                  ? "REALTÀ MISTA"
+                  : "ANTEPRIMA 3D"}
             </span>
             <span className="status-pill">
               <span className="dot" />
@@ -238,7 +346,7 @@ export default function App() {
           </div>
         </section>
       </main>
-      {active && (
+      {active && !inObservatory && (
         <section className="placement" aria-label="Posizionamento MR">
           <strong>
             {snapshot?.xr.placed
@@ -320,6 +428,16 @@ export default function App() {
               "Livello microfono": snapshot?.input.toFixed(3),
               "Livello uscita": snapshot?.output.toFixed(3),
               FPS: snapshot?.fps,
+              "Draw call": snapshot?.drawCalls,
+              Triangoli: snapshot?.triangles,
+              "Geometrie GPU": snapshot?.geometries,
+              "Texture GPU": snapshot?.textures,
+              "Qualità adattiva": snapshot?.quality,
+              "Asset osservatorio": snapshot?.observatoryAssets,
+              "Compositing XR": snapshot?.compositor,
+              "Stato storia": story?.state,
+              Tema: story?.theme ?? "da scoprire",
+              Trasformazione: `${Math.round((snapshot?.transformation ?? 0) * 100)}%`,
             }).map(([key, value]) => (
               <div key={key}>
                 <dt>{key}</dt>

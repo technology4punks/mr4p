@@ -4,7 +4,7 @@
 
 ## Preparazione
 
-1. Distribuire backend e frontend su un host HTTPS scelto e approvato, con accesso privato e segreto OpenAI nel runtime. Nessun deploy è incluso in questa PR.
+1. Distribuire backend e frontend su un host HTTPS scelto e approvato, con accesso privato e segreto OpenAI nel runtime. Il Site privato di test è https://neo-mr-avatar-test.sk1kko.chatgpt.site; aprirlo con l’account proprietario.
 2. Verificare `APP_ORIGIN`, proxy autenticato, CSP/Permissions-Policy, rate limit, budget API e `/api/health`. Aprire direttamente l'URL, non un iframe.
 3. Assicurarsi di avere spazio libero e guardian calibrato per muoversi. Non occorrono permessi videocamera; MR usa il compositor WebXR.
 4. Attivare Diagnostica solo per la prova, poi disattivarla per eliminare le trascrizioni in memoria.
@@ -71,3 +71,24 @@ Problema e passi per riprodurlo:
 ```
 
 Un anchor persistente non è garantito in modalità privata, dopo cancellazione dati o modifiche nei permessi/configurazione stanza. Il limite Meta indicato dalla specifica è otto per origin. Se la cancellazione dispositivo fallisce, l'app impedisce di creare altri anchor persistenti e offre retry del reset; può comunque creare un anchor di sessione.
+
+## Future Observatory — Quest Pro
+
+Tutte le seguenti prove sono **NON ESEGUITE** sul dispositivo fisico.
+
+| Prova | Esito atteso | Esito reale |
+|---|---|---|
+| Interesse e consenso | Dialogo naturale, tema ambientale, invito e ingresso solo dopo accettazione | Non eseguito |
+| Copertura del passthrough AR | Pareti/cielo coprono completamente il mondo reale; registrare blendMode | Non eseguito |
+| Stanza e parallasse | Testa e piccoli spostamenti sicuri mostrano prospettiva coerente dei tre livelli; robot fermo | Non eseguito |
+| Transizione sostenibile | Luce, cielo, smog, vegetazione, pannelli/tram e suoni cambiano in circa 8 s | Non eseguito |
+| Voce durante transizioni | Conversazione, domande e interruzioni restano udibili, stesso peer | Non eseguito |
+| Ritorno anticipato | Uscita durante ingresso/trasformazione; ripristino posizione MR e anchor | Non eseguito |
+| Fallback VR separato | Prepara VR chiude AR, nuovo click avvia VR, robot presente; ritorno richiede nuovo gesto MR | Non eseguito |
+| Reset riferimento | Ritorno prevedibile e verifica della posizione reale dopo recenter | Non eseguito |
+| Oggetti narrativi | Controller seleziona acqua/energia/mobilità senza spostare l’avatar | Non eseguito |
+| Comfort e confini | Nessuna locomozione, iniziale punto sicuro, Guardian reale disponibile | Non eseguito |
+| Performance 72 Hz | Registrare supportedFrameRates, FPS, draw call, triangoli, conteggi GPU e livello adattivo per 2 min | Non eseguito |
+| Android/iPhone | Ingresso 3D touch, trasformazione, ritorno e audio sul telefono fisico | Non eseguito |
+
+Per i limiti di sessione/compositing e i fallback, vedere FUTURE_OBSERVATORY.md. Non convertire questa tabella in PASS sulla base delle simulazioni XR.

@@ -5,6 +5,14 @@ import type { AvatarState } from "./avatar/animations";
 import { RealtimeClient, type VoiceSnapshot } from "./audio/realtimeClient";
 import { XRExperience, type XRDiagnostic } from "./xr/xrSession";
 import type { XRAction } from "./ui/ui3d";
+import {
+  StoryEngine,
+  type StoryResult,
+  type StorySnapshot,
+} from "./story/StoryEngine";
+import { FutureObservatory } from "./observatory/FutureObservatory";
+import { AdaptiveQuality, smoothTransition } from "./observatory/performance";
+import { Ambience } from "./observatory/Ambience";
 
 export type ExperienceSnapshot = {
   asset: "loading" | "loaded" | "fallback";
@@ -16,16 +24,28 @@ export type ExperienceSnapshot = {
   output: number;
   fps: number;
   state: AvatarState;
+  story: StorySnapshot;
+  immersion: number;
+  transformation: number;
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+  quality: string;
+  observatoryAssets: string;
+  compositor: string;
 };
 export class Experience {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(42, 1, 0.05, 50);
+  private camera = new THREE.PerspectiveCamera(52, 1, 0.05, 150);
   private controls: OrbitControls;
   readonly avatar = new AvatarController();
   readonly voice: RealtimeClient;
   readonly xr: XRExperience;
   private floor = new THREE.Group();
+  private previewAmbient = new THREE.HemisphereLight(0xe3fff7, 0x304451, 2.8);
+  private previewSun = new THREE.DirectionalLight(0xffffff, 3);
   private clock = new THREE.Clock();
   private resize: ResizeObserver;
   private disposed = false;
@@ -38,6 +58,24 @@ export class Experience {
   private fpsStart = 0;
   private debug = false;
   private viewerPosition = new THREE.Vector3();
+  readonly story = new StoryEngine();
+  readonly observatory = new FutureObservatory();
+  private quality = new AdaptiveQuality();
+  private ambience = new Ambience();
+  private ambientContext?: AudioContext;
+  private ambientEnabled = false;
+  private immersion = 0;
+  private transformation = 0;
+  private transitionTime = 0;
+  private transitionStart = 0;
+  private needsAlignment = false;
+  private savedRealityPose = {
+    position: new THREE.Vector3(),
+    orientation: new THREE.Quaternion(),
+  };
+  private unsubscribeStory?: () => void;
+  private preloadTimer?: ReturnType<typeof setTimeout>;
+  private pointerStart = { x: 0, y: 0 };
   constructor(
     private host: HTMLElement,
     private changed: (snapshot: ExperienceSnapshot) => void,
@@ -50,11 +88,13 @@ export class Experience {
     });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.9;
     this.renderer.domElement.setAttribute(
       "aria-label",
       "Scena 3D orbitabile di NEO",
     );
-    this.host.append(this.renderer.domElement);
+    this.host.appendChild(this.renderer.domElement);
     this.renderer.domElement.addEventListener(
       "webglcontextlost",
       this.contextLost,
@@ -66,8 +106,8 @@ export class Experience {
     this.controls.minDistance = 1.5;
     this.controls.maxDistance = 6;
     this.controls.maxPolarAngle = Math.PI / 2;
-    this.scene.add(new THREE.HemisphereLight(0xe3fff7, 0x304451, 2.8));
-    const light = new THREE.DirectionalLight(0xffffff, 3);
+    this.scene.add(this.previewAmbient);
+    const light = this.previewSun;
     light.position.set(2, 4, 2);
     this.scene.add(light);
     const surface = new THREE.Mesh(
@@ -79,13 +119,17 @@ export class Experience {
     const grid = new THREE.GridHelper(4.4, 22, 0x407166, 0x2b4848);
     grid.position.y = -0.008;
     this.floor.add(surface, grid);
-    this.scene.add(this.floor, this.avatar.root);
+    this.scene.add(this.floor, this.avatar.root, this.observatory.root);
     this.voice = new RealtimeClient(
       (snapshot) => {
         this.avatar.setState(snapshot.state);
       },
       (role, text) => {
         if (this.debug) transcript(role, text);
+      },
+      (name, args) => this.storyTool(name, args),
+      () => {
+        if (this.story.snapshot.state === "INTRODUCTION") this.startDiscovery();
       },
     );
     this.xr = new XRExperience(
@@ -97,16 +141,33 @@ export class Experience {
       },
       (action) => this.action(action),
       () => {
-        this.voice.stop();
-        this.floor.visible = true;
-        this.controls.enabled = true;
-        this.camera.position.set(2.4, 1.6, 3.6);
-        this.controls.target.set(0, 0.8, 0);
-        this.controls.update();
-        this.renderer.setClearColor(0x101e27, 1);
-        this.message = "Anteprima 3D. Sessione MR terminata.";
+        // Session changes do not end the WebRTC connection.
+        this.savedRealityPose.position.set(0, 0, 0);
+        this.savedRealityPose.orientation.identity();
+        if (this.story.snapshot.environment === "observatory") {
+          this.observatory.root.position.set(0, 0, 0);
+          this.observatory.root.rotation.set(0, 0, 0);
+          this.avatar.root.position.set(0.75, 0, -1.0);
+          this.configurePreview(true);
+        } else this.configurePreview(false);
+        this.message =
+          "Sessione XR terminata. Anteprima 3D; la voce mantiene il proprio controllo.";
       },
     );
+    this.xr.onWorldRay = (ray) => {
+      const text = this.observatory.narrativeRay(ray);
+      if (text) this.exploreObject(text);
+    };
+    this.unsubscribeStory = this.story.subscribe((snapshot) =>
+      this.storyChanged(snapshot),
+    );
+    this.voice.synchronizeStory(this.story.snapshot);
+    this.preloadTimer = setTimeout(() => {
+      if (!this.disposed) void this.observatory.preload(this.renderer);
+    }, 1800);
+    this.renderer.domElement.addEventListener("pointerdown", this.pointerDown);
+    this.renderer.domElement.addEventListener("pointerup", this.pointerUp);
+    document.addEventListener("visibilitychange", this.ambientBackground);
     this.renderer.setClearColor(0x101e27, 1);
     this.resize = new ResizeObserver(this.onResize);
     this.resize.observe(host);
@@ -148,14 +209,56 @@ export class Experience {
       output,
       fps: this.fps,
       state: this.avatar.state,
+      story: { ...this.story.snapshot },
+      immersion: this.immersion,
+      transformation: this.transformation,
+      drawCalls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+      geometries: this.renderer.info.memory.geometries,
+      textures: this.renderer.info.memory.textures,
+      quality: this.quality.quality,
+      observatoryAssets: this.observatory.assetStatus,
+      compositor: this.xr.session
+        ? `${this.xr.diagnostic.mode} / ${this.xr.diagnostic.blendMode} · occultamento da verificare`
+        : "3D browser",
     };
   }
   private render = (time: number, frame?: XRFrame) => {
-    this.floor.visible = !frame;
-    const delta = Math.min(this.clock.getDelta(), 0.05);
+    this.floor.visible = !frame && this.immersion < 0.01;
+    const elapsed = Math.min(this.clock.getDelta(), 1);
+    const delta = Math.min(elapsed, 0.05);
     const levels = this.voice.levels();
     if (frame) this.xr.update(frame);
-    else this.controls.update();
+    else {
+      this.controls.update();
+      if (this.story.snapshot.environment === "observatory") {
+        this.camera.position.x = THREE.MathUtils.clamp(
+          this.camera.position.x,
+          -1.9,
+          1.9,
+        );
+        this.camera.position.y = THREE.MathUtils.clamp(
+          this.camera.position.y,
+          1.15,
+          2.2,
+        );
+        this.camera.position.z = THREE.MathUtils.clamp(
+          this.camera.position.z,
+          -1.9,
+          2,
+        );
+      }
+    }
+    if (this.needsAlignment && (!this.xr.session || frame))
+      this.alignObservatory();
+    this.updateStoryVisuals(elapsed);
+    this.observatory.update(time);
+    this.ambience.update(
+      this.transformation,
+      this.immersion,
+      levels.output > 0.02 || levels.input > 0.02,
+      time,
+    );
     const camera = frame ? this.renderer.xr.getCamera() : this.camera;
     camera.getWorldPosition(this.viewerPosition);
     this.avatar.update(
@@ -176,7 +279,7 @@ export class Experience {
       error: "Errore",
     };
     this.xr.ui.setStatus(
-      `${this.xr.diagnostic.placed ? stateLabels[this.avatar.state] : "Posiziona"} · ${voice.muted ? "Mic spento" : voice.status === "connected" ? "Voce attiva" : "Voce spenta"}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : this.message}`,
+      `${this.xr.diagnostic.placed || this.story.snapshot.environment === "observatory" ? stateLabels[this.avatar.state] : "Posiziona"} · ${voice.muted ? "Mic spento" : voice.status === "connected" ? "Voce attiva" : "Voce spenta"}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : this.message}`,
     );
     this.renderer.render(this.scene, this.camera);
     this.frames++;
@@ -184,18 +287,41 @@ export class Experience {
       this.fps = Math.round((this.frames * 1000) / (time - this.fpsStart));
       this.fpsStart = time;
       this.frames = 0;
+      if (this.quality.sample(this.fps, !!frame)) {
+        this.observatory.setQuality(this.quality.quality);
+        if (!frame)
+          this.renderer.setPixelRatio(
+            Math.min(devicePixelRatio, this.quality.pixelRatio),
+          );
+        // WebXR foveation may change in-session; framebuffer scale is set before the next session.
+        if (frame)
+          this.renderer.xr.setFoveation(
+            this.quality.quality === "low" ? 1 : 0.7,
+          );
+      }
     }
     if (time - this.lastNotify > 200) {
       this.changed(this.snapshot(levels.input, levels.output));
       this.lastNotify = time;
     }
   };
-  async enter() {
+  async enter(mode: XRSessionMode = "immersive-ar") {
     try {
-      await this.xr.enter();
+      this.renderer.xr.setFramebufferScaleFactor(this.quality.framebufferScale);
+      await this.xr.enter(mode);
       if (this.xr.session) {
         this.floor.visible = false;
         this.controls.enabled = false;
+        if (this.story.snapshot.environment === "observatory") {
+          this.xr.setNarrativeMode(true);
+          this.needsAlignment = true;
+          this.avatar.root.position.set(0.75, 0, -1.0);
+          this.avatar.root.quaternion.identity();
+          this.avatar.root.visible = true;
+        }
+        const session = this.xr.session;
+        if (session.supportedFrameRates?.includes(72))
+          void session.updateTargetFrameRate(72).catch(() => {});
       }
     } catch (error) {
       this.message =
@@ -206,6 +332,18 @@ export class Experience {
   }
   action(action: XRAction) {
     switch (action) {
+      case "prepare-vr":
+        void this.prepareVR();
+        break;
+      case "observatory":
+        this.visit();
+        break;
+      case "future":
+        this.alternative();
+        break;
+      case "reality":
+        this.returnToReality();
+        break;
       case "voice":
         if (["connected", "connecting"].includes(this.voice.snapshot.status))
           this.voice.stop();
@@ -245,11 +383,254 @@ export class Experience {
   preview() {
     if (this.xr.session) void this.xr.exit();
     else {
-      this.camera.position.set(2.4, 1.6, 3.6);
-      this.controls.target.set(0, 0.8, 0);
+      this.configurePreview(this.story.snapshot.environment === "observatory");
       this.message = "Anteprima 3D: trascina per ruotare, pizzica per zoomare.";
     }
   }
+  private configurePreview(observatory: boolean) {
+    this.controls.enabled = true;
+    this.controls.enablePan = !observatory;
+    this.controls.minDistance = observatory ? 1.2 : 1.5;
+    this.controls.maxDistance = observatory ? 4.5 : 6;
+    this.controls.minAzimuthAngle = observatory ? -0.42 : -Infinity;
+    this.controls.maxAzimuthAngle = observatory ? 0.42 : Infinity;
+    this.controls.minPolarAngle = observatory ? 1.15 : 0;
+    this.controls.maxPolarAngle = observatory ? 1.7 : Math.PI / 2;
+    this.camera.fov = observatory ? 62 : 52;
+    this.camera.updateProjectionMatrix();
+    this.camera.position.set(
+      observatory ? 0 : 2.4,
+      1.6,
+      observatory ? 1.8 : 3.6,
+    );
+    this.controls.target.set(
+      0,
+      observatory ? 1.55 : 0.8,
+      observatory ? -2.5 : 0,
+    );
+    this.controls.update();
+    this.renderer.setClearColor(0x101e27, 1);
+    this.onResize();
+  }
+  private storyTool(name: string, args: string): StoryResult {
+    if (
+      name === "enter_observatory" &&
+      this.xr.session &&
+      this.xr.diagnostic.mode === "immersive-ar" &&
+      !this.xr.diagnostic.placed
+    )
+      return {
+        accepted: false,
+        reason: "Conferma prima il robot sul pavimento della stanza reale.",
+        snapshot: { ...this.story.snapshot },
+      };
+    if (
+      name === "enter_observatory" &&
+      this.xr.session?.environmentBlendMode === "additive"
+    )
+      return {
+        accepted: false,
+        reason:
+          "Questo compositing non può occultare il mondo reale. Usa il pulsante VR se disponibile.",
+        snapshot: { ...this.story.snapshot },
+      };
+    return this.story.tool(name, args);
+  }
+  private storyChanged(snapshot: StorySnapshot) {
+    this.voice.synchronizeStory(snapshot);
+    this.message = snapshot.message;
+    if (snapshot.state === "ENTER_OBSERVATORY") {
+      this.savedRealityPose.position.copy(this.avatar.root.position);
+      this.savedRealityPose.orientation.copy(this.avatar.root.quaternion);
+      this.observatory.root.add(this.avatar.root);
+      this.avatar.root.position.set(0.75, 0, -1.0);
+      this.avatar.root.quaternion.identity();
+      this.avatar.root.visible = true;
+      this.xr.setNarrativeMode(true);
+      this.needsAlignment = true;
+      this.transformation = 0;
+      this.observatory.setFuture(0);
+      this.transitionTime = 0;
+      this.transitionStart = this.immersion;
+      if (!this.xr.session) this.configurePreview(true);
+      void this.observatory.preload(this.renderer);
+    }
+    if (snapshot.state === "REFLECTION" && snapshot.transitioning) {
+      this.transitionTime = 0;
+      this.transitionStart = this.transformation;
+    }
+    if (snapshot.state === "RETURN_TO_REALITY") {
+      this.transitionTime = 0;
+      this.transitionStart = this.immersion;
+    }
+    if (snapshot.state === "CRITICAL_FUTURE")
+      this.voice.requestNarration(
+        "L’ingresso è completo. Presenta il futuro ambientale critico del 2050 come scenario ipotetico, poi invita a riflettere sulle alternative senza avviare trasformazioni senza consenso.",
+      );
+  }
+  private alignObservatory() {
+    this.needsAlignment = false;
+    if (this.xr.session) {
+      const pose = this.xr.viewerPose;
+      this.observatory.root.position.set(
+        pose.position.x,
+        this.xr.diagnostic.calibrated
+          ? this.xr.diagnostic.feetY
+          : pose.position.y - 1.6,
+        pose.position.z,
+      );
+      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
+        pose.orientation,
+      );
+      this.observatory.root.rotation.y = Math.atan2(-forward.x, -forward.z);
+    } else {
+      this.observatory.root.position.set(0, 0, 0);
+      this.observatory.root.rotation.set(0, 0, 0);
+    }
+  }
+  private updateStoryVisuals(delta: number) {
+    const s = this.story.snapshot;
+    this.transitionTime += delta;
+    if (s.state === "ENTER_OBSERVATORY") {
+      this.immersion =
+        this.transitionStart +
+        (1 - this.transitionStart) * smoothTransition(this.transitionTime, 3);
+      if (this.transitionTime >= 3)
+        this.story.dispatch({ type: "entry_complete" });
+    } else if (s.state === "REFLECTION" && s.transitioning) {
+      this.transformation =
+        this.transitionStart +
+        (1 - this.transitionStart) * smoothTransition(this.transitionTime, 8);
+      this.observatory.setFuture(this.transformation);
+      if (this.transitionTime >= 8)
+        this.story.dispatch({ type: "transformation_complete" });
+    } else if (s.state === "RETURN_TO_REALITY") {
+      this.immersion =
+        this.transitionStart * (1 - smoothTransition(this.transitionTime, 2.5));
+      if (this.transitionTime >= 2.5) {
+        this.scene.add(this.avatar.root);
+        this.avatar.root.position.copy(this.savedRealityPose.position);
+        this.avatar.root.quaternion.copy(this.savedRealityPose.orientation);
+        this.xr.setNarrativeMode(false);
+        this.scene.fog = null;
+        this.story.dispatch({ type: "return_complete" });
+        if (this.xr.diagnostic.mode === "immersive-vr" && this.xr.session) {
+          void this.xr.exit();
+          this.message =
+            "Visita conclusa. Premi Entra in realtà mista per riaprire il passthrough.";
+        } else if (!this.xr.session) this.configurePreview(false);
+      }
+    }
+    this.observatory.setOpacity(this.immersion);
+    this.previewAmbient.intensity = 2.8 * (1 - this.immersion);
+    this.previewSun.intensity = 3 * (1 - this.immersion);
+    if (this.immersion > 0.99) {
+      this.scene.fog ??= new THREE.FogExp2(
+        this.observatory.fogColor,
+        this.observatory.fogDensity,
+      );
+      (this.scene.fog as THREE.FogExp2).color.copy(this.observatory.fogColor);
+      (this.scene.fog as THREE.FogExp2).density = this.observatory.fogDensity;
+    } else this.scene.fog = null;
+    if (this.xr.session) this.renderer.setClearColor(0x000000, 0);
+  }
+  visit() {
+    if (this.story.snapshot.environment === "observatory") return;
+    this.story.dispatch({ type: "select_theme", theme: "environmental" });
+    const result = this.storyTool("enter_observatory", '{"consent":true}');
+    if (!result.accepted) this.message = result.reason;
+    else
+      this.voice.requestNarration(
+        "Ho scelto di visitare il futuro ambientale. Accompagnami e descrivi il futuro critico quando l’ingresso è completo.",
+      );
+  }
+  alternative() {
+    const result = this.story.tool(
+      "transform_future",
+      '{"future":"sustainable","consent":true}',
+    );
+    if (!result.accepted) this.message = result.reason;
+    else
+      this.voice.requestNarration(
+        "Sì, voglio vedere il futuro sostenibile dalla stessa finestra. Raccontami le scelte diverse durante la trasformazione.",
+      );
+  }
+  returnToReality() {
+    const result = this.story.dispatch({ type: "return_to_reality" });
+    if (!result.accepted) this.message = result.reason;
+  }
+  startDiscovery() {
+    this.story.dispatch({ type: "start_discovery" });
+    this.voice.requestNarration(
+      "Iniziamo un dialogo sui miei interessi nella sostenibilità, una domanda naturale alla volta.",
+    );
+  }
+  async prepareVR() {
+    const supported = await navigator.xr
+      ?.isSessionSupported("immersive-vr")
+      .catch(() => false);
+    if (!supported) {
+      this.message =
+        "Sessione VR non supportata. Puoi usare l’osservatorio nella modalità disponibile.";
+      return;
+    }
+    if (this.xr.session) await this.xr.exit();
+    this.message =
+      "Per avviare VR premi ora Entra in VR. Il browser richiede un nuovo gesto esplicito.";
+  }
+  async enterVR() {
+    await this.enter("immersive-vr");
+    if (this.xr.session) {
+      this.visit();
+      this.xr.setNarrativeMode(true);
+      this.needsAlignment = true;
+    }
+  }
+  private exploreObject(text: string) {
+    this.message = text;
+    this.voice.requestNarration(text);
+  }
+  private pointerDown = (event: PointerEvent) => {
+    this.pointerStart = { x: event.clientX, y: event.clientY };
+  };
+  private pointerUp = (event: PointerEvent) => {
+    if (
+      this.story.snapshot.environment !== "observatory" ||
+      this.xr.session ||
+      Math.hypot(
+        event.clientX - this.pointerStart.x,
+        event.clientY - this.pointerStart.y,
+      ) > 8
+    )
+      return;
+    const bounds = this.renderer.domElement.getBoundingClientRect();
+    const text = this.observatory.narrativePointer(
+      ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+      (-(event.clientY - bounds.top) / bounds.height) * 2 + 1,
+      this.camera,
+    );
+    if (text) this.exploreObject(text);
+  };
+  toggleAmbience() {
+    this.ambientEnabled = !this.ambientEnabled;
+    if (this.ambientEnabled) {
+      try {
+        this.ambientContext ??= new AudioContext();
+        void this.ambientContext.resume();
+        this.ambience.enable(this.ambientContext);
+      } catch {
+        this.message = "Suoni ambiente non disponibili.";
+      }
+    } else this.ambience.disable();
+  }
+  private ambientBackground = () => {
+    if (document.hidden) {
+      this.ambience.dispose();
+      void this.ambientContext?.close();
+      this.ambientContext = undefined;
+      this.ambientEnabled = false;
+    }
+  };
   emote(state: AvatarState) {
     this.avatar.setState(state, true);
   }
@@ -261,6 +642,18 @@ export class Experience {
   }
   dispose() {
     this.disposed = true;
+    clearTimeout(this.preloadTimer);
+    this.unsubscribeStory?.();
+    this.ambience.dispose();
+    void this.ambientContext?.close();
+    this.renderer.domElement.removeEventListener(
+      "pointerdown",
+      this.pointerDown,
+    );
+    this.renderer.domElement.removeEventListener("pointerup", this.pointerUp);
+    document.removeEventListener("visibilitychange", this.ambientBackground);
+    this.scene.add(this.avatar.root);
+    this.observatory.dispose();
     this.renderer.setAnimationLoop(null);
     this.resize.disconnect();
     this.voice.dispose();

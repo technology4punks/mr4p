@@ -1,33 +1,44 @@
-# Risultati — 10 ottobre 2026
+# Verifiche Future Observatory — 10 ottobre 2026
 
-## Verificato automaticamente
+## Controlli eseguiti
 
-| Controllo | Risultato |
+| Controllo | Esito |
 |---|---|
-| `npm run lint` | PASS |
-| `npm run typecheck` | PASS frontend, test e backend |
-| `npm run build` | PASS Vite + compilazione Node |
-| `npm test` | PASS: 53 test, 6 file |
-| `npm run verify:bundle` | PASS: nessun marker chiave/server-only nel frontend; GLB incluso |
-| `npm audit --audit-level=high` | PASS: zero vulnerabilità (anche dev dependencies) |
-| Playwright Chromium desktop | PASS: preview, asset, emote, resize, errori microfono e API |
-| Playwright Chromium profilo Pixel 7 | PASS: stessa suite con viewport/touch mobile |
-| Playwright WebKit profilo iPhone 13 | PASS: stessa suite WebKit con viewport/touch iPhone |
+| Lint | PASS |
+| Typecheck frontend/backend | PASS |
+| Build Vite + backend Node | PASS |
+| Test unitari/API | PASS: 83 test, 8 file |
+| Scanner bundle client | PASS: nessuna chiave/configurazione server nel client, asset avatar locale valido |
+| Playwright produzione | PASS: 12 test, Chromium desktop / Pixel 7 emulato / WebKit iPhone 13 emulato |
+| Sites typecheck / test / build | PASS: 57 test, 5 file; build Vinext/Worker |
+| Sites browser locale | PASS: tre profili, avatar, layout, permesso microfono negato, asset CC0, ingresso, trasformazione, ritorno, API privata |
 
-I test leggono e caricano realmente il GLB nel browser e in GLTFLoader; verificano le clip richieste, scala e base del modello. I test XR usano un runtime **mock** per attesa piani, quota/estensione, rifiuto tavolo, fallback/calibrazione, world-space, recenter, feature fallback e permessi. I test anchor verificano restore, tracking temporaneamente perso, scala, cancellazione device/storage, race del reset e prevenzione dell'accumulo. WebRTC/Realtime sono testati con trasporto **mock** per negoziazione GA, mute, cleanup, permesso negato, cancellazione durante avvio, background ed eventi audio. Nessun token reale è stato emesso e nessuna chiamata OpenAI live è stata effettuata.
+La suite mantiene i test dell’MVP e aggiunge consenso, temi non disponibili, strumenti sconosciuti/argomenti errati, ritorno in ogni fase, completamenti tardivi, eventi Realtime completi/deduplicati, risposta differita e mantenimento del peer. I test XR usano un runtime **mock**: richiesta AR/VR distinta, posa narrativa separata dagli anchor, handle MR conservato entrando in VR e nuovo posizionamento dopo recenter senza anchor. I test della scena verificano fasce di profondità, parallasse, riuso della geometria, oggetti selezionabili, checksum/licenze e riferimenti glTF. Il fallback procedurale resta utilizzabile quando tutti gli asset falliscono.
 
-Ambiente: Node 24.19, Linux Debian 13, rendering software per le prove browser. Per WebKit, il Cloud non consentiva l'installazione di librerie di sistema da root: le librerie Debian mancanti sono state estratte in `/tmp` e il launcher locale di Playwright è stato configurato per ereditarne il percorso. La verifica del cache `ldconfig` è stata saltata perché non include librerie locali; il browser e i test sono stati effettivamente eseguiti. Nessuna modifica del launcher è parte del progetto. In CI su Ubuntu si usa normalmente `playwright install --with-deps`.
+I browser caricano effettivamente i materiali PBR, il glTF del tavolino, l’HDRI e l’avatar. Il flusso completo 3D viene provato con trascinamento/touch, trasformazione e ritorno, anche prima della fine dell’ingresso. Il microfono non viene richiesto caricando o visitando la scena. WebRTC e API OpenAI sono mock nei test: **nessuna conversazione live è certificata**.
 
-La build segnala un warning non bloccante sulla dimensione del bundle JS (~875 kB, ~238 kB gzip, include Three.js e React). Il GLB è ~454 kB. Non sono misurazioni di FPS sul Quest; la qualità grafica evita ombre ed effetti costosi e limita il pixel ratio della preview.
+Ambiente Linux Debian 13, Node 24.19. Chromium usa SwiftShader software; WebKit usa le librerie locali di Playwright descritte nelle prove MVP. Si tratta di browser headless con viewport emulati, non di telefoni o Quest reali. I risultati precedenti dell’MVP rimangono coperti dai test conservati.
 
-## Non verificato / non pubblicato
+## Misure grafiche software
 
-- Passthrough reale Quest Pro, tracking fisico, piedi sul pavimento della stanza, drift e recenter sul visore.
-- API effettivamente concesse per piani, hit-test, anchor e persistenza su Quest/Android.
-- Android Chrome su dispositivo ARCore fisico.
-- Safari iOS fisico, zoom multitouch reale, audio unlock, interruzioni da chiamata e voce live.
-- Conversazione OpenAI live: segreto `OPENAI_API_KEY` non configurato nell'ambiente; la route restituisce 503 senza esporre credenziali.
-- URL HTTPS di produzione, autenticazione del proxy in produzione e budget API.
-- Runtime Sites: nessuna distribuzione eseguita; il backend Node richiede adattamento a route native se quel runtime viene scelto. Nessun URL Sites disponibile da riportare.
+Snapshot della diagnostica dopo SUSTAINABLE_FUTURE durante il test locale dell’adattamento Sites (viewport portato a 390 × 844 in tutti i profili). Questi sono campioni di un secondo, **non medie stabili né benchmark comparabili al visore**; il costo del renderer software e dell’emulazione cambia fra browser.
 
-La checklist operativa è in [DEVICE_TESTS.md](DEVICE_TESTS.md). Questi limiti sono criteri di validazione hardware/hosting ancora aperti, non vengono considerati superati da test desktop.
+| Browser / profilo | FPS campionato | Draw call | Triangoli | Geometrie GPU | Texture GPU | Qualità |
+|---|---:|---:|---:|---:|---:|---|
+| Chromium desktop, viewport mobile | 40 | 55 | 16.233 | 58 | 13 | low |
+| Chromium Pixel 7 emulato | 8 | 55 | 16.233 | 58 | 13 | low |
+| WebKit iPhone 13 emulato | 61 | 55 | 16.233 | 58 | 13 | low |
+
+Lo screenshot finale del backend Node a viewport desktop 1280 × 720 mostrava 12 FPS, 57 draw call e 16.161 triangoli nella vista ruotata. La scena usa istanze e materiali riutilizzati; il percorso low rimuove normal/roughness/reflection sampling e skyline lontano, conservando le finestre vicine. Non sono attive ombre o post-processing. La lentezza dei renderer software non permette di stabilire il collo di bottiglia CPU/GPU del Quest: misurarlo sul visore resta necessario prima di dichiarare 72 FPS. La diagnostica mostra conteggi, non byte GPU non esposti affidabilmente da WebGL.
+
+Artefatti automatici: screenshot `test-results/critical-*.png`, `sustainable-*.png`, `preview-*.png`, allegato diagnostico browser e `performance-*.json` nelle esecuzioni successive; la CI conserva `test-results/`. I campioni riportati sopra provengono dall’output effettivo del test Sites locale.
+
+Asset nuovi: 6.308.432 byte dei 12 file Poly Haven CC0; tavolino 4.504 triangoli. Bundle Vite finale circa 919 kB / 253 kB gzip, con warning non bloccante sulla dimensione. Il caricamento 3D dell’MVP resta un singolo bundle; gli asset osservatorio sono caricati progressivamente e hanno fallback.
+
+## Hosting e limiti aperti
+
+Il Site privato esistente è **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. L’adattamento riusa il frontend e fornisce la route token con identità server Sites. Il runtime conserva OPENAI_API_KEY come segreto backend (revisione 5); nessun valore è copiato nel checkout o nel browser. Presenza del segreto non dimostra autorizzazione/quota OpenAI. Non si modificano i permessi del Site.
+
+Restano **NON VERIFICATI sul dispositivo fisico**: Quest Pro passthrough completamente coperto in AR, floor/anchor/drift, Guardian, recenter reale, continuità audio durante cambio sessione, refresh e 72 FPS; ARCore Android, Safari iPhone e voce OpenAI live. AR e VR richiedono rilevamento distinto: il compositor additive è rifiutato; session switching richiede chiusura e un nuovo gesto, mantenendo il peer dove il browser conserva la pagina attiva. Social/economic non hanno ambientazioni nella prima versione. La città è un compromesso procedurale, non una ricostruzione fotorealistica di una metropoli.
+
+La checklist hardware rimane in [DEVICE_TESTS.md](DEVICE_TESTS.md), le scelte e i limiti WebXR in [FUTURE_OBSERVATORY.md](FUTURE_OBSERVATORY.md), gli asset e le licenze in [ASSET_CREDITS.md](../ASSET_CREDITS.md).

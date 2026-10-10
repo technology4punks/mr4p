@@ -1,7 +1,7 @@
-name: MVP quality gates
+name: NEO quality gates
 on:
   push:
-    branches: [main, codex/neo-ar-avatar-mvp]
+    branches: [main, codex/neo-ar-avatar-mvp, codex/future-observatory]
   pull_request:
     branches: [main]
 permissions:

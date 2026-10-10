@@ -9,7 +9,11 @@ export type XRAction =
   | "unlock"
   | "reset"
   | "exit"
-  | "calibrate";
+  | "calibrate"
+  | "observatory"
+  | "future"
+  | "reality"
+  | "prepare-vr";
 const buttons: [XRAction, string][] = [
   ["confirm", "Conferma"],
   ["reposition", "Riposiziona"],
@@ -20,7 +24,11 @@ const buttons: [XRAction, string][] = [
   ["mute", "Mute microfono"],
   ["unlock", "Riattiva audio"],
   ["reset", "Reset anchor"],
-  ["exit", "Esci da MR"],
+  ["exit", "Esci da XR"],
+  ["observatory", "Visita il 2050"],
+  ["future", "Futuro alternativo"],
+  ["reality", "Torna alla realtà"],
+  ["prepare-vr", "Prepara VR"],
 ];
 export class UI3D {
   readonly root = new THREE.Group();

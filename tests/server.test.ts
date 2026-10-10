@@ -7,19 +7,17 @@ const config: ServerConfig = { apiKey: "server-only-test-key", origin };
 const post = (app: ReturnType<typeof createApp>) =>
   request(app).post("/api/realtime-token").set("Origin", origin);
 const success = () =>
-  vi
-    .fn<typeof fetch>()
-    .mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            value: "ephemeral-test",
-            expires_at: 1999999999,
-            session: { secret: "do-not-forward" },
-          }),
-          { status: 200 },
-        ),
-    );
+  vi.fn<typeof fetch>().mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          value: "ephemeral-test",
+          expires_at: 1999999999,
+          session: { secret: "do-not-forward" },
+        }),
+        { status: 200 },
+      ),
+  );
 describe("token endpoint", () => {
   it.each(["get", "put", "delete", "options"] as const)(
     "rejects %s with Allow and no-store",
@@ -52,6 +50,21 @@ describe("token endpoint", () => {
     const body = JSON.parse(options!.body as string);
     expect(body.session.type).toBe("realtime");
     expect(body.session.model).toBe("gpt-realtime-2.1-mini");
+    expect(body.session.tools.map((t: { name: string }) => t.name)).toEqual([
+      "select_theme",
+      "enter_observatory",
+      "show_future",
+      "reflect",
+      "transform_future",
+      "return_to_reality",
+    ]);
+    expect(body.session.tool_choice).toBe("auto");
+    expect(
+      body.session.tools.find(
+        (t: { name: string }) => t.name === "enter_observatory",
+      ).parameters.required,
+    ).toContain("consent");
+    expect(body.session.instructions).toMatch(/ipotetic/);
     expect(body.session.audio.output.voice).toBe("marin");
     expect(body.session.audio.input.turn_detection.interrupt_response).toBe(
       true,
@@ -62,13 +75,11 @@ describe("token endpoint", () => {
   it.each([400, 401, 403, 404, 429, 500])(
     "sanitizes upstream %i without leaking upstream body",
     async (status) => {
-      const fetcher = vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          new Response("sensitive diagnostics server-only-test-key", {
-            status,
-          }),
-        );
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("sensitive diagnostics server-only-test-key", {
+          status,
+        }),
+      );
       const response = await post(createApp(config, fetcher));
       expect(response.status).toBe(status === 429 ? 429 : 502);
       expect(response.body.error).toBeTruthy();
