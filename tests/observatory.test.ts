@@ -113,3 +113,70 @@ describe("three-dimensional observatory", () => {
       );
   });
 });
+
+describe("environmental contrast and stable geometry", () => {
+  it("removes industrial decay while revealing charging, renewables and dense trees", () => {
+    const scene = new FutureObservatory();
+    scene.setOpacity(1);
+    scene.setFuture(0);
+    expect(scene.district.critical.visible).toBe(true);
+    expect(scene.district.sustainable.visible).toBe(false);
+    const smoke = scene.city.getObjectByName(
+      "Industrial smoke",
+    ) as THREE.InstancedMesh;
+    const vehicles = scene.city.getObjectByName(
+      "Street vehicles",
+    ) as THREE.InstancedMesh;
+    const crowns = scene.city.getObjectByName(
+      "Layered tree foliage",
+    ) as THREE.InstancedMesh;
+    const matrix = new THREE.Matrix4();
+    crowns.getMatrixAt(0, matrix);
+    const dryScale = new THREE.Vector3().setFromMatrixScale(matrix).length();
+    const geometry = vehicles.geometry;
+    scene.setFuture(0.5);
+    scene.setOpacity(0.6);
+    expect((smoke.material as THREE.Material).opacity).toBeCloseTo(0.096);
+    expect(scene.district.critical.visible).toBe(true);
+    expect(scene.district.sustainable.visible).toBe(true);
+    scene.setFuture(1);
+    scene.setOpacity(1);
+    scene.update(5000);
+    expect(scene.district.critical.visible).toBe(false);
+    expect(scene.district.sustainable.visible).toBe(true);
+    expect(scene.city.getObjectByName("EV charging stations")).toBeTruthy();
+    expect(scene.city.getObjectByName("Wind turbine rotors")).toBeTruthy();
+    crowns.getMatrixAt(0, matrix);
+    expect(
+      new THREE.Vector3().setFromMatrixScale(matrix).length(),
+    ).toBeGreaterThan(dryScale * 100);
+    expect(vehicles.geometry).toBe(geometry);
+    const solid = new THREE.MeshStandardMaterial();
+    expect(vehicles.material).toBeInstanceOf(solid.constructor);
+    solid.dispose();
+    scene.dispose();
+  });
+  it("keeps animated cars and turbines within conservative culling bounds at low quality", () => {
+    const scene = new FutureObservatory();
+    scene.setFuture(1);
+    scene.setOpacity(1);
+    scene.setQuality("low");
+    for (const time of [0, 30000, 120000]) {
+      scene.update(time);
+      const mesh = scene.city.getObjectByName(
+        "Street vehicles",
+      ) as THREE.InstancedMesh;
+      for (let i = 0; i < 5; i++) {
+        const matrix = new THREE.Matrix4();
+        mesh.getMatrixAt(i, matrix);
+        expect(
+          mesh.boundingSphere!.containsPoint(
+            new THREE.Vector3().setFromMatrixPosition(matrix),
+          ),
+        ).toBe(true);
+      }
+    }
+    expect(scene.district.sustainable.visible).toBe(true);
+    scene.dispose();
+  });
+});

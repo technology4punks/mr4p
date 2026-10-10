@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import type { Quality } from "./performance";
+import { EnvironmentalDistrict } from "./EnvironmentalDistrict";
 export type NarrativeObject = "energy" | "water" | "mobility";
 const messages: Record<NarrativeObject, string> = {
   energy:
@@ -47,6 +48,7 @@ export class FutureObservatory {
   readonly root = new THREE.Group();
   readonly city = new THREE.Group();
   readonly room = new THREE.Group();
+  readonly district = new EnvironmentalDistrict();
   readonly directional = new THREE.DirectionalLight(0xffd9ad, 2.2);
   readonly hemisphere = new THREE.HemisphereLight(0xabc8d8, 0x766956, 1.3);
   private materials = new Set<THREE.Material>();
@@ -69,6 +71,8 @@ export class FutureObservatory {
   private floorMaterial: THREE.MeshStandardMaterial;
   private stoneMaterial: THREE.MeshStandardMaterial;
   private leavesMatrix: THREE.Matrix4[] = [];
+  private crowns: THREE.InstancedMesh;
+  private crownsMatrix: THREE.Matrix4[] = [];
   private solarMatrix: THREE.Matrix4[] = [];
   private dummy = new THREE.Object3D();
   private caster = new THREE.Raycaster();
@@ -82,6 +86,11 @@ export class FutureObservatory {
     this.root.name = "Future Observatory";
     this.root.visible = false;
     this.root.add(this.room, this.city, this.directional, this.hemisphere);
+    this.city.add(this.district.root);
+    this.district.materials.forEach((m) => {
+      this.materials.add(m);
+      if (m instanceof THREE.MeshStandardMaterial) this.solids.push(m);
+    });
     this.root.add(this.directional.target);
     this.directional.position.set(-8, 12, -12);
     const mat = (color: number, roughness = 0.75, metalness = 0) => {
@@ -150,7 +159,7 @@ export class FutureObservatory {
       vertexShader:
         "varying vec3 vDirection; void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
       fragmentShader:
-        "varying vec3 vDirection; uniform float amount; uniform float opacity; void main(){float h=clamp(normalize(vDirection).y,0.0,1.0);vec3 bad=mix(vec3(0.58,0.45,0.32),vec3(0.28,0.31,0.33),pow(h,0.6));vec3 good=mix(vec3(0.89,0.90,0.81),vec3(0.24,0.50,0.73),pow(h,0.6));gl_FragColor=vec4(mix(bad,good,amount),opacity);}",
+        "varying vec3 vDirection; uniform float amount; uniform float opacity; void main(){float h=clamp(normalize(vDirection).y,0.0,1.0);vec3 bad=mix(vec3(0.62,0.37,0.17),vec3(0.22,0.23,0.23),pow(h,0.6));vec3 good=mix(vec3(0.87,0.93,0.91),vec3(0.14,0.43,0.73),pow(h,0.6));gl_FragColor=vec4(mix(bad,good,amount),opacity);}",
       transparent: true,
     });
     const skyMesh = new THREE.Mesh(
@@ -264,6 +273,13 @@ export class FutureObservatory {
       foliage,
       30,
     );
+    this.leaves.name = "Street tree crowns";
+    this.crowns = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.7, 10, 7),
+      foliage,
+      60,
+    );
+    this.crowns.name = "Layered tree foliage";
     for (let i = 0; i < 30; i++) {
       const x = ((i % 15) - 7) * 3.7,
         z = i < 15 ? -7 : -13;
@@ -271,14 +287,50 @@ export class FutureObservatory {
       this.dummy.scale.set(1, 1, 1);
       this.dummy.updateMatrix();
       this.trunks.setMatrixAt(i, this.dummy.matrix);
-      this.dummy.position.y = 2;
+      this.dummy.position.y = 2.2 + (i % 3) * 0.12;
+      this.dummy.scale.set(1 + (i % 4) * 0.06, 1.25, 0.85 + (i % 3) * 0.1);
       this.dummy.updateMatrix();
       this.leaves.setMatrixAt(i, this.dummy.matrix);
       this.leavesMatrix.push(this.dummy.matrix.clone());
+      for (let j = 0; j < 2; j++) {
+        this.dummy.position.set(
+          x + (j ? 0.52 : -0.55),
+          1.85 + (i % 3) * 0.14,
+          z + (j ? 0.3 : -0.22),
+        );
+        this.dummy.scale.set(0.85, 1.05, 0.8);
+        this.dummy.updateMatrix();
+        this.crowns.setMatrixAt(i * 2 + j, this.dummy.matrix);
+        this.crownsMatrix.push(this.dummy.matrix.clone());
+      }
     }
     this.trunks.computeBoundingSphere();
     this.leaves.computeBoundingSphere();
-    this.city.add(this.trunks, this.leaves);
+    this.crowns.computeBoundingSphere();
+    this.city.add(this.trunks, this.leaves, this.crowns);
+    // Branches remain exposed in the critical future and are covered by new foliage.
+    const branches = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.025, 0.055, 1, 5),
+      trunk,
+      60,
+    );
+    branches.name = "Bare tree branches";
+    for (let i = 0; i < 60; i++) {
+      const tree = Math.floor(i / 2),
+        side = i % 2 ? 1 : -1;
+      this.dummy.position.set(
+        ((tree % 15) - 7) * 3.7 + side * 0.26,
+        1.55,
+        tree < 15 ? -7 : -13,
+      );
+      this.dummy.rotation.set(0, 0, side * 0.65);
+      this.dummy.scale.set(1, 1, 1);
+      this.dummy.updateMatrix();
+      branches.setMatrixAt(i, this.dummy.matrix);
+    }
+    branches.computeBoundingSphere();
+    this.city.add(branches);
+    this.dummy.rotation.set(0, 0, 0);
     this.tram = new THREE.Group();
     box(this.tram, [5.5, 1.1, 1], [0, 0.65, 0], mat(0xa9cdb7, 0.35, 0.3));
     box(this.tram, [5.2, 0.5, 1.02], [0, 0.85, 0], glass);
@@ -286,6 +338,7 @@ export class FutureObservatory {
     this.energyObjects.add(this.tram);
     // Deteriorated facade bands gradually become pale efficient envelopes.
     const cracks = mat(0x4a423b);
+    cracks.userData.futureFade = "critical";
     const bands = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 0.07, 0.03),
       cracks,
@@ -430,13 +483,20 @@ export class FutureObservatory {
     this.root.visible = value > 0.002;
     this.materials.forEach((m) => {
       if (m === this.sky) return;
-      const transparent = value < 0.999;
+      const fade =
+        m.userData.futureFade === "critical"
+          ? 1 - Math.max(0, this.cachedState)
+          : m.userData.futureFade === "sustainable"
+            ? Math.max(0, this.cachedState)
+            : 1;
+      const opacity = value * fade * (m.userData.baseOpacity ?? 1);
+      const transparent = opacity < 0.999;
       if (m.transparent !== transparent) {
         m.transparent = transparent;
         m.needsUpdate = true;
       }
-      m.opacity = value;
-      m.depthWrite = value > 0.98;
+      m.opacity = opacity;
+      m.depthWrite = opacity > 0.98;
     });
     this.sky.uniforms.opacity.value = value;
     this.hemisphere.intensity =
@@ -446,9 +506,16 @@ export class FutureObservatory {
   }
   setFuture(amount: number) {
     if (Math.abs(amount - this.cachedState) < 0.001) return;
-    this.cachedState = amount;
-    const bad = [0x999183, 0x999183, 0x7a7770, 0x646148, 0x7c715d, 0x8c7356],
-      good = [0xc1c5bc, 0xaabdb3, 0x7d939e, 0x3e7350, 0x617d50, 0x55858d];
+    this.cachedState = THREE.MathUtils.clamp(amount, 0, 1);
+    amount = this.cachedState;
+    this.district.setFuture(amount);
+    this.crowns.visible = amount > 0.01;
+    this.leaves.visible = amount > 0.001;
+    const opacity = this.cachedOpacity;
+    this.cachedOpacity = -1;
+    this.setOpacity(Math.max(0, opacity));
+    const bad = [0x625746, 0x706352, 0x61574c, 0x655039, 0x897044, 0x8c7356],
+      good = [0xc1c5bc, 0xaabdb3, 0x7d939e, 0x467b3f, 0x617d50, 0x55858d];
     this.facades.forEach((m, i) =>
       m.color.set(bad[i]).lerp(new THREE.Color(good[i]), amount),
     );
@@ -466,14 +533,22 @@ export class FutureObservatory {
       this.dummy.matrix.copy(this.leavesMatrix[i]);
       this.dummy.matrix.scale(
         new THREE.Vector3(
-          0.28 + amount * 0.72,
-          0.35 + amount * 0.65,
-          0.28 + amount * 0.72,
+          0.025 + amount * 0.975,
+          0.04 + amount * 0.96,
+          0.025 + amount * 0.975,
         ),
       );
       this.leaves.setMatrixAt(i, this.dummy.matrix);
     }
     this.leaves.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < this.crowns.count; i++) {
+      this.dummy.matrix.copy(this.crownsMatrix[i]);
+      this.dummy.matrix.scale(
+        new THREE.Vector3().setScalar(Math.max(0.001, amount)),
+      );
+      this.crowns.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.crowns.instanceMatrix.needsUpdate = true;
     for (let i = 0; i < this.solar.count; i++) {
       const matrix = this.solarMatrix[i]
         .clone()
@@ -490,12 +565,19 @@ export class FutureObservatory {
     this.tram.scale.setScalar(Math.max(0.001, amount));
   }
   update(time: number) {
+    if (this.root.visible) this.district.update(time);
     if (this.energyObjects.visible)
       this.tram.position.x = Math.sin(time / 18000) * 15;
   }
   setQuality(quality: Quality) {
     this.far.visible = quality !== "low";
     this.profile = quality;
+    this.district.setQuality(quality === "low");
+    this.leaves.count = this.trunks.count = quality === "low" ? 15 : 30;
+    this.crowns.count = quality === "low" ? 30 : 60;
+    (
+      this.city.getObjectByName("Bare tree branches") as THREE.InstancedMesh
+    ).count = quality === "low" ? 30 : 60;
     this.details.visible = true;
     this.solids.forEach((m) => {
       m.envMapIntensity = quality === "low" ? 0 : 0.3;
@@ -520,13 +602,13 @@ export class FutureObservatory {
     return this.narrativeRay(this.caster.ray);
   }
   get fogColor() {
-    return new THREE.Color(0x97826c).lerp(
-      new THREE.Color(0xafc5cc),
+    return new THREE.Color(0x997549).lerp(
+      new THREE.Color(0xb5cfda),
       Math.max(0, this.cachedState),
     );
   }
   get fogDensity() {
-    return 0.017 - Math.max(0, this.cachedState) * 0.013;
+    return 0.032 - Math.max(0, this.cachedState) * 0.0285;
   }
   private disposeObject(root: THREE.Object3D) {
     root.traverse((obj) => {

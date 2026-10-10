@@ -5,6 +5,8 @@ export type VoiceSnapshot = {
   status: "off" | "connecting" | "connected" | "error";
   state: AvatarState;
   muted: boolean;
+  inputBlocked: boolean;
+  interruptions: boolean;
   playbackBlocked: boolean;
   peer: string;
   message: string;
@@ -39,6 +41,8 @@ export class RealtimeClient {
     status: "off",
     state: "idle",
     muted: false,
+    inputBlocked: false,
+    interruptions: false,
     playbackBlocked: false,
     peer: "closed",
     message: "Conversazione spenta",
@@ -59,6 +63,8 @@ export class RealtimeClient {
   private processedCalls = new Set<string>();
   private pendingToolResponse = false;
   private responseActive = false;
+  private outputPlaying = false;
+  private micResumeTimer?: ReturnType<typeof setTimeout>;
   private pendingNarration = false;
   private storyContext?: StorySnapshot;
   constructor(
@@ -140,7 +146,7 @@ export class RealtimeClient {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
+          autoGainControl: false,
         },
       });
       if (generation !== this.generation) {
@@ -182,6 +188,7 @@ export class RealtimeClient {
       this.channel = pc.createDataChannel("oai-events");
       this.channel.onopen = () => {
         if (generation !== this.generation) return;
+        this.updateTurnDetection();
         if (this.storyContext) this.synchronizeStory(this.storyContext);
         this.onReady?.();
       };
@@ -330,6 +337,23 @@ export class RealtimeClient {
     return true;
   }
   private event(event: RealtimeEvent) {
+    if (event.type === "output_audio_buffer.started") {
+      clearTimeout(this.micResumeTimer);
+      this.outputPlaying = true;
+      if (!this.snapshot.interruptions) this.blockMicrophone(true);
+    }
+    if (
+      event.type === "output_audio_buffer.stopped" ||
+      event.type === "output_audio_buffer.cleared"
+    ) {
+      this.outputPlaying = false;
+      const generation = this.generation;
+      clearTimeout(this.micResumeTimer);
+      this.micResumeTimer = setTimeout(() => {
+        if (generation === this.generation && !this.outputPlaying)
+          this.blockMicrophone(false);
+      }, 350);
+    }
     if (event.type === "response.created") this.responseActive = true;
     // Full function arguments only: never act on argument deltas or transcripts.
     if (event.type === "response.function_call_arguments.done") {
@@ -386,7 +410,12 @@ export class RealtimeClient {
       );
       return;
     }
-    const state = stateForEvent(event.type);
+    const state =
+      this.outputPlaying &&
+      !this.snapshot.interruptions &&
+      event.type.startsWith("input_audio_buffer.speech_")
+        ? undefined
+        : stateForEvent(event.type);
     if (state) this.patch({ state });
     if (
       event.type === "conversation.item.input_audio_transcription.completed" &&
@@ -419,9 +448,57 @@ export class RealtimeClient {
     if (!this.mic) return;
     const muted = force ?? !this.snapshot.muted;
     this.mic.getAudioTracks().forEach((track) => {
-      track.enabled = !muted;
+      track.enabled = !muted && !this.snapshot.inputBlocked;
     });
     this.patch({ muted });
+  }
+  private blockMicrophone(blocked: boolean) {
+    this.mic?.getAudioTracks().forEach((track) => {
+      track.enabled = !blocked && !this.snapshot.muted;
+    });
+    this.patch({ inputBlocked: blocked });
+  }
+  private updateTurnDetection() {
+    this.send({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        audio: {
+          input: {
+            noise_reduction: { type: "near_field" },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.75,
+              prefix_padding_ms: 350,
+              silence_duration_ms: 900,
+              create_response: true,
+              interrupt_response: this.snapshot.interruptions,
+            },
+          },
+        },
+      },
+    });
+  }
+  toggleInterruptions() {
+    this.patch({ interruptions: !this.snapshot.interruptions });
+    this.updateTurnDetection();
+    this.blockMicrophone(this.outputPlaying && !this.snapshot.interruptions);
+  }
+  interrupt() {
+    if (this.snapshot.status !== "connected") return;
+    clearTimeout(this.micResumeTimer);
+    this.pendingNarration = this.pendingToolResponse = false;
+    if (this.responseActive) this.send({ type: "response.cancel" });
+    if (this.outputPlaying) this.send({ type: "output_audio_buffer.clear" });
+    this.send({ type: "input_audio_buffer.clear" });
+    this.outputPlaying = false;
+    this.blockMicrophone(false);
+    this.patch({
+      state: "listening",
+      message: this.snapshot.muted
+        ? "Riattiva il microfono per parlare."
+        : "Ti ascolto. Parla ora.",
+    });
   }
   levels() {
     const audible =
@@ -433,7 +510,10 @@ export class RealtimeClient {
         .getAudioTracks()
         .some((track) => track.readyState === "live" && !track.muted);
     return {
-      input: this.snapshot.muted ? 0 : (this.inputLevel?.read() ?? 0),
+      input:
+        this.snapshot.muted || this.snapshot.inputBlocked
+          ? 0
+          : (this.inputLevel?.read() ?? 0),
       output: audible ? (this.outputLevel?.read() ?? 0) : 0,
       audible,
     };
@@ -447,6 +527,9 @@ export class RealtimeClient {
     this.processedCalls.clear();
     this.pendingToolResponse = false;
     this.responseActive = false;
+    this.outputPlaying = false;
+    clearTimeout(this.micResumeTimer);
+    this.micResumeTimer = undefined;
     this.pendingNarration = false;
     this.abort?.abort();
     this.abort = undefined;
@@ -483,6 +566,7 @@ export class RealtimeClient {
       status: "off",
       state: "idle",
       muted: false,
+      inputBlocked: false,
       playbackBlocked: false,
       peer: "closed",
       message,

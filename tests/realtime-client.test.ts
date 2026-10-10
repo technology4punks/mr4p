@@ -113,7 +113,9 @@ describe("Realtime narrative transport", () => {
     expect(ready).not.toHaveBeenCalled();
     (FakePeer.latest.channel.onopen as () => void)();
     expect(ready).toHaveBeenCalledTimes(1);
-    expect(sent()[0].item.content[0].text).toContain("INTRODUCTION");
+    expect(
+      sent().find((e) => e.item?.role === "system").item.content[0].text,
+    ).toContain("INTRODUCTION");
     expect(sent().at(-1).type).toBe("response.create");
   });
   it("executes full validated calls once, returns rejection and waits until response completion", async () => {
@@ -280,5 +282,94 @@ describe("WebRTC voice lifecycle (mocked transport)", () => {
     await client.start();
     expect(client.snapshot.status).toBe("error");
     expect(getUserMedia).not.toHaveBeenCalled();
+  });
+});
+
+describe("protected conversation in a noisy headset", () => {
+  const deliver = (event: object) =>
+    (FakePeer.latest.channel.onmessage as (event: { data: string }) => void)({
+      data: JSON.stringify(event),
+    });
+  it("keeps input off until audio playback finishes, even after response generation ends", async () => {
+    vi.useFakeTimers();
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    expect(getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audio: expect.objectContaining({
+          autoGainControl: false,
+          echoCancellation: true,
+          noiseSuppression: true,
+        }),
+      }),
+    );
+    deliver({ type: "output_audio_buffer.started" });
+    expect(track.enabled).toBe(false);
+    expect(client.snapshot.inputBlocked).toBe(true);
+    deliver({ type: "response.done", response: { status: "completed" } });
+    deliver({ type: "input_audio_buffer.speech_started" });
+    expect(client.snapshot.state).toBe("speaking");
+    expect(track.enabled).toBe(false);
+    deliver({ type: "output_audio_buffer.stopped" });
+    await vi.advanceTimersByTimeAsync(349);
+    expect(track.enabled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(track.enabled).toBe(true);
+  });
+  it("takes the floor explicitly without losing the peer", async () => {
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    deliver({ type: "response.created" });
+    deliver({ type: "output_audio_buffer.started" });
+    client.interrupt();
+    expect(track.enabled).toBe(true);
+    expect(client.snapshot.state).toBe("listening");
+    const events = FakePeer.latest.channel.send.mock.calls.map(
+      ([s]) => JSON.parse(s).type,
+    );
+    expect(events).toContain("response.cancel");
+    expect(events).toContain("output_audio_buffer.clear");
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
+  });
+  it("honors manual mute and cannot reopen a stopped microphone with a late timer", async () => {
+    vi.useFakeTimers();
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    deliver({ type: "output_audio_buffer.started" });
+    client.mute(true);
+    deliver({ type: "output_audio_buffer.stopped" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(track.enabled).toBe(false);
+    expect(client.snapshot.muted).toBe(true);
+    client.mute(false);
+    expect(track.enabled).toBe(true);
+    deliver({ type: "output_audio_buffer.started" });
+    deliver({ type: "output_audio_buffer.stopped" });
+    client.stop();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(track.enabled).toBe(false);
+    expect(track.stop).toHaveBeenCalled();
+    expect(client.snapshot.status).toBe("off");
+  });
+  it("lets the user opt back into voice interruption without leaving the session", async () => {
+    const { stream, track } = mic();
+    getUserMedia.mockResolvedValue(stream);
+    await client.start();
+    deliver({ type: "output_audio_buffer.started" });
+    expect(track.enabled).toBe(false);
+    client.toggleInterruptions();
+    expect(track.enabled).toBe(true);
+    const updates = FakePeer.latest.channel.send.mock.calls
+      .map(([s]) => JSON.parse(s))
+      .filter((e) => e.type === "session.update");
+    expect(
+      updates.at(-1).session.audio.input.turn_detection.interrupt_response,
+    ).toBe(true);
+    client.toggleInterruptions();
+    expect(track.enabled).toBe(false);
+    expect(FakePeer.latest.close).not.toHaveBeenCalled();
   });
 });

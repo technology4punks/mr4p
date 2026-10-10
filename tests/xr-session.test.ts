@@ -6,6 +6,15 @@ vi.mock("../src/ui/ui3d", () => ({
     root = new THREE.Group();
     followViewer = vi.fn();
     hit = vi.fn();
+    intersection = vi.fn();
+    setContext = vi.fn();
+    setOpen = vi.fn();
+    toggle = vi.fn();
+    highlight = vi.fn();
+    pointerFocus = vi.fn();
+    navigate = vi.fn();
+    isOpen = true;
+    focusedAction: string | undefined;
     dispose = vi.fn();
   },
 }));
@@ -14,6 +23,7 @@ class Session extends EventTarget {
   visibilityState = "visible";
   reference = new EventTarget();
   localFloor = true;
+  inputSources: XRInputSource[] = [];
   requestReferenceSpace = vi.fn(async (type: string) => {
     if (type === "local-floor" && !this.localFloor)
       throw new DOMException("Not supported", "NotSupportedError");
@@ -53,6 +63,7 @@ function frame(planes: Map<XRPlane, number> = new Map(), x = 0) {
   } as unknown as XRFrame;
 }
 let xr: XRExperience, session: Session, root: THREE.Group, now: number;
+let onAction = vi.fn();
 let report = vi.fn<(message: string) => void>();
 beforeEach(() => {
   localStorage.clear();
@@ -61,6 +72,7 @@ beforeEach(() => {
   session = new Session();
   root = new THREE.Group();
   report = vi.fn();
+  onAction = vi.fn();
   Object.defineProperty(navigator, "xr", {
     configurable: true,
     value: { requestSession: vi.fn().mockResolvedValue(session) },
@@ -79,7 +91,7 @@ beforeEach(() => {
     new THREE.Scene(),
     root,
     report,
-    vi.fn(),
+    onAction,
     vi.fn(),
   );
 });
@@ -92,7 +104,9 @@ describe("MR orchestration (mocked XR runtime)", () => {
     await xr.enter("immersive-vr");
     expect(navigator.xr!.requestSession).toHaveBeenCalledWith(
       "immersive-vr",
-      expect.objectContaining({ optionalFeatures: ["local-floor"] }),
+      expect.objectContaining({
+        optionalFeatures: ["local-floor", "hand-tracking"],
+      }),
     );
     expect(xr.diagnostic.mode).toBe("immersive-vr");
     localStorage.setItem("neo-persistent-anchor-v1", "mr-handle");
@@ -230,5 +244,115 @@ describe("narrative reference reset", () => {
     expect(root.visible).toBe(false);
     xr.update(frame());
     expect(xr.diagnostic.placed).toBe(false);
+  });
+});
+
+describe("Quest controllers and hands (mocked XR runtime)", () => {
+  function sourceFrame(source: XRInputSource) {
+    session.inputSources = [source];
+    const f = frame(),
+      original = f.getPose;
+    f.getPose = ((space: XRSpace, reference: XRSpace) => {
+      if (space !== source.targetRaySpace) return original(space, reference);
+      return {
+        transform: {
+          position: { x: 0, y: 1, z: 0 },
+          orientation: { x: 0, y: 0, z: 0, w: 1 },
+          matrix: new THREE.Matrix4().makeTranslation(0, 1, 0).elements,
+        },
+      };
+    }) as typeof f.getPose;
+    return f;
+  }
+  function event(type: string, source: XRInputSource, f: XRFrame) {
+    session.dispatchEvent(
+      Object.assign(new Event(type), { inputSource: source, frame: f }),
+    );
+  }
+  it("requests hand tracking and executes trigger selection once across native and polled input", async () => {
+    await xr.enter();
+    expect(navigator.xr!.requestSession).toHaveBeenCalledWith(
+      "immersive-ar",
+      expect.objectContaining({
+        optionalFeatures: expect.arrayContaining(["hand-tracking"]),
+      }),
+    );
+    const buttons = Array.from({ length: 5 }, () => ({
+      pressed: false,
+      value: 0,
+    }));
+    const source = {
+      targetRaySpace: {},
+      gamepad: { buttons, axes: [0, 0, 0, 0] },
+    } as unknown as XRInputSource;
+    const f = sourceFrame(source);
+    vi.mocked(xr.ui.hit).mockReturnValue("voice");
+    buttons[0].pressed = true;
+    event("selectstart", source, f);
+    xr.update(f);
+    event("selectend", source, f);
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith("voice");
+    buttons[0].pressed = false;
+    xr.update(f);
+    now += 300;
+    buttons[0].pressed = true;
+    xr.update(f);
+    expect(onAction).toHaveBeenCalledTimes(2);
+  });
+  it("opens the menu with A/X or grip and navigates with the stick", async () => {
+    await xr.enter();
+    const buttons = Array.from({ length: 5 }, () => ({
+        pressed: false,
+        value: 0,
+      })),
+      axes = [0, 0, 0, 0];
+    const source = {
+      targetRaySpace: {},
+      gamepad: { buttons, axes },
+    } as unknown as XRInputSource;
+    const f = sourceFrame(source);
+    buttons[4].pressed = true;
+    xr.update(f);
+    expect(xr.ui.toggle).toHaveBeenCalledTimes(1);
+    buttons[4].pressed = false;
+    xr.update(f);
+    now += 300;
+    event("squeezestart", source, f);
+    expect(xr.ui.toggle).toHaveBeenCalledTimes(2);
+    axes[3] = 0.9;
+    xr.update(f);
+    expect(xr.ui.navigate).toHaveBeenCalledWith(0, 1);
+    expect(root.position.toArray()).toEqual([0, 0, 0]);
+  });
+  it("supports pinch hysteresis without repeating actions or duplicating native pinch events", async () => {
+    await xr.enter();
+    const thumb = {},
+      index = {};
+    const source = {
+      targetRaySpace: {},
+      hand: new Map([
+        ["thumb-tip", thumb],
+        ["index-finger-tip", index],
+      ]),
+    } as unknown as XRInputSource;
+    const f = sourceFrame(source);
+    let gap = 0.02;
+    f.getJointPose = vi.fn((joint) => ({
+      radius: 0.01,
+      transform: { position: { x: joint === thumb ? 0 : gap, y: 1, z: 0 } },
+    })) as unknown as typeof f.getJointPose;
+    vi.mocked(xr.ui.hit).mockReturnValue("mute");
+    event("selectstart", source, f);
+    xr.update(f);
+    xr.update(f);
+    expect(onAction).toHaveBeenCalledTimes(1);
+    gap = 0.05;
+    xr.update(f);
+    now += 300;
+    gap = 0.02;
+    xr.update(f);
+    expect(onAction).toHaveBeenCalledTimes(2);
+    expect(onAction).toHaveBeenLastCalledWith("mute");
   });
 });

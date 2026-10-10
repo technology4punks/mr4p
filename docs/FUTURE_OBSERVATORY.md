@@ -69,3 +69,5 @@ Screenshot della stessa stanza, prima e dopo la trasformazione, in Chromium desk
 | Critico | Sostenibile |
 |---|---|
 | ![Futuro critico](screenshots/future-critical.png) | ![Futuro sostenibile](screenshots/future-sustainable.png) |
+
+La revisione successiva alla prova Quest aggiunge menu richiudibile, selezione controller/mani, voce protetta e un confronto ambientale più marcato. Vedere [QUEST_INTERACTION.md](QUEST_INTERACTION.md).

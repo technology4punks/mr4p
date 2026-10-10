@@ -122,7 +122,7 @@ export class StoryEngine {
           state: "CRITICAL_FUTURE",
           transitioning: false,
           message:
-            "2050 · Un futuro critico, ipotetico. Guarda la città dalla stessa finestra.",
+            "2050 · Smog, traffico, alberi spogli e acqua scarsa. Un futuro critico ipotetico dalla stessa finestra.",
         };
         break;
       case "show_future":

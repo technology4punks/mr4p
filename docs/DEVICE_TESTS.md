@@ -1,10 +1,10 @@
 # Test fisici da completare
 
-**Stato di tutte le prove sotto: NON ESEGUITO.** I test Playwright non sono prove su Quest Pro, ARCore o Safari iOS reale. Registrare URL HTTPS, commit, dispositivo, browser/versione, data, esito e diagnostica senza token/chiavi o trascrizioni personali.
+**La checklist completa sotto non è ancora validata.** La prova iniziale dell’utente conferma la base e segnala menu/interazione e sensibilità del microfono; i nuovi controlli e la nuova voce richiedono una nuova prova fisica. I test Playwright non sono prove su Quest Pro, ARCore o Safari iOS reale. Registrare URL HTTPS, commit, dispositivo, browser/versione, data, esito e diagnostica senza token/chiavi o trascrizioni personali.
 
 ## Preparazione
 
-1. Distribuire backend e frontend su un host HTTPS scelto e approvato, con accesso privato e segreto OpenAI nel runtime. Il Site privato di test è https://neo-mr-avatar-test.sk1kko.chatgpt.site; aprirlo con l’account proprietario.
+1. Aprire il Site pubblico https://neo-mr-avatar-test.sk1kko.chatgpt.site direttamente nel Meta Quest Browser, senza login ChatGPT. Il segreto OpenAI resta nel backend.
 2. Verificare `APP_ORIGIN`, proxy autenticato, CSP/Permissions-Policy, rate limit, budget API e `/api/health`. Aprire direttamente l'URL, non un iframe.
 3. Assicurarsi di avere spazio libero e guardian calibrato per muoversi. Non occorrono permessi videocamera; MR usa il compositor WebXR.
 4. Attivare Diagnostica solo per la prova, poi disattivarla per eliminare le trascrizioni in memoria.
@@ -92,3 +92,13 @@ Tutte le seguenti prove sono **NON ESEGUITE** sul dispositivo fisico.
 | Android/iPhone | Ingresso 3D touch, trasformazione, ritorno e audio sul telefono fisico | Non eseguito |
 
 Per i limiti di sessione/compositing e i fallback, vedere FUTURE_OBSERVATORY.md. Non convertire questa tabella in PASS sulla base delle simulazioni XR.
+
+## Nuova prova dopo la revisione dei controlli
+
+1. Confermare il robot: il pannello deve chiudersi; girando la testa restano solo due piccoli comandi laterali.
+2. A/X e presa: aprire/chiudere; puntare un pulsante, osservare cursore/bordo illuminato e premere il grilletto.
+3. Con menu aperto: muovere lo stick, selezionare con grilletto; poi spostare il controller e tornare alla selezione a raggio. Nessuna locomozione.
+4. Passare alle mani, verificare puntamento/pinch e un solo comando per gesto, anche tenendo il pinch. Annotare eventuali permessi/non disponibilità del browser.
+5. Avviare la voce con rumore moderato: NEO deve completare la risposta. Parla / interrompi deve permettere una domanda senza riconnettere. Verificare mute e modalità Interruzioni vocali.
+6. Entrare nel futuro critico, trasformarlo, osservare auto elettriche, ricarica e verde, quindi tornare alla MR mantenendo la voce.
+7. Registrare FPS/draw call per almeno 60 s in ogni futuro, con e senza pannello; non usare i numeri del renderer software come misura del Quest.

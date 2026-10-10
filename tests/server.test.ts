@@ -67,8 +67,13 @@ describe("token endpoint", () => {
     expect(body.session.instructions).toMatch(/ipotetic/);
     expect(body.session.audio.output.voice).toBe("marin");
     expect(body.session.audio.input.turn_detection.interrupt_response).toBe(
-      true,
+      false,
     );
+    expect(body.session.audio.input.turn_detection.threshold).toBe(0.75);
+    expect(body.session.audio.input.turn_detection.silence_duration_ms).toBe(
+      900,
+    );
+    expect(body.session.audio.input.noise_reduction.type).toBe("near_field");
     expect(response.text).not.toContain(config.apiKey);
     expect(response.text).not.toContain("do-not-forward");
   });

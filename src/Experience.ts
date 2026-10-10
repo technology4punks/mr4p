@@ -268,6 +268,11 @@ export class Experience {
       this.viewerPosition,
     );
     const voice = this.voice.snapshot;
+    this.xr.ui.setVoiceControls(
+      ["connected", "connecting"].includes(voice.status),
+      voice.muted,
+      voice.interruptions,
+    );
     const stateLabels: Record<AvatarState, string> = {
       idle: "Pronto",
       greeting: "Ciao!",
@@ -279,7 +284,7 @@ export class Experience {
       error: "Errore",
     };
     this.xr.ui.setStatus(
-      `${this.xr.diagnostic.placed || this.story.snapshot.environment === "observatory" ? stateLabels[this.avatar.state] : "Posiziona"} · ${voice.muted ? "Mic spento" : voice.status === "connected" ? "Voce attiva" : "Voce spenta"}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : this.message}`,
+      `${this.xr.diagnostic.placed || this.story.snapshot.environment === "observatory" ? stateLabels[this.avatar.state] : "Posiziona"} · ${voice.muted ? "Mic spento" : voice.inputBlocked ? "NEO parla · mic in pausa" : voice.status === "connected" ? "Ti ascolto" : "Voce spenta"}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : this.message}`,
     );
     this.renderer.render(this.scene, this.camera);
     this.frames++;
@@ -332,6 +337,15 @@ export class Experience {
   }
   action(action: XRAction) {
     switch (action) {
+      case "talk":
+        this.voice.interrupt();
+        break;
+      case "voice-mode":
+        this.voice.toggleInterruptions();
+        break;
+      case "ambience":
+        this.toggleAmbience();
+        break;
       case "prepare-vr":
         void this.prepareVR();
         break;

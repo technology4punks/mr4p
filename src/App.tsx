@@ -142,6 +142,13 @@ export default function App() {
               Apri l’app su HTTPS per attivare microfono e WebXR.
             </p>
           )}
+          {caps?.ar && (
+            <p className="hint">
+              Nel visore: A/X o presa apre e chiude il menu. Punta e premi il
+              grilletto, oppure usa il joystick per scegliere. Con le mani:
+              punta e fai pinch. Il pannello si chiude dopo il posizionamento.
+            </p>
+          )}
           {caps && !caps.topLevel && (
             <p className="error">
               Apri l’URL direttamente in una nuova scheda per usare MR e
@@ -272,6 +279,14 @@ export default function App() {
             {voiceOn && (
               <button
                 className="secondary"
+                onClick={() => engine.current?.action("talk")}
+              >
+                Parla / interrompi NEO
+              </button>
+            )}
+            {voiceOn && (
+              <button
+                className="secondary"
                 onClick={() => engine.current?.action("mute")}
               >
                 {snapshot?.voice.muted
@@ -287,6 +302,20 @@ export default function App() {
                 Riattiva audio
               </button>
             )}
+            <button
+              className="text-button"
+              aria-pressed={snapshot?.voice.interruptions ?? false}
+              disabled={!snapshot}
+              onClick={() => engine.current?.action("voice-mode")}
+            >
+              Interruzioni vocali:{" "}
+              {snapshot?.voice.interruptions ? "attive" : "disattivate"}
+            </button>
+            <p className="hint">
+              {snapshot?.voice.interruptions
+                ? "Puoi interrompere NEO parlando. Se l’ambiente è rumoroso, disattiva le interruzioni vocali."
+                : "NEO finisce la risposta senza interruzioni da rumori. Per prendere la parola, premi Parla / interrompi."}
+            </p>
             <p className="privacy">
               NEO ascolta la tua voce, non vede la stanza. L’audio viene inviato
               a OpenAI durante la conversazione.

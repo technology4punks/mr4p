@@ -67,7 +67,7 @@ I limiter sono in memoria **per processo**: per questo MVP usa una sola istanza.
 
 ### Sites
 
-Sito di test privato: **https://neo-mr-avatar-test.sk1kko.chatgpt.site** (accedere con l’account proprietario e aprire top-level sul visore). Il sorgente Sites usa Vinext e route server Worker native con identità verificata dalla piattaforma; non esegue Express nel Worker. La chiave esistente rimane un segreto backend, senza variabili `VITE_*`. Dopo modifiche ai segreti occorre ridistribuire la versione perché il deployment usa una revisione del runtime.
+Sito di test **pubblico**: **https://neo-mr-avatar-test.sk1kko.chatgpt.site** (aprire direttamente nel Meta Quest Browser; nessun login ChatGPT). Il sorgente Sites usa Vinext e route server Worker native e abilita esplicitamente l’avvio voce anonimo, con origine esatta e limiti di richiesta; non esegue Express nel Worker. La chiave esistente rimane un segreto backend, senza variabili `VITE_*`. Dopo modifiche ai segreti occorre ridistribuire la versione perché il deployment usa una revisione del runtime.
 
 Questa repository conserva il backend Node richiesto da AGENTS.md; l’adattamento Sites riusa lo stesso frontend e protocollo Story Engine. Servire solo `dist/` su hosting statico non abilita la voce. Lo stato dettagliato delle verifiche è in `docs/VALIDATION.md`; hardware e OpenAI live non sono attestati dai test automatici.
 
@@ -82,3 +82,7 @@ Questa repository conserva il backend Node richiesto da AGENTS.md; l’adattamen
 - [RobotExpressive](https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/RobotExpressive): asset, clip e licenza CC0.
 
 Il Quest può conservare al massimo otto anchor persistenti per origin; modalità privata, cancellazione dati o cambiamenti nei permessi della stanza possono invalidarli. L'app mantiene una sola posizione e non promette persistenza senza verifica hardware.
+
+## Controlli Quest e voce protetta
+
+Il menu si chiude dopo il posizionamento: A/X o presa lo richiamano, grilletto/pinch selezionano e lo stick sceglie i pulsanti. NEO completa le risposte senza interruzioni dovute ai rumori; **Parla / interrompi** restituisce il turno, e le interruzioni vocali restano riattivabili. I futuri ambientali ora hanno traffico/degrado industriale oppure auto elettriche, ricarica, verde e rinnovabili. [Controlli, scenari e limiti](docs/QUEST_INTERACTION.md).

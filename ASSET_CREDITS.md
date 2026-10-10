@@ -33,3 +33,7 @@ Acquisiti e verificati il 10 ottobre 2026. Tutti **CC0 1.0 Universal**, come dic
 - [Kenney Furniture Kit](https://kenney.nl/assets/furniture-kit), [Industrial](https://kenney.nl/assets/city-kit-industrial), [Commercial](https://kenney.nl/assets/city-kit-commercial): fonti gratuite CC0 valutate; nessun file Kenney incluso. Per la stanza è stato scelto il tavolino realistico Poly Haven.
 
 La città, il cielo a gradiente, gli oggetti narrativi, il tram e la vegetazione sono generati deterministicamente da geometrie Three.js. I suoni ambiente sono sintetizzati dall’app e non contengono registrazioni di terzi.
+
+## Revisione ambientale e controlli Quest
+
+Auto, ruote, colonnine, pensilina, turbine, fumo, macerie, canale, arbusti e chiome stratificate sono geometrie procedurali originali del progetto (EnvironmentalDistrict.ts e FutureObservatory.ts). I pulsanti e i cursori XR sono generati dall’app. Nessun nuovo modello, texture o suono di terzi è stato aggiunto; le licenze e il manifest degli asset CC0 precedenti restano invariati.

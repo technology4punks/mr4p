@@ -10,6 +10,16 @@ import {
 } from "./floorPlacement";
 import type { ExtendedSession } from "./types";
 import { UI3D, type XRAction } from "../ui/ui3d";
+import { XRInputLatch } from "./input";
+
+type InputState = {
+  latch: XRInputLatch;
+  root: THREE.Group;
+  line: THREE.Line;
+  cursor: THREE.Mesh;
+  ray: THREE.Ray;
+  pinching: boolean;
+};
 
 export type XRDiagnostic = {
   active: boolean;
@@ -46,6 +56,9 @@ export class XRExperience {
   private floorOffset = 0;
   private raySelected = false;
   private narrativeMode = false;
+  private inputs = new Map<XRInputSource, InputState>();
+  private navigationRay?: THREE.Ray;
+  private navigationSource?: XRInputSource;
   onWorldRay?: (ray: THREE.Ray) => void;
   diagnostic: XRDiagnostic = {
     active: false,
@@ -79,18 +92,6 @@ export class XRExperience {
     this.marker.visible = false;
     scene.add(this.marker, this.ui.root);
     renderer.xr.enabled = true;
-    for (let i = 0; i < 2; i++) {
-      const controller = renderer.xr.getController(i);
-      const ray = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(),
-          new THREE.Vector3(0, 0, -3),
-        ]),
-        new THREE.LineBasicMaterial({ color: 0x64ffd3 }),
-      );
-      controller.add(ray);
-      scene.add(controller);
-    }
   }
   async enter(mode: XRSessionMode = "immersive-ar") {
     if (this.session || this.busy) return;
@@ -103,8 +104,14 @@ export class XRExperience {
         session = await navigator.xr.requestSession(mode, {
           optionalFeatures:
             mode === "immersive-vr"
-              ? ["local-floor"]
-              : ["local-floor", "plane-detection", "hit-test", "anchors"],
+              ? ["local-floor", "hand-tracking"]
+              : [
+                  "local-floor",
+                  "plane-detection",
+                  "hit-test",
+                  "anchors",
+                  "hand-tracking",
+                ],
         });
       } catch (error) {
         if (
@@ -159,10 +166,15 @@ export class XRExperience {
       this.raySelected = false;
       this.started = performance.now();
       this.ui.root.visible = true;
+      this.ui.setContext("placement");
+      this.ui.setOpen(true);
       this.anchors = new AnchorManager(session, this.report);
       reference.addEventListener("reset", this.onReferenceReset);
       session.addEventListener("end", this.handleEnd, { once: true });
-      session.addEventListener("select", this.select);
+      session.addEventListener("selectstart", this.selectStart);
+      session.addEventListener("selectend", this.selectEnd);
+      session.addEventListener("squeezestart", this.squeezeStart);
+      session.addEventListener("squeezeend", this.squeezeEnd);
       session.addEventListener("visibilitychange", this.visibilityChange);
       this.report(
         this.diagnostic.calibrated
@@ -186,6 +198,8 @@ export class XRExperience {
         await this.anchors?.clear();
       if (this.restored) {
         this.diagnostic.placed = true;
+        this.ui.setContext("reality");
+        this.ui.setOpen(false);
         this.report("Anchor ripristinato: attendo tracking della posa.");
       }
     } catch (error) {
@@ -214,35 +228,114 @@ export class XRExperience {
       this.diagnostic.placed = false;
       this.avatar.visible = false;
       this.candidate = undefined;
+      this.ui.setContext("placement");
+      this.ui.setOpen(true);
       this.report("Riferimento ricentrato senza anchor — riposiziona.");
     }
   };
   private visibilityChange = () => {
     if (this.session?.visibilityState !== "visible") this.onAction("mute");
   };
-  private select = (event: XRInputSourceEvent) => {
+  private input(source: XRInputSource): InputState {
+    const existing = this.inputs.get(source);
+    if (existing) return existing;
+    const root = new THREE.Group();
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(),
+        new THREE.Vector3(0, 0, -1),
+      ]),
+      new THREE.LineBasicMaterial({
+        color: 0x84eac9,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    const cursor = new THREE.Mesh(
+      new THREE.SphereGeometry(0.012, 8, 6),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    line.renderOrder = cursor.renderOrder = 110;
+    root.add(line, cursor);
+    this.scene.add(root);
+    const state = {
+      latch: new XRInputLatch(),
+      root,
+      line,
+      cursor,
+      ray: new THREE.Ray(),
+      pinching: false,
+    };
+    this.inputs.set(source, state);
+    return state;
+  }
+  private inputRay(source: XRInputSource, frame: XRFrame) {
     if (!this.reference) return;
-    const pose = event.frame.getPose(
-      event.inputSource.targetRaySpace,
-      this.reference,
-    );
-    if (!pose) return;
-    const ray = new THREE.Ray(
-      new THREE.Vector3().setFromMatrixPosition(
-        new THREE.Matrix4().fromArray(pose.transform.matrix),
-      ),
-      new THREE.Vector3(0, 0, -1).applyQuaternion(
-        new THREE.Quaternion(
-          pose.transform.orientation.x,
-          pose.transform.orientation.y,
-          pose.transform.orientation.z,
-          pose.transform.orientation.w,
-        ),
-      ),
-    );
-    const action = this.ui.hit(ray);
+    const state = this.input(source);
+    const pose = frame.getPose(source.targetRaySpace, this.reference);
+    state.root.visible = !!pose;
+    if (!pose) {
+      state.latch.release("select");
+      state.pinching = false;
+      return;
+    }
+    const p = pose.transform.position,
+      q = pose.transform.orientation;
+    state.root.position.set(p.x, p.y, p.z);
+    state.root.quaternion.set(q.x, q.y, q.z, q.w);
+    state.ray.origin.copy(state.root.position);
+    state.ray.direction.set(0, 0, -1).applyQuaternion(state.root.quaternion);
+    return state;
+  }
+  private selectStart = (event: XRInputSourceEvent) => {
+    const state = this.inputRay(event.inputSource, event.frame);
+    if (state?.latch.edge("select", true, performance.now()))
+      this.activate(state.ray);
+  };
+  private selectEnd = (event: XRInputSourceEvent) => {
+    this.inputs.get(event.inputSource)?.latch.release("select");
+  };
+  private squeezeStart = (event: XRInputSourceEvent) => {
+    if (
+      this.input(event.inputSource).latch.edge("menu", true, performance.now())
+    )
+      this.ui.toggle();
+  };
+  private squeezeEnd = (event: XRInputSourceEvent) => {
+    this.inputs.get(event.inputSource)?.latch.release("menu");
+  };
+  private activate(ray: THREE.Ray) {
+    const action = this.ui.focusedAction ?? this.ui.hit(ray);
+    if (action === "menu") {
+      this.ui.toggle();
+      return;
+    }
+    if (action === "placement-menu") {
+      if (this.narrativeMode) {
+        this.report("Torna alla realtà prima di riposizionare.");
+        return;
+      }
+      this.ui.setContext("placement");
+      this.ui.setOpen(true);
+      return;
+    }
     if (action) {
       this.onAction(action);
+      if (
+        ![
+          "confirm",
+          "lower",
+          "raise",
+          "calibrate",
+          "reposition",
+          "reset",
+        ].includes(action)
+      )
+        this.ui.setOpen(false);
       return;
     }
     if (this.narrativeMode) {
@@ -266,9 +359,95 @@ export class XRExperience {
       };
       this.report("Punto selezionato. Conferma la posizione.");
     }
-  };
+  }
+  private updateInputs(frame: XRFrame) {
+    let hovered: XRAction | undefined;
+    const now = performance.now();
+    const sources = this.session?.inputSources ?? [];
+    for (const [source, state] of this.inputs)
+      if (!Array.from(sources).includes(source)) {
+        this.disposeInput(state);
+        this.inputs.delete(source);
+      }
+    for (const source of sources) {
+      const state = this.inputRay(source, frame);
+      if (!state) continue;
+      const hit = this.ui.intersection(state.ray);
+      if (
+        source === this.navigationSource &&
+        this.navigationRay &&
+        this.ui.focusedAction &&
+        (state.ray.origin.distanceToSquared(this.navigationRay.origin) >
+          0.0025 ||
+          state.ray.direction.dot(this.navigationRay.direction) < 0.995)
+      ) {
+        this.ui.pointerFocus(hit?.action);
+        this.navigationRay = undefined;
+      }
+      const length = hit?.distance ?? 3;
+      state.line.scale.z = length;
+      state.cursor.position.z = -length;
+      (state.line.material as THREE.LineBasicMaterial).color.set(
+        hit ? 0xaaffd9 : 0x709497,
+      );
+      state.cursor.visible = !!hit;
+      if (hit) hovered = hit.action;
+      const pad = source.gamepad;
+      if (pad) {
+        const menu = !!(
+          pad.buttons[1]?.pressed ||
+          pad.buttons[3]?.pressed ||
+          pad.buttons[4]?.pressed
+        );
+        if (state.latch.edge("menu", menu, now)) this.ui.toggle();
+        const offset = pad.axes.length >= 4 ? 2 : 0;
+        if (this.ui.isOpen) {
+          const direction = state.latch.axis(
+            pad.axes[offset] ?? 0,
+            pad.axes[offset + 1] ?? 0,
+            now,
+          );
+          if (direction) {
+            this.ui.navigate(...direction);
+            this.navigationRay = state.ray.clone();
+            this.navigationSource = source;
+          }
+        }
+        if (state.latch.edge("select", !!pad.buttons[0]?.pressed, now))
+          this.activate(state.ray);
+      } else if (source.hand && frame.getJointPose) {
+        const thumb = source.hand.get("thumb-tip"),
+          index = source.hand.get("index-finger-tip");
+        const a = thumb && frame.getJointPose(thumb, this.reference!),
+          b = index && frame.getJointPose(index, this.reference!);
+        if (a && b) {
+          const p = a.transform.position,
+            q = b.transform.position;
+          const distance = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+          state.pinching = distance < (state.pinching ? 0.04 : 0.022);
+          if (state.latch.edge("select", state.pinching, now))
+            this.activate(state.ray);
+        } else {
+          state.pinching = false;
+          state.latch.release("select");
+        }
+      }
+    }
+    if (!this.ui.focusedAction) this.ui.highlight(hovered);
+  }
+  private disposeInput(state: InputState) {
+    state.root.removeFromParent();
+    for (const object of [state.line, state.cursor]) {
+      object.geometry.dispose();
+      (object.material as THREE.Material).dispose();
+    }
+  }
   setNarrativeMode(active: boolean) {
     this.narrativeMode = active;
+    this.ui.setContext(
+      active ? "observatory" : this.diagnostic.placed ? "reality" : "placement",
+    );
+    this.ui.setOpen(!active && !this.diagnostic.placed);
     if (active) this.marker.visible = false;
     else if (this.session && !this.diagnostic.placed)
       this.avatar.visible = false;
@@ -324,6 +503,8 @@ export class XRExperience {
       this.candidate = undefined;
       this.raySelected = false;
       this.avatar.visible = false;
+      this.ui.setContext("placement");
+      this.ui.setOpen(true);
       this.report("Scegli una nuova posizione e conferma.");
     } finally {
       this.busy = false;
@@ -344,6 +525,7 @@ export class XRExperience {
     this.viewerPosition.set(p.x, p.y, p.z);
     this.viewerQuaternion.set(q.x, q.y, q.z, q.w);
     this.ui.followViewer(this.viewerPosition, this.viewerQuaternion);
+    this.updateInputs(frame);
     if (this.narrativeMode) {
       this.marker.visible = false;
       this.diagnostic.tracking = "osservatorio · posa stanza fissa";
@@ -449,6 +631,8 @@ export class XRExperience {
       this.avatar.position.copy(this.candidate.position);
       this.avatar.rotation.set(0, this.candidate.yaw, 0);
       this.avatar.visible = true;
+      this.ui.setContext("reality");
+      this.ui.setOpen(false);
       this.report("Pronto. Posizione confermata nello spazio della stanza.");
       void this.anchors?.create(
         frame,
@@ -467,7 +651,10 @@ export class XRExperience {
   }
   private handleEnd = () => {
     this.reference?.removeEventListener("reset", this.onReferenceReset);
-    this.session?.removeEventListener("select", this.select);
+    this.session?.removeEventListener("selectstart", this.selectStart);
+    this.session?.removeEventListener("selectend", this.selectEnd);
+    this.session?.removeEventListener("squeezestart", this.squeezeStart);
+    this.session?.removeEventListener("squeezeend", this.squeezeEnd);
     this.session?.removeEventListener(
       "visibilitychange",
       this.visibilityChange,
@@ -482,6 +669,10 @@ export class XRExperience {
     this.restored = false;
     this.narrativeMode = false;
     this.ui.root.visible = false;
+    for (const state of this.inputs.values()) this.disposeInput(state);
+    this.inputs.clear();
+    this.navigationRay = undefined;
+    this.navigationSource = undefined;
     this.marker.visible = false;
     this.diagnostic.active = false;
     this.diagnostic.reference = "preview";

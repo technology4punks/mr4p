@@ -49,17 +49,18 @@ export function tokenHandler(
               output_modalities: ["audio"],
               audio: {
                 input: {
+                  noise_reduction: { type: "near_field" },
                   transcription: {
                     model: "gpt-4o-mini-transcribe",
                     language: "it",
                   },
                   turn_detection: {
                     type: "server_vad",
-                    threshold: 0.5,
-                    prefix_padding_ms: 300,
-                    silence_duration_ms: 600,
+                    threshold: 0.75,
+                    prefix_padding_ms: 350,
+                    silence_duration_ms: 900,
                     create_response: true,
-                    interrupt_response: true,
+                    interrupt_response: false,
                   },
                 },
                 output: { voice: config.voice || "marin" },
