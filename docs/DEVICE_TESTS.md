@@ -80,7 +80,7 @@ Tutte le seguenti prove sono **NON ESEGUITE** sul dispositivo fisico.
 |---|---|---|
 | Interesse e consenso | Dialogo naturale, tema ambientale, invito e ingresso solo dopo accettazione | Non eseguito |
 | Copertura del passthrough AR | Pareti/cielo coprono completamente il mondo reale; registrare blendMode | Non eseguito |
-| Stanza e parallasse | Testa e piccoli spostamenti sicuri mostrano prospettiva coerente dei tre livelli; robot fermo | Non eseguito |
+| Stanza e parallasse | Testa e piccoli spostamenti sicuri mostrano prospettiva coerente dei tre livelli; robot vicino al fianco, senza attraversare arredi virtuali | Non eseguito |
 | Transizione sostenibile | Luce, cielo, smog, vegetazione, pannelli/tram e suoni cambiano in circa 8 s | Non eseguito |
 | Voce durante transizioni | Conversazione, domande e interruzioni restano udibili, stesso peer | Non eseguito |
 | Ritorno anticipato | Uscita durante ingresso/trasformazione; ripristino posizione MR e anchor | Non eseguito |
@@ -95,10 +95,22 @@ Per i limiti di sessione/compositing e i fallback, vedere FUTURE_OBSERVATORY.md.
 
 ## Nuova prova dopo la revisione dei controlli
 
-1. Confermare il robot: il pannello deve chiudersi; girando la testa restano solo due piccoli comandi laterali.
+1. Attendere circa tre secondi: NEO deve apparire a 1,3 m sul pavimento, senza conferma se local-floor è disponibile; girando la testa restano solo due piccoli comandi laterali.
 2. A/X e presa: aprire/chiudere; puntare un pulsante, osservare cursore/bordo illuminato e premere il grilletto.
 3. Con menu aperto: muovere lo stick, selezionare con grilletto; poi spostare il controller e tornare alla selezione a raggio. Nessuna locomozione.
 4. Passare alle mani, verificare puntamento/pinch e un solo comando per gesto, anche tenendo il pinch. Annotare eventuali permessi/non disponibilità del browser.
 5. Avviare la voce con rumore moderato: NEO deve completare la risposta. Parla / interrompi deve permettere una domanda senza riconnettere. Verificare mute e modalità Interruzioni vocali.
 6. Entrare nel futuro critico, trasformarlo, osservare auto elettriche, ricarica e verde, quindi tornare alla MR mantenendo la voce.
 7. Registrare FPS/draw call per almeno 60 s in ogni futuro, con e senza pannello; non usare i numeri del renderer software come misura del Quest.
+
+
+## Room scale e orientamento — nuova prova fisica richiesta
+
+- Entrare rivolti in direzioni differenti: piedi sul pavimento e distanza orizzontale 1–1,5 m. Verificare altezza e un eventuale fallback manuale.
+- Girare intorno a NEO e passargli dietro, rispettando Guardian: testa e corpo devono voltarsi gradualmente anche con voce spenta. In MR i piedi restano ancorati.
+- Chiudere/riaprire: un anchor vicino al punto iniziale può essere riusato; un anchor lontano richiede un nuovo posizionamento automatico.
+- In osservatorio: piccoli spostamenti room scale, seguito laterale a circa 1,2 m, velocità limitata. NEO deve fermarsi se pareti, panca o tavolino impediscono il percorso. Non chiedere grandi spostamenti solo per provarlo.
+- Perdere tracking / aprire la dashboard: nessun inseguimento su pose vecchie; al ritorno, nessuno scatto. Il ritorno MR deve ripristinare l’anchor reale.
+- In MR non è attivo il seguito fisico: piani incompleti e ostacoli non rilevati non sono considerati una stanza libera. Le collisioni virtuali non sostituiscono Guardian.
+
+Esiti di questa revisione: **NON ESEGUITI sul Quest Pro**. I test automatici usano geometrie note e pose simulate.

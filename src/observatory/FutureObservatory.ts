@@ -48,6 +48,15 @@ export class FutureObservatory {
   readonly root = new THREE.Group();
   readonly city = new THREE.Group();
   readonly room = new THREE.Group();
+  readonly companionBounds = new THREE.Box3(
+    new THREE.Vector3(-2.5, 0, -2.5), new THREE.Vector3(2.5, 3, 2.5),
+  );
+  // Footprints in room-local coordinates, including furniture before it loads.
+  readonly companionObstacles = [
+    new THREE.Box3(new THREE.Vector3(-2.5, 0, -2.6), new THREE.Vector3(2.5, 1, -2.05)),
+    new THREE.Box3(new THREE.Vector3(-2.15, 0, 1.125), new THREE.Vector3(-0.55, 0.6, 1.675)),
+    new THREE.Box3(new THREE.Vector3(1.2, 0, 0.45), new THREE.Vector3(2.5, 1, 1.75)),
+  ];
   readonly district = new EnvironmentalDistrict();
   readonly directional = new THREE.DirectionalLight(0xffd9ad, 2.2);
   readonly hemisphere = new THREE.HemisphereLight(0xabc8d8, 0x766956, 1.3);
@@ -443,6 +452,10 @@ export class FutureObservatory {
           }
         });
         this.room.add(this.table);
+        // Include the actual loaded footprint if it exceeds the reserved envelope.
+        this.root.updateWorldMatrix(true, true);
+        this.companionObstacles[2].union(new THREE.Box3().setFromObject(this.table)
+          .applyMatrix4(this.root.matrixWorld.clone().invert()));
         loaded++;
       } catch {
         /* No visual or narrative dependency on external furniture. */

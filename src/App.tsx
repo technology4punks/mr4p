@@ -146,7 +146,8 @@ export default function App() {
             <p className="hint">
               Nel visore: A/X o presa apre e chiude il menu. Punta e premi il
               grilletto, oppure usa il joystick per scegliere. Con le mani:
-              punta e fai pinch. Il pannello si chiude dopo il posizionamento.
+              punta e fai pinch. NEO appare a 1,3 metri dopo circa tre secondi
+              e si volta verso di te. Per correggere la posizione, apri Posizionamento.
             </p>
           )}
           {caps && !caps.topLevel && (
@@ -380,7 +381,7 @@ export default function App() {
           <strong>
             {snapshot?.xr.placed
               ? "Posizione confermata"
-              : "Posiziona i piedi sul pavimento"}
+              : "Avvio automatico a 1,3 m · calibra se richiesto"}
           </strong>
           <button
             onClick={() => engine.current?.action("confirm")}
@@ -447,6 +448,7 @@ export default function App() {
               Piani: snapshot?.xr.planes,
               Pavimento: snapshot?.xr.floor,
               "Quota piedi": `${snapshot?.xr.feetY.toFixed(2)} m`,
+              "NEO e movimento": snapshot?.companion,
               Calibrato: snapshot?.xr.calibrated ? "sì" : "no",
               Anchors: snapshot?.xr.anchors,
               Anchor: snapshot?.xr.anchor,

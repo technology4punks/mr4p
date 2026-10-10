@@ -323,3 +323,7 @@ pubblicato. Riporta URL, risultati, limitazioni e passi residui.
 - Modello `gpt-realtime-2.1-mini`: <https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini>
 - Meta WebXR Mixed Reality: <https://developers.meta.com/vr/documentation/web/webxr-mixed-reality/>
 - Browser support WebXR: <https://caniuse.com/webxr>
+
+## Aggiornamento autorizzato dall’utente — room scale
+
+Le istruzioni successive dell’utente aggiornano i punti 4.2 e 4.3: prima posizione automatica a 1–1,5 m (target 1,3 m), sguardo continuo verso il visore anche passando dietro al robot. Il posizionamento manuale rimane un fallback e una correzione. In osservatorio il robot può seguire di lato con collisioni sull’ambiente virtuale noto; nella stanza reale si usa il fallback esplicitamente accettato dall’utente, posizione fissa e sguardo, senza presumere una mappa completa degli ostacoli dai piani XR. I requisiti hardware rimangono da verificare sul dispositivo fisico. Dettagli in docs/ROOM_SCALE.md.

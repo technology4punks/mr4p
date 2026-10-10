@@ -99,6 +99,108 @@ afterEach(() => {
   xr.dispose();
 });
 describe("MR orchestration (mocked XR runtime)", () => {
+  it("automatically places at 1.3m after floor discovery and keeps that world position as the viewer moves", async () => {
+    await xr.enter();
+    xr.update(frame());
+    expect(xr.diagnostic.placed).toBe(false);
+    now = 4001;
+    xr.update(frame(new Map(), 2));
+    expect(xr.diagnostic.placed).toBe(true);
+    expect(root.position.toArray()).toEqual([2, 0, -1.3]);
+    expect(root.visible).toBe(true);
+    expect(xr.ui.setOpen).toHaveBeenLastCalledWith(false);
+    xr.update(frame(new Map(), -2));
+    expect(root.position.toArray()).toEqual([2, 0, -1.3]);
+  });
+  it("waits for height calibration when local-floor is unavailable", async () => {
+    session.localFloor = false;
+    await xr.enter();
+    now = 5000;
+    xr.update(frame());
+    expect(xr.diagnostic.placed).toBe(false);
+    xr.calibrate();
+    xr.update(frame());
+    expect(xr.diagnostic.placed).toBe(true);
+    expect(root.position.z).toBe(-1.3);
+  });
+  it("keeps manual repositioning manual instead of overriding a chosen point", async () => {
+    await xr.enter();
+    now = 4001;
+    xr.update(frame());
+    await xr.reposition();
+    now = 9000;
+    xr.update(frame());
+    expect(xr.diagnostic.placed).toBe(false);
+    xr.confirm();
+    xr.update(frame());
+    expect(xr.diagnostic.placed).toBe(true);
+  });
+  it("falls back to manual placement rather than automatically spawning inside a detected table", async () => {
+    await xr.enter();
+    now = 4001;
+    const table = plane();
+    xr.update(frame(new Map([[table, 0.8]])));
+    expect(xr.diagnostic.placed).toBe(false);
+    expect(root.visible).toBe(false);
+    expect(xr.ui.setOpen).toHaveBeenLastCalledWith(true);
+    expect(report).toHaveBeenCalledWith(expect.stringContaining("Superficie rilevata"));
+  });
+  it("does not track a stale viewer pose when headset tracking is lost", async () => {
+    await xr.enter();
+    xr.update(frame());
+    expect(xr.isViewerTracked).toBe(true);
+    const lost = frame();
+    lost.getViewerPose = () => undefined;
+    xr.update(lost);
+    expect(xr.isViewerTracked).toBe(false);
+    expect(xr.diagnostic.tracking).toContain("degradato");
+  });
+  it("reuses a restored nearby anchor but relocates an old anchor that is no longer in front", async () => {
+    const anchor = { anchorSpace: {}, delete: vi.fn() };
+    Object.assign(session, {
+      restorePersistentAnchor: vi.fn().mockResolvedValue(anchor),
+      deletePersistentAnchor: vi.fn().mockResolvedValue(undefined),
+    });
+    localStorage.setItem("neo-persistent-anchor-v1", "saved-handle");
+    await xr.enter();
+    const f = frame();
+    const pose = new THREE.Matrix4().makeTranslation(0, 0, -1.3);
+    f.getPose = () => ({ transform: { matrix: pose.elements } }) as unknown as XRPose;
+    xr.update(f);
+    expect(root.visible).toBe(true);
+    expect(anchor.delete).not.toHaveBeenCalled();
+    await xr.exit();
+    anchor.delete.mockClear();
+    localStorage.setItem("neo-persistent-anchor-v1", "saved-handle");
+    await xr.enter();
+    xr.update(frame()); // Restored position at origin is too close.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(anchor.delete).toHaveBeenCalledOnce();
+    expect(xr.diagnostic.placed).toBe(false);
+    now += 3001;
+    xr.update(frame());
+    expect(root.position.z).toBe(-1.3);
+    expect(root.visible).toBe(true);
+  });
+  it("does not hide the browser fallback if XR ends while an old anchor is being removed", async () => {
+    let finishDelete!: () => void;
+    const deletion = new Promise<void>((resolve) => { finishDelete = resolve; });
+    Object.assign(session, {
+      restorePersistentAnchor: vi.fn().mockResolvedValue({ anchorSpace: {}, delete: vi.fn() }),
+      deletePersistentAnchor: vi.fn().mockReturnValue(deletion),
+    });
+    localStorage.setItem("neo-persistent-anchor-v1", "saved-handle");
+    await xr.enter();
+    xr.update(frame());
+    await xr.exit();
+    finishDelete();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(xr.diagnostic.active).toBe(false);
+    expect(root.visible).toBe(true);
+    expect(root.position.toArray()).toEqual([0, 0, 0]);
+  });
   it("requests a distinct immersive VR session only on explicit enter", async () => {
     expect(navigator.xr!.requestSession).not.toHaveBeenCalled();
     await xr.enter("immersive-vr");

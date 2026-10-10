@@ -50,9 +50,12 @@ export class XRExperience {
   private pendingConfirm = false;
   private busy = false;
   private restored = false;
+  private checkRestoredPlacement = false;
+  private autoPlacement = true;
   private lockedFloor?: XRPlane;
   private viewerPosition = new THREE.Vector3();
   private viewerQuaternion = new THREE.Quaternion();
+  private viewerTracked = false;
   private floorOffset = 0;
   private raySelected = false;
   private narrativeMode = false;
@@ -163,11 +166,13 @@ export class XRExperience {
       this.floorOffset = 0;
       this.diagnostic.feetY = 0;
       this.candidate = undefined;
+      this.autoPlacement = true;
+      this.checkRestoredPlacement = false;
       this.raySelected = false;
       this.started = performance.now();
       this.ui.root.visible = true;
       this.ui.setContext("placement");
-      this.ui.setOpen(true);
+      this.ui.setOpen(!this.diagnostic.calibrated);
       this.anchors = new AnchorManager(session, this.report);
       reference.addEventListener("reset", this.onReferenceReset);
       session.addEventListener("end", this.handleEnd, { once: true });
@@ -178,7 +183,7 @@ export class XRExperience {
       session.addEventListener("visibilitychange", this.visibilityChange);
       this.report(
         this.diagnostic.calibrated
-          ? "Posiziona: guarda il pavimento, scegli un punto e conferma."
+          ? "Attendo il pavimento: NEO apparirà automaticamente a 1,3 metri."
           : "Calibrazione richiesta: regola la quota piedi e premi Quota corretta.",
       );
       if (mode === "immersive-ar" && session.requestHitTestSource) {
@@ -197,6 +202,7 @@ export class XRExperience {
       if (mode === "immersive-ar" && !this.restored)
         await this.anchors?.clear();
       if (this.restored) {
+        this.checkRestoredPlacement = true;
         this.diagnostic.placed = true;
         this.ui.setContext("reality");
         this.ui.setOpen(false);
@@ -211,6 +217,7 @@ export class XRExperience {
     }
   }
   private onReferenceReset = () => {
+    this.autoPlacement = false;
     if (this.narrativeMode) {
       if (!this.anchors?.anchor) {
         this.diagnostic.placed = false;
@@ -349,6 +356,7 @@ export class XRExperience {
       this.floorY + this.floorOffset,
     );
     if (point) {
+      this.autoPlacement = false;
       this.raySelected = true;
       this.candidate = {
         position: point,
@@ -458,6 +466,9 @@ export class XRExperience {
       orientation: this.viewerQuaternion,
     };
   }
+  get isViewerTracked() {
+    return this.viewerTracked && this.session?.visibilityState === "visible";
+  }
   confirm() {
     if (this.narrativeMode) return;
     if (this.diagnostic.placed || this.pendingConfirm || !this.candidate)
@@ -468,6 +479,7 @@ export class XRExperience {
       );
       return;
     }
+    this.autoPlacement = false;
     this.pendingConfirm = true;
   }
   calibrate() {
@@ -479,6 +491,7 @@ export class XRExperience {
       this.report("Premi Riposiziona prima di regolare la quota.");
       return;
     }
+    this.autoPlacement = false;
     this.floorOffset = THREE.MathUtils.clamp(
       this.floorOffset + amount,
       -2.5,
@@ -487,7 +500,7 @@ export class XRExperience {
     if (this.candidate)
       this.candidate.position.y = this.floorY + this.floorOffset;
   }
-  async reposition() {
+  async reposition(automatic = false) {
     if (this.narrativeMode) {
       this.report("Torna alla realtà prima di riposizionare.");
       return;
@@ -495,17 +508,24 @@ export class XRExperience {
     if (this.busy) return;
     this.busy = true;
     this.pendingConfirm = false;
+    const session = this.session;
     try {
       await this.anchors?.clear();
+      if (!session || this.session !== session) return;
       this.diagnostic.placed = false;
       this.restored = false;
+      this.checkRestoredPlacement = false;
+      this.autoPlacement = automatic;
+      if (automatic) this.started = performance.now();
       this.lockedFloor = undefined;
       this.candidate = undefined;
       this.raySelected = false;
       this.avatar.visible = false;
       this.ui.setContext("placement");
-      this.ui.setOpen(true);
-      this.report("Scegli una nuova posizione e conferma.");
+      this.ui.setOpen(!automatic);
+      this.report(automatic
+        ? "Riposiziono NEO automaticamente davanti a te, a 1,3 metri."
+        : "Scegli una nuova posizione e conferma.");
     } finally {
       this.busy = false;
     }
@@ -516,6 +536,7 @@ export class XRExperience {
   update(frame: XRFrame) {
     if (!this.reference || !this.session) return;
     const viewer = frame.getViewerPose(this.reference);
+    this.viewerTracked = !!viewer;
     if (!viewer) {
       this.diagnostic.tracking = "degradato: ultima posa mantenuta";
       return;
@@ -541,6 +562,19 @@ export class XRExperience {
     if (this.diagnostic.placed) {
       if (this.anchors?.anchor) {
         if (this.anchors.update(frame, this.reference, this.avatar)) {
+          if (this.checkRestoredPlacement && !this.busy) {
+            this.checkRestoredPlacement = false;
+            const expected = proposePlacement(this.viewerPosition, this.viewerQuaternion, this.avatar.position.y);
+            const distance = Math.hypot(
+              this.avatar.position.x - expected.position.x,
+              this.avatar.position.z - expected.position.z,
+            );
+            if (distance > 0.2) {
+              this.avatar.visible = false;
+              void this.reposition(true);
+              return;
+            }
+          }
           this.avatar.visible = true;
           this.restored = false;
         } else
@@ -550,7 +584,7 @@ export class XRExperience {
       if (this.lockedFloor && planes && !planes.has(this.lockedFloor))
         this.diagnostic.tracking = "piano perso: ultima posa mantenuta";
     } else if (!this.busy) {
-      if (!this.candidate) {
+      if (!this.candidate || this.autoPlacement) {
         if (this.diagnostic.reference === "local")
           this.floorY = this.viewerPosition.y - 1.6;
         this.candidate = proposePlacement(
@@ -598,7 +632,7 @@ export class XRExperience {
         if (best) this.diagnostic.calibrated = true;
       }
       // Hit tests never override a confirmed pose and cannot select elevated tables.
-      if (this.hitSource && !this.lockedFloor && !this.raySelected) {
+      if (this.hitSource && !this.lockedFloor && !this.raySelected && !this.autoPlacement) {
         const hit = frame
           .getHitTestResults(this.hitSource)[0]
           ?.getPose(this.reference);
@@ -624,6 +658,26 @@ export class XRExperience {
       this.marker.position.copy(this.candidate.position);
       this.marker.position.y += 0.008;
       this.marker.visible = true;
+      if (this.autoPlacement && this.diagnostic.calibrated && performance.now() - this.started >= 3000) {
+        // Avoid detected table/wall footprints. This is not a complete real-room map.
+        const point = this.candidate.position;
+        const blocked = [...(planes ?? [])].some((plane) => {
+          if (plane === this.lockedFloor) return false;
+          const pose = frame.getPose(plane.planeSpace, this.reference!);
+          if (!pose) return false;
+          const matrix = new THREE.Matrix4().fromArray(pose.transform.matrix);
+          const bounds = new THREE.Box3().setFromPoints(plane.polygon.map((p) =>
+            new THREE.Vector3(p.x, p.y, p.z).applyMatrix4(matrix)));
+          if (bounds.max.y < point.y + 0.15 || bounds.min.y > point.y + 2.1) return false;
+          return point.x >= bounds.min.x - 0.35 && point.x <= bounds.max.x + 0.35 &&
+            point.z >= bounds.min.z - 0.35 && point.z <= bounds.max.z + 0.35;
+        });
+        if (blocked) {
+          this.autoPlacement = false;
+          this.ui.setOpen(true);
+          this.report("Superficie rilevata davanti a te: scegli un punto libero e conferma.");
+        } else this.pendingConfirm = true;
+      }
     }
     if (this.pendingConfirm && this.candidate) {
       this.pendingConfirm = false;
@@ -664,6 +718,7 @@ export class XRExperience {
     this.anchors?.dispose();
     this.anchors = undefined;
     this.session = undefined;
+    this.viewerTracked = false;
     this.reference = undefined;
     this.pendingConfirm = false;
     this.restored = false;

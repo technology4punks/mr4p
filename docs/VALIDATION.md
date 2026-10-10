@@ -7,10 +7,10 @@
 | Lint | PASS |
 | Typecheck frontend/backend | PASS |
 | Build Vite + backend Node | PASS |
-| Test unitari/API | PASS: 96 test, 9 file |
+| Test unitari/API | PASS: 113 test, 10 file |
 | Scanner bundle client | PASS: nessuna chiave/configurazione server nel client, asset avatar locale valido |
 | Playwright produzione | PASS: 12 test, Chromium desktop / Pixel 7 emulato / WebKit iPhone 13 emulato |
-| Sites typecheck / test / build | PASS: 74 test, 6 file; build Vinext/Worker |
+| Sites typecheck / test / build | PASS: 104 test, 9 file; build Vinext/Worker |
 | Sites browser locale | PASS: tre profili, avatar, layout, permesso microfono negato, asset CC0, ingresso, trasformazione, ritorno, API privata (prova iniziale) |
 
 La suite mantiene i test dell’MVP e aggiunge consenso, temi non disponibili, strumenti sconosciuti/argomenti errati, ritorno in ogni fase, completamenti tardivi, eventi Realtime completi/deduplicati, risposta differita e mantenimento del peer. I test XR usano un runtime **mock**: richiesta AR/VR distinta, posa narrativa separata dagli anchor, handle MR conservato entrando in VR e nuovo posizionamento dopo recenter senza anchor. I test della scena verificano fasce di profondità, parallasse, riuso della geometria, oggetti selezionabili, checksum/licenze e riferimenti glTF. Il fallback procedurale resta utilizzabile quando tutti gli asset falliscono.
@@ -60,3 +60,14 @@ Campioni finali dopo l’ottimizzazione, nello scenario sostenibile:
 Tutti erano in qualità low. Sono snapshot del renderer software, con viewport e carichi diversi, non prestazioni medie del Quest né confronti validi fra device. Prima dell’ottimizzazione dei dettagli lontani e del numero di veicoli lo stesso scenario aveva 34.797 triangoli; ora 22.277. L’obiettivo 72 FPS sul Quest resta da misurare. Il nuovo bundle Vite è circa 966 kB / 267 kB gzip, con il warning dimensione non bloccante.
 
 I nuovi test coprono anche timer/mute del microfono, fine generazione prima della fine audio, interruzione esplicita senza chiusura peer, opt-in delle interruzioni vocali, pulsanti nascosti, pannello fermo quando gira la testa, comandi duplicati, joystick/pinch e bounds dei veicoli animati. Gli screenshot aggiornati sono in docs/screenshots. [Funzioni e limiti](QUEST_INTERACTION.md).
+
+
+## Revisione room scale
+
+Richiesta dell’utente: orientamento verso il visore anche passando dietro, prima posizione automatica a 1–1,5 m e, dove possibile, vicinanza con collisioni. Implementati sguardo continuo testa/corpo senza alterare il root dell’anchor, avvio a 1,3 m dopo ricerca pavimento, fallback manuale per quota incerta o superfici rilevate, restore di un anchor vicino oppure sostituzione di un anchor lontano. Seguito laterale a 0,45 m/s nella sola stanza virtuale con pareti/arredi noti, raggio 35 cm, controllo dell’intero segmento e distanza personale; stop se non esiste un percorso diretto libero. In MR la posizione resta ancorata: non si assume che plane detection rilevi tutti gli ostacoli fisici.
+
+Quality gate finale: npm run check PASS (lint, typecheck, build, **113 test**, scanner client); Sites typecheck e **104 test** PASS. Build Vinext/Worker eseguita anche dal commit sorgente pubblicato. Playwright **12/12 PASS**, un worker, Chromium desktop/Android e WebKit iPhone emulati. I test nuovi comprendono GLB reale, arco di rotazione corto, parent ruotato, stabilità della posa anchor, velocità/limiti del seguito, ostacoli, spazio personale, calibrazione, anchor restaurato vicino/lontano e chiusura XR durante eliminazione asincrona.
+
+Campioni diagnostici browser software dopo il futuro sostenibile: desktop 9 FPS, Android emulato 10 FPS, WebKit iPhone emulato 55 FPS; ciascuno 73 draw call, 22.277 triangoli, 71 geometrie e 13 texture in qualità low. Trasformazione osservata 8,186 / 8,694 / 8,267 s. Non sono benchmark confrontabili fra device, non misurano il seguito immersivo e non attestano 72 FPS. Nessun nuovo asset, texture o draw call è introdotto dal seguito. Bundle Vite circa 972 kB / 269 kB gzip, warning dimensione non bloccante.
+
+Passthrough, posizione iniziale, tracking, gaze e seguito immersivo restano **da verificare fisicamente sul Quest Pro**. La precedente prova dell’utente non certifica questa revisione. [Dettagli e limiti](ROOM_SCALE.md), checklist in DEVICE_TESTS.md.

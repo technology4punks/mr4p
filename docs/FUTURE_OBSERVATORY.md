@@ -6,7 +6,7 @@ L’avatar, il backend Node, WebRTC OpenAI Realtime e il posizionamento MR dell�
 
 Aprire la pagina HTTPS direttamente, avviare **Parla con l’avatar**, raccontare un interesse e accettare l’invito al 2050. Il modello usa funzioni strutturate e riceve lo stato autorevole dopo ogni evento. In alternativa **Visita il 2050** permette di provare la grafica senza API né microfono. Dopo il futuro critico, **Mostra il futuro sostenibile** autorizza una trasformazione di otto secondi; **Torna alla realtà** interrompe anche ingresso e trasformazione. I tre oggetti sul davanzale aprono riflessioni su energia, acqua e mobilità. **Suoni ambiente** è facoltativo e richiede un gesto.
 
-Sul Quest iniziare con **Entra in realtà mista**, confermare il robot sul pavimento e poi visitare. La stanza viene allineata una volta alla posa della testa e alla quota del pavimento, poi resta nel mondo: nessuna locomozione artificiale o inseguimento della camera. La posizione MR dell’avatar è conservata e ripristinata al ritorno. Nessun movimento fisico è necessario; il confine virtuale non sostituisce il Guardian reale.
+Sul Quest iniziare con **Entra in realtà mista**, attendere il posizionamento automatico del robot a 1,3 m (calibrare se richiesto) e poi visitare. La stanza viene allineata una volta alla posa della testa e alla quota del pavimento, poi resta nel mondo: nessuna locomozione artificiale della camera. Il robot può avvicinarsi lentamente al fianco dell’utente nella stanza virtuale, rispettando pareti e arredi predefiniti. La posizione MR dell’avatar è conservata e ripristinata al ritorno. Nessun movimento fisico è necessario; il confine virtuale non sostituisce il Guardian reale.
 
 ## Moduli
 

@@ -4,7 +4,7 @@ export function proposePlacement(
   viewerPosition: THREE.Vector3,
   viewerOrientation: THREE.Quaternion,
   floorY: number,
-  distance = 1.75,
+  distance = 1.3,
 ): Placement {
   const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
     viewerOrientation,

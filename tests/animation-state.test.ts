@@ -6,6 +6,7 @@ import { clone } from "three/addons/utils/SkeletonUtils.js";
 import { AvatarController } from "../src/avatar/AvatarController";
 import { afterAnimation } from "../src/avatar/animations";
 import { rms, speechEnvelope } from "../src/audio/audioLevel";
+import { turnToward } from "../src/avatar/facing";
 let gltf: GLTF;
 beforeAll(async () => {
   const file = await readFile("public/models/RobotExpressive.glb");
@@ -68,6 +69,54 @@ describe("real local asset and animation mixer", () => {
     avatar.update(1.3, 0, false);
     expect(avatar.state).toBe("idle");
     avatar.dispose();
+  });
+  it("turns the loaded robot toward a viewer behind it, even while idle, without changing its anchor pose", async () => {
+    vi.spyOn(GLTFLoader.prototype, "loadAsync").mockImplementation(
+      async () => ({ ...gltf, scene: clone(gltf.scene) as THREE.Group }),
+    );
+    const avatar = new AvatarController();
+    await avatar.load();
+    avatar.root.position.set(2, 0.04, -1.3);
+    avatar.root.rotation.y = 0.4;
+    const position = avatar.root.position.clone();
+    const orientation = avatar.root.quaternion.clone();
+    const viewer = new THREE.Vector3(2, 1.6, -3);
+    for (let i = 0; i < 300; i++) avatar.update(1 / 72, 0, false, viewer);
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(
+      avatar.visual.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    expect(forward.z).toBeLessThan(-0.99);
+    expect(avatar.root.position.equals(position)).toBe(true);
+    expect(avatar.root.quaternion.angleTo(orientation)).toBeLessThan(1e-6);
+    expect(avatar.state).toBe("idle");
+    avatar.dispose();
+  });
+  it("faces a world-space viewer correctly with a rotated and translated observatory parent", async () => {
+    vi.spyOn(GLTFLoader.prototype, "loadAsync").mockRejectedValue(new Error("offline"));
+    const avatar = new AvatarController();
+    await avatar.load();
+    const room = new THREE.Group();
+    room.position.set(5, 0.1, -4);
+    room.rotation.y = Math.PI / 2;
+    room.add(avatar.root);
+    const viewer = new THREE.Vector3(5, 1.7, -1);
+    for (let i = 0; i < 300; i++) avatar.update(1 / 72, 0, false, viewer);
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(
+      avatar.visual.getWorldQuaternion(new THREE.Quaternion()),
+    );
+    expect(forward.z).toBeGreaterThan(0.99);
+    expect(avatar.root.position.toArray()).toEqual([0, 0, 0]);
+    avatar.dispose();
+  });
+});
+describe("comfortable viewer-facing turns", () => {
+  it("takes the short arc across +/- pi instead of spinning 360 degrees", () => {
+    const angle = turnToward(Math.PI - 0.05, -Math.PI + 0.05, 0.016);
+    expect(angle).toBeGreaterThan(Math.PI - 0.05);
+  });
+  it("limits turn speed and does not snap after tab suspension", () => {
+    expect(Math.abs(turnToward(0, Math.PI, 10))).toBeCloseTo(0.105, 10);
+    expect(turnToward(0.2, 2, 0)).toBeCloseTo(0.2);
   });
 });
 describe("speech energy", () => {

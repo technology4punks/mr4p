@@ -31,14 +31,14 @@ npm start
 - **Future Observatory:** visita ambientale, stanza 5 × 5 m, skyline 3D a tre profondità, vera parallasse, transizione di otto secondi, oggetti narrativi e ritorno sempre disponibile. Pulsanti e voce condividono lo Story Engine; scena e WebRTC restano separati.
 
 - **Anteprima 3D:** scena orbitabile con mouse/touch, zoom, statura 1,5–1,7 m, saluto, approvazione e dissenso. Nessuna simulazione AR tramite videocamera su iPhone.
-- **MR:** pulsante soltanto dopo `isSessionSupported('immersive-ar')`; sfondo trasparente e `local-floor`, oppure `local` con calibrazione manuale obbligatoria. Solo la UI 3D segue l'utente; l'avatar è nel world space della scena.
-- **Posizionamento:** marker a circa 1,75 m, attesa di tre secondi prima di valutare i piani sul `XRFrame`, quota/estensione/orientamento per escludere tavoli, hit-test opzionale vicino al pavimento, scelta con ray/controller o tocco, quota ±5 cm e conferma esplicita. Le superfici sono suggerimenti da verificare visivamente.
-- **Anchor:** creazione sul frame attivo, aggiornamento da `anchorSpace`, salvataggio/restore dell'handle sullo stesso origin quando le API sono esposte. Posa congelata se il tracking degrada; reset locale e sul dispositivo se supportato. Un recenter senza anchor richiede nuovo posizionamento.
+- **MR:** pulsante soltanto dopo `isSessionSupported('immersive-ar')`; sfondo trasparente e `local-floor`, oppure `local` con calibrazione manuale obbligatoria. L’avatar è nel world space della scena e si volta gradualmente verso il visore, anche quando gli si passa dietro.
+- **Posizionamento:** avvio automatico a 1,3 m dopo tre secondi di ricerca del pavimento; se una superficie rilevata occupa il punto previsto, viene richiesta una posizione manuale. Quota/estensione/orientamento escludono tavoli dal pavimento; hit-test e scelta con ray/controller o tocco restano nel flusso manuale, con quota ±5 cm e conferma. Le superfici sono suggerimenti da verificare visivamente.
+- **Anchor:** creazione sul frame attivo, aggiornamento da `anchorSpace`, salvataggio/restore dell’handle sullo stesso origin quando le API sono esposte. Un anchor recuperato è riusato se entro 20 cm dal punto atteso a 1,3 m davanti al visore; altrimenti viene sostituito. Posa congelata se il tracking degrada; reset locale e sul dispositivo se supportato. Un recenter senza anchor richiede nuovo posizionamento.
 - **Voce:** microfono solo dopo click, secret effimero dal backend, SDP all'endpoint GA `/v1/realtime/calls`, VAD con interruzioni, mute/stop, cleanup e sblocco audio esplicito. Background, chiamate/interruzioni e perdita di rete terminano la sessione; la ripresa richiede un nuovo click.
 - **Animazione:** `AnimationMixer`, crossfade e one-shot, head-follow lieve, gesture durante risposte lunghe. Bocca proxy sulla testa pilotata da RMS smussato dell'audio remoto effettivamente riprodotto: nessun visema fonetico, nessun movimento se l'audio è assente/bloccato.
 - **Diagnostica:** capability, riferimento, piani, quota, anchor/persistenza, tracking, peer, livelli e FPS. Trascrizioni opzionali solo in memoria finché la vista debug è attiva, senza log di token o audio.
 
-Nel visore punta il controller e usa il grilletto sul pannello 3D: Conferma, Riposiziona, Quota, Avvia/stop voce, Mute, Riattiva audio, Reset anchor, Esci. Toccare il pavimento sceglie un punto, poi occorre confermare. Se manca `local-floor`, regola il marker ai piedi e seleziona **Quota corretta** prima di confermare.
+Nel visore punta il controller e usa il grilletto sul pannello 3D: Conferma, Riposiziona, Quota, Avvia/stop voce, Mute, Riattiva audio, Reset anchor, Esci. Toccare il pavimento sceglie un punto, poi occorre confermare. Se manca `local-floor`, regola il marker ai piedi e seleziona **Quota corretta**; se hai regolato la quota manualmente, conferma il punto.
 
 ## HTTPS e accesso privato
 
@@ -86,3 +86,5 @@ Il Quest può conservare al massimo otto anchor persistenti per origin; modalit�
 ## Controlli Quest e voce protetta
 
 Il menu si chiude dopo il posizionamento: A/X o presa lo richiamano, grilletto/pinch selezionano e lo stick sceglie i pulsanti. NEO completa le risposte senza interruzioni dovute ai rumori; **Parla / interrompi** restituisce il turno, e le interruzioni vocali restano riattivabili. I futuri ambientali ora hanno traffico/degrado industriale oppure auto elettriche, ricarica, verde e rinnovabili. [Controlli, scenari e limiti](docs/QUEST_INTERACTION.md).
+
+NEO guarda il visore a 360° in tutti gli stati. Nell’osservatorio room scale segue lentamente di fianco, con collisioni su pareti e arredi virtuali; in MR resta ancorato e si volta, perché i piani WebXR non garantiscono una mappa completa dei mobili reali. [Posizionamento, seguito e limiti](docs/ROOM_SCALE.md).

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { AvatarController } from "./avatar/AvatarController";
+import { CompanionFollow } from "./avatar/CompanionFollow";
 import type { AvatarState } from "./avatar/animations";
 import { RealtimeClient, type VoiceSnapshot } from "./audio/realtimeClient";
 import { XRExperience, type XRDiagnostic } from "./xr/xrSession";
@@ -34,6 +35,7 @@ export type ExperienceSnapshot = {
   quality: string;
   observatoryAssets: string;
   compositor: string;
+  companion: string;
 };
 export class Experience {
   private renderer: THREE.WebGLRenderer;
@@ -60,6 +62,11 @@ export class Experience {
   private viewerPosition = new THREE.Vector3();
   readonly story = new StoryEngine();
   readonly observatory = new FutureObservatory();
+  private companion = new CompanionFollow(this.observatory.companionBounds, this.observatory.companionObstacles);
+  private companionViewer = new THREE.Vector3();
+  private companionOrientation = new THREE.Quaternion();
+  private roomOrientation = new THREE.Quaternion();
+  private companionMoving = false;
   private quality = new AdaptiveQuality();
   private ambience = new Ambience();
   private ambientContext?: AudioContext;
@@ -221,6 +228,9 @@ export class Experience {
       compositor: this.xr.session
         ? `${this.xr.diagnostic.mode} / ${this.xr.diagnostic.blendMode} · occultamento da verificare`
         : "3D browser",
+      companion: this.companionMoving ? "seguito laterale · collisioni virtuali" :
+        this.xr.session && this.story.snapshot.environment === "reality"
+          ? "sguardo 360° · posizione fissa in MR" : "sguardo 360°",
     };
   }
   private render = (time: number, frame?: XRFrame) => {
@@ -261,11 +271,25 @@ export class Experience {
     );
     const camera = frame ? this.renderer.xr.getCamera() : this.camera;
     camera.getWorldPosition(this.viewerPosition);
+    this.companionMoving = false;
+    if (frame && this.xr.isViewerTracked && this.immersion > 0.99 &&
+        this.story.snapshot.environment === "observatory" &&
+        this.story.snapshot.state !== "RETURN_TO_REALITY") {
+      this.companionViewer.copy(this.viewerPosition);
+      this.observatory.root.worldToLocal(this.companionViewer);
+      camera.getWorldQuaternion(this.companionOrientation);
+      this.observatory.root.getWorldQuaternion(this.roomOrientation).invert();
+      this.companionOrientation.premultiply(this.roomOrientation);
+      this.companionMoving = this.companion.update(
+        this.avatar.root.position, this.companionViewer, this.companionOrientation, delta,
+      );
+    } else this.companion.reset();
+    this.avatar.setMoving(this.companionMoving);
     this.avatar.update(
       delta,
       levels.output,
       levels.audible,
-      this.viewerPosition,
+      !frame || this.xr.isViewerTracked ? this.viewerPosition : undefined,
     );
     const voice = this.voice.snapshot;
     this.xr.ui.setVoiceControls(

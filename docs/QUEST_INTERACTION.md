@@ -4,7 +4,7 @@ La prova dell'utente sul visore ha confermato che la base era utilizzabile, ma h
 
 ## Menu immersivo
 
-- Il pannello si apre durante il posizionamento e si chiude dopo la conferma. Restano due piccoli comandi laterali: Menu e Parla / interrompi.
+- Con local-floor il pannello resta chiuso durante l’avvio automatico a 1,3 m; si apre se occorre calibrare o scegliere un punto libero. Nel riposizionamento manuale si chiude dopo la conferma. Restano due piccoli comandi laterali: Menu e Parla / interrompi.
 - A/X, clic dello stick o presa del controller aprono/chiudono il pannello. Puntatore, cursore e bordo illuminato indicano il pulsante selezionato; il grilletto attiva l'azione.
 - Lo stick sceglie i pulsanti con una zona morta e ripetizione controllata. Spostare intenzionalmente il controller restituisce il controllo al puntatore. Lo stick non sposta la camera.
 - Con il tracciamento mani disponibile: raggio della mano e pinch. Si richiede hand-tracking come funzionalità opzionale; gli eventi nativi e il controllo delle articolazioni hanno deduplicazione e isteresi.
@@ -45,3 +45,5 @@ La nuova geometria è procedurale e non richiede download o editor. Gli asset Po
 Le decorazioni animate sono aggiornate a 30 Hz; camera, tracking XR e robot conservano il frame loop del renderer. Il profilo low mantiene gli alberi vicini, riduce le chiome e i rami lontani e dimezza il fumo; dopo la trasformazione vengono renderizzati cinque veicoli invece di quindici. I bounds conservativi evitano la scomparsa delle auto animate per culling.
 
 I test verificano menu ancorato, raggi su soli pulsanti visibili, selezione controller, pinch, deduplicazione, navigazione, protezione microfono, rispetto del mute, timer dopo lo stop e trasformazione senza nuove geometrie. Le prove browser desktop/Android/iPhone non attestano hand tracking, passthrough o 72 FPS sul Quest.
+
+La revisione room scale aggiunge sguardo continuo a 360° e seguito nella sola stanza virtuale: vedere [ROOM_SCALE.md](ROOM_SCALE.md).

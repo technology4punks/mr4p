@@ -15,13 +15,13 @@ const polygon = [
   { x: -2, z: 2 },
 ] as DOMPointReadOnly[];
 describe("placement in world space", () => {
-  it("places feet on calibrated floor, 1.75m ahead, facing viewer", () => {
+  it("places feet on calibrated floor, 1.3m ahead, facing viewer", () => {
     const pose = proposePlacement(
       new THREE.Vector3(2, 1.7, 3),
       new THREE.Quaternion(),
       -0.12,
     );
-    expect(pose.position.toArray()).toEqual([2, -0.12, 1.25]);
+    expect(pose.position.toArray()).toEqual([2, -0.12, 1.7]);
     expect(pose.yaw).toBe(0);
   });
   it("projects pitched gaze onto floor without changing suggested distance", () => {
@@ -33,7 +33,7 @@ describe("placement in world space", () => {
       0,
     );
     expect(pose.position.y).toBe(0);
-    expect(Math.hypot(pose.position.x, pose.position.z)).toBeCloseTo(1.75);
+    expect(Math.hypot(pose.position.x, pose.position.z)).toBeCloseTo(1.3);
   });
   it("normalizes off-center asset to target height and feet at y=0", () => {
     const model = new THREE.Group();

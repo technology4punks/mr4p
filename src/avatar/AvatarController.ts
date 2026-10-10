@@ -7,6 +7,7 @@ import {
   type AvatarState,
 } from "./animations";
 import { speechEnvelope } from "../audio/audioLevel";
+import { turnToward } from "./facing";
 
 export function normalizeModel(model: THREE.Object3D, height: number) {
   model.updateMatrixWorld(true);
@@ -22,6 +23,8 @@ export function normalizeModel(model: THREE.Object3D, height: number) {
 
 export class AvatarController {
   readonly root = new THREE.Group();
+  // Spatial anchors own root; the visual child can turn without moving the feet.
+  readonly visual = new THREE.Group();
   private mixer?: THREE.AnimationMixer;
   private actions = new Map<string, THREE.AnimationAction>();
   private action?: THREE.AnimationAction;
@@ -36,12 +39,18 @@ export class AvatarController {
   private head?: THREE.Object3D;
   private headOffset = new THREE.Quaternion();
   private headYaw = 0;
+  private headPitch = 0;
+  private pitchOffset = new THREE.Quaternion();
   private headPosition = new THREE.Vector3();
   private direction = new THREE.Vector3();
   private parentQuaternion = new THREE.Quaternion();
   private tempQuaternion = new THREE.Quaternion();
   private speechGestureTime = 0;
   private gestureIndex = 0;
+  private moving = false;
+  constructor() {
+    this.root.add(this.visual);
+  }
   async load(height = 1.6): Promise<{ loaded: boolean; clips: string[] }> {
     try {
       const gltf = await new GLTFLoader().loadAsync(
@@ -53,7 +62,7 @@ export class AvatarController {
         throw new Error("Missing clips");
       this.model = gltf.scene;
       normalizeModel(this.model, height);
-      this.root.add(this.model);
+      this.visual.add(this.model);
       this.mixer = new THREE.AnimationMixer(this.model);
       gltf.animations.forEach((clip) =>
         this.actions.set(clip.name, this.mixer!.clipAction(clip)),
@@ -68,7 +77,7 @@ export class AvatarController {
       });
       // RobotExpressive has no phonetic mouth blendshape. Attach a proxy to its head.
       const head = (this.head = this.model.getObjectByName("Head"));
-      this.addMouth(head || this.root, !!head);
+      this.addMouth(head || this.visual, !!head);
       this.setState("idle", true);
       return { loaded: true, clips };
     } catch {
@@ -83,16 +92,16 @@ export class AvatarController {
         new THREE.MeshStandardMaterial({ color: 0xd4ece8 }),
       );
       head.position.y = 1.425;
-      this.root.add(body, head);
+      this.visual.add(body, head);
       for (const x of [-0.13, 0.13]) {
         const leg = new THREE.Mesh(
           new THREE.BoxGeometry(0.14, 0.3, 0.2),
           new THREE.MeshStandardMaterial({ color: 0x8adbc8 }),
         );
         leg.position.set(x, 0.15, 0);
-        this.root.add(leg);
+        this.visual.add(leg);
       }
-      this.addMouth(this.root, false);
+      this.addMouth(this.visual, false);
       return { loaded: false, clips: [] };
     }
   }
@@ -133,12 +142,18 @@ export class AvatarController {
   setHeight(height: number) {
     this.root.scale.setScalar(THREE.MathUtils.clamp(height, 1, 2.1) / 1.6);
   }
+  setMoving(moving: boolean) {
+    if (this.moving === moving) return;
+    this.moving = moving;
+    if (!oneShotStates.has(this.state)) this.setState(this.state, true);
+  }
   setState(state: AvatarState, force = false) {
     if (!oneShotStates.has(state)) this.base = state;
     if (this.state === state && !force) return;
     this.state = state;
     this.gestureTime = 0;
-    const next = this.actions.get(stateClips[state]);
+    const clip = this.moving && !oneShotStates.has(state) ? "Walking" : stateClips[state];
+    const next = this.actions.get(clip) ?? this.actions.get(stateClips[state]);
     if (!next || (next === this.action && !oneShotStates.has(state))) return;
     next
       .reset()
@@ -171,6 +186,16 @@ export class AvatarController {
     audible: boolean,
     viewer?: THREE.Vector3,
   ) {
+    if (viewer && this.root.visible) {
+      this.direction.copy(viewer);
+      this.root.worldToLocal(this.direction);
+      if (Math.hypot(this.direction.x, this.direction.z) > 0.15)
+        this.visual.rotation.y = turnToward(
+          this.visual.rotation.y,
+          Math.atan2(this.direction.x, this.direction.z),
+          delta,
+        );
+    }
     if (this.head)
       this.head.quaternion.premultiply(
         this.tempQuaternion.copy(this.headOffset).invert(),
@@ -182,25 +207,32 @@ export class AvatarController {
         .copy(viewer)
         .sub(this.headPosition)
         .applyQuaternion(
-          this.tempQuaternion.copy(this.root.quaternion).invert(),
+          this.visual.getWorldQuaternion(this.tempQuaternion).invert(),
         );
-      const desired = ["listening", "speaking"].includes(this.state)
-        ? THREE.MathUtils.clamp(
-            Math.atan2(this.direction.x, this.direction.z),
-            -0.25,
-            0.25,
-          )
-        : 0;
+      const desired = THREE.MathUtils.clamp(
+        Math.atan2(this.direction.x, this.direction.z),
+        -0.35,
+        0.35,
+      );
+      const desiredPitch = THREE.MathUtils.clamp(
+        -Math.atan2(this.direction.y, Math.hypot(this.direction.x, this.direction.z)), -0.25, 0.25,
+      );
       this.headYaw = THREE.MathUtils.lerp(
         this.headYaw,
         desired,
         1 - Math.exp(-delta * 3),
       );
+      this.headPitch = THREE.MathUtils.lerp(this.headPitch, desiredPitch, 1 - Math.exp(-delta * 3));
       this.head.parent!.getWorldQuaternion(this.parentQuaternion);
       this.direction
         .set(0, 1, 0)
         .applyQuaternion(this.parentQuaternion.invert());
       this.headOffset.setFromAxisAngle(this.direction, this.headYaw);
+      this.direction.set(1, 0, 0)
+        .applyQuaternion(this.visual.getWorldQuaternion(this.tempQuaternion))
+        .applyQuaternion(this.parentQuaternion);
+      this.pitchOffset.setFromAxisAngle(this.direction, this.headPitch);
+      this.headOffset.multiply(this.pitchOffset);
       this.head.quaternion.premultiply(this.headOffset);
     } else this.headOffset.identity();
     if (this.state === "speaking" && audible && energy > 0.008) {
@@ -219,7 +251,7 @@ export class AvatarController {
       if (oneShotStates.has(this.state) && this.gestureTime > 1.2)
         this.setState(this.base);
       const gesture = oneShotStates.has(this.state);
-      this.root.rotation.z = gesture
+      this.visual.rotation.z = gesture
         ? Math.sin(performance.now() / 180) * 0.08
         : 0;
     }
