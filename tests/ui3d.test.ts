@@ -72,6 +72,11 @@ describe("native and polled XR input deduplication", () => {
     latch.release("select");
     expect(latch.edge("select", true, 1350)).toBe(false);
     expect(latch.edge("menu", true, 1350)).toBe(true);
+    // A native release can arrive one frame before the polled button resets.
+    const held = new XRInputLatch();
+    expect(held.edge("select", true, 1000)).toBe(true);
+    held.release("select", 4000);
+    expect(held.edge("select", true, 4001)).toBe(false);
   });
   it("applies a stick dead zone and controlled repeat", () => {
     const latch = new XRInputLatch();

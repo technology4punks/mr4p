@@ -297,7 +297,7 @@ export class XRExperience {
       this.activate(state.ray);
   };
   private selectEnd = (event: XRInputSourceEvent) => {
-    this.inputs.get(event.inputSource)?.latch.release("select");
+    this.inputs.get(event.inputSource)?.latch.release("select", performance.now());
   };
   private squeezeStart = (event: XRInputSourceEvent) => {
     if (
@@ -306,7 +306,7 @@ export class XRExperience {
       this.ui.toggle();
   };
   private squeezeEnd = (event: XRInputSourceEvent) => {
-    this.inputs.get(event.inputSource)?.latch.release("menu");
+    this.inputs.get(event.inputSource)?.latch.release("menu", performance.now());
   };
   private activate(ray: THREE.Ray) {
     const action = this.ui.focusedAction ?? this.ui.hit(ray);

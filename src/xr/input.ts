@@ -12,8 +12,9 @@ export class XRInputLatch {
     this.last.set(key, now);
     return true;
   }
-  release(key: string) {
+  release(key: string, now?: number) {
     this.down.set(key, false);
+    if (now !== undefined) this.last.set(key, now);
   }
   axis(x: number, y: number, now: number): [number, number] | undefined {
     const horizontal =
