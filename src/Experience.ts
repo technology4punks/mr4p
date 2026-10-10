@@ -171,9 +171,13 @@ export class Experience {
       const text = this.observatory.narrativeRay(ray);
       if (text) this.exploreObject(text);
     };
-    this.unsubscribeStory = this.story.subscribe((snapshot) =>
-      this.storyChanged(snapshot),
-    );
+    this.unsubscribeStory = this.story.subscribe((snapshot) => {
+      this.storyChanged(snapshot);
+      // Controls must acknowledge narrative actions even when mobile rendering
+      // is paused/throttled while the canvas is outside the visible viewport.
+      const levels = this.voice.levels();
+      this.changed(this.snapshot(levels.input, levels.output));
+    });
     this.voice.synchronizeStory(this.story.snapshot);
     this.preloadTimer = setTimeout(() => {
       if (!this.disposed) void this.observatory.preload(this.renderer);

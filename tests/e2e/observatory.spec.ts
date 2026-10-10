@@ -8,6 +8,10 @@ type TransitionProbe = {
 declare global {
   interface Window {
     futureTransitionProbe: TransitionProbe;
+    pausedRenderer: {
+      original: typeof requestAnimationFrame;
+      pending: FrameRequestCallback[];
+    };
   }
 }
 for (const theme of ["environmental", "economic", "social"])
@@ -98,6 +102,10 @@ for (const theme of ["environmental", "economic", "social"])
     await expect
       .poll(() => page.evaluate(() => window.futureTransitionProbe.visible))
       .toBe(true);
+    // Watch the city during the change, including on a phone where controls
+    // and canvas occupy different scroll positions.
+    await canvas.scrollIntoViewIfNeeded();
+    await expect(canvas).toBeInViewport();
     await expect(
       page.getByRole("heading", { name: "Futuro sostenibile", exact: true }),
     ).toBeVisible({ timeout: 18000 });
@@ -167,4 +175,49 @@ test("returns before entry finishes without exposing a stale future", async ({
   await expect(
     page.getByRole("button", { name: "Mostra il futuro sostenibile" }),
   ).toHaveCount(0);
+});
+
+test("acknowledges narrative controls while graphics frames are paused", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("combobox", { name: "Tema della visita" })
+    .selectOption("social");
+  await page.getByRole("button", { name: "Visita il 2050" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Futuro critico", exact: true }),
+  ).toBeVisible({ timeout: 20000 });
+  await page.evaluate(() => {
+    const original = window.requestAnimationFrame.bind(window);
+    const pending: FrameRequestCallback[] = [];
+    window.pausedRenderer = { original, pending };
+    window.requestAnimationFrame = (callback) => {
+      pending.push(callback);
+      return 0;
+    };
+  });
+  try {
+    await expect
+      .poll(() => page.evaluate(() => window.pausedRenderer.pending.length))
+      .toBeGreaterThan(0);
+    // No actionability wait for animation frames in this deliberate pause.
+    await page
+      .getByRole("button", { name: "Mostra il futuro sostenibile" })
+      .dispatchEvent("click");
+    expect(
+      await page
+        .getByRole("progressbar", { name: "Trasformazione del futuro" })
+        .isVisible(),
+    ).toBe(true);
+    await expect(
+      page.getByRole("button", { name: "Mostra il futuro sostenibile" }),
+    ).toBeDisabled();
+  } finally {
+    await page.evaluate(() => {
+      const { original, pending } = window.pausedRenderer;
+      window.requestAnimationFrame = original;
+      pending.forEach((callback) => original(callback));
+    });
+  }
 });
