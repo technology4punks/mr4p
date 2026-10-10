@@ -4,7 +4,7 @@ L’avatar, il backend Node, WebRTC OpenAI Realtime e il posizionamento MR dell�
 
 ## Prova rapida
 
-Aprire la pagina HTTPS direttamente, avviare **Parla con l’avatar**, raccontare un interesse e accettare l’invito al 2050. Il modello usa funzioni strutturate e riceve lo stato autorevole dopo ogni evento. Prima della visita scegliere il tema nel selettore, oppure nel menu Quest con **Tema**. In alternativa **Visita il 2050** permette di provare la grafica senza API né microfono. Dopo il futuro critico, **Mostra il futuro sostenibile** autorizza una trasformazione di otto secondi; **Torna alla realtà** interrompe anche ingresso e trasformazione. I tre oggetti sul davanzale aprono riflessioni su energia, acqua e mobilità. **Suoni ambiente** è facoltativo e richiede un gesto.
+Aprire la pagina HTTPS direttamente, avviare **Parla con l’avatar**, raccontare un interesse e accettare l’invito al 2050. Il modello usa funzioni strutturate e riceve lo stato autorevole dopo ogni evento. Il selettore e il dock/menu Quest cambiano tema prima o durante la visita, senza tornare alla MR; preservano il futuro corrente, il robot e la voce. In alternativa **Visita il 2050** permette di provare la grafica senza API né microfono. **Mostra il futuro sostenibile / critico** autorizza una trasformazione di otto secondi in entrambe le direzioni; **Torna alla realtà** interrompe anche ingresso e trasformazione. I tre oggetti sul davanzale aprono riflessioni specifiche del tema corrente. **Suoni ambiente** è facoltativo e richiede un gesto.
 
 Sul Quest iniziare con **Entra in realtà mista**, attendere il posizionamento automatico del robot a 1,3 m (calibrare se richiesto) e poi visitare. La stanza viene allineata una volta alla posa della testa e alla quota del pavimento, poi resta nel mondo: nessuna locomozione artificiale della camera. Il robot può avvicinarsi lentamente al fianco dell’utente nella stanza virtuale, rispettando pareti e arredi predefiniti. La posizione MR dell’avatar è conservata e ripristinata al ritorno. Nessun movimento fisico è necessario; il confine virtuale non sostituisce il Guardian reale.
 
@@ -14,8 +14,9 @@ Sul Quest iniziare con **Entra in realtà mista**, attendere il posizionamento a
 - `server/story-config.ts`: prompt italiano e otto strumenti Realtime, inclusi memoria e cancellazione del nome nella pagina. Nessuna geometria è creata dal modello. Tutti i temi richiedono consenso prima dell’ingresso.
 - `src/audio/realtimeClient.ts`: usa solo `response.function_call_arguments.done`, deduplica i call ID, invia `function_call_output` e attende `response.done` per la risposta successiva. Deltas e trascrizioni non attivano eventi. Lo stato è risincronizzato quando il data channel apre. Domande vocali e barge-in continuano nel medesimo peer.
 - `src/observatory/FutureObservatory.ts`: stanza 5 × 5 × 3 m, apertura panoramica geometrica, PBR, arredo glTF, luce naturale, skyline e oggetti narrativi. Nessun video o generazione AI di ambienti.
-- `src/Experience.ts`: applica gli eventi autorizzati, allinea la stanza, interpola ingresso 3 s / trasformazione 8 s / ritorno 2,5 s, ripristina avatar e camera. Gli anchor MR non aggiornano l’avatar mentre è figlio dell’osservatorio.
+- `src/Experience.ts`: applica gli eventi autorizzati, allinea la stanza, interpola con tempo monotono assoluto ingresso 3 s / trasformazione 8 s / ritorno 2,5 s (non perde durata quando i frame rallentano), ripristina avatar e camera. Gli anchor MR non aggiornano l’avatar mentre è figlio dell’osservatorio.
 - `src/observatory/performance.ts`: tre livelli di qualità dopo tre campioni lenti, risoluzione browser e foveation XR adattive, framebuffer ridotto dalla sessione successiva.
+- `src/observatory/UrbanLife.ts`: persone, consegne/navetta, componenti di riuso e segnali di degrado animati, attivi fin dall’ingresso nei due quartieri civici. Aggiornamento a 30 Hz solo del distretto visibile, istanze e bounds conservativi.
 - `src/observatory/Ambience.ts`: rumore filtrato e ronzio sintetici a volume basso, crossfade e attenuazione durante la voce; nessun file audio remoto.
 
 ## Stati ed eventi
@@ -27,12 +28,12 @@ Sul Quest iniziare con **Entra in realtà mista**, attendere il posizionamento a
 | INVITATION | `enter_observatory(consent: true)` → ENTER_OBSERVATORY |
 | ENTER_OBSERVATORY | Completamento interno del renderer → CRITICAL_FUTURE |
 | CRITICAL_FUTURE | `reflect` → REFLECTION; consenso alternativo → trasformazione |
-| REFLECTION | `transform_future(future: sustainable, consent: true)`; renderer completa → SUSTAINABLE_FUTURE |
-| SUSTAINABLE_FUTURE | Dialogo libero; ritorno sempre disponibile |
+| REFLECTION | `transform_future(future: critical/sustainable, consent: true)`; renderer completa → futuro richiesto |
+| SUSTAINABLE_FUTURE | Dialogo libero, confronto con il critico; ritorno sempre disponibile |
 | RETURN_TO_REALITY | Completamento interno → CONCLUSION |
 | CONCLUSION | Nuova scoperta o nuova visita |
 
-`return_to_reality` è valido da ogni stato nell’osservatorio, anche durante una transizione. Il modello non può chiamare i completamenti interni. Tool sconosciuti, proprietà aggiuntive, JSON malformato, tipi errati e argomenti oltre 2 KiB sono rifiutati. La certezza che il consenso vocale sia stato espresso dipende dal modello; i pulsanti sono un’alternativa esplicita e prevedibile.
+`select_theme` è valido anche durante ingresso, riflessione e trasformazione; il cambio non riavvia il timer e non riallinea stanza/avatar. Durante il ritorno il tema resta bloccato per 2,5 secondi. `return_to_reality` è valido da ogni stato nell’osservatorio, anche durante una transizione. Il modello non può chiamare i completamenti interni. Tool sconosciuti, proprietà aggiuntive, JSON malformato, tipi errati e argomenti oltre 2 KiB sono rifiutati. La certezza che il consenso vocale sia stato espresso dipende dal modello; i pulsanti sono un’alternativa esplicita e prevedibile.
 
 ## Città e materiali
 

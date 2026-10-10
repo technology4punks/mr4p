@@ -67,6 +67,9 @@ describe("token endpoint", () => {
       ).parameters.required,
     ).toContain("consent");
     expect(body.session.instructions).toMatch(/ipotetic/);
+    expect(body.session.instructions).toContain("10–25 parole");
+    expect(body.session.instructions).toContain("Non chiudere ogni risposta con una domanda");
+    expect(body.session.tools.find((t: { name: string }) => t.name === "transform_future").parameters.properties.future.enum).toEqual(["critical", "sustainable"]);
     expect(body.session.audio.output.voice).toBe("marin");
     expect(body.session.audio.input.turn_detection.interrupt_response).toBe(
       false,

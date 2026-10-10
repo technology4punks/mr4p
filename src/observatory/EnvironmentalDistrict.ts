@@ -256,6 +256,9 @@ export class EnvironmentalDistrict {
       ),
     );
     this.vehicles[0].userData.powertrain = "electric in sustainable future";
+    for (const mesh of this.vehicles) mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, -10), 43);
+    this.smoke.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 15, -30), 22);
+    this.blades.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 14, -36), 19);
     for (const group of [this.critical, this.sustainable])
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) {
@@ -287,7 +290,7 @@ export class EnvironmentalDistrict {
     this.time = time;
     for (let i = 0; i < 15; i++) {
       const visible = i < 5 ? 1 : Math.max(0.001, 1 - this.future);
-      const parked = (i - 7) * 2.3;
+      const parked = (i - 7) * 2.3 + Math.sin(time / 4000 + i * 0.6) * 0.38;
       const moving = ((time * 0.0016 + i * 8 + 40) % 80) - 40;
       const x = THREE.MathUtils.lerp(parked, moving, this.future);
       const z = i % 2 ? -10.8 : -9.15;
@@ -311,15 +314,7 @@ export class EnvironmentalDistrict {
         this.vehicles[2].setMatrixAt(i * 4 + j, this.dummy.matrix);
       }
     }
-    this.vehicles.forEach((mesh) => {
-      mesh.instanceMatrix.needsUpdate = true;
-    });
-    // Conservative bounds cover the full animation route for frustum culling.
-    for (const mesh of this.vehicles)
-      mesh.boundingSphere = new THREE.Sphere(
-        new THREE.Vector3(0, 0.5, -10),
-        43,
-      );
+    for (const mesh of this.vehicles) mesh.instanceMatrix.needsUpdate = true;
     for (let i = 0; i < 18; i++) {
       const stack = Math.floor(i / 6),
         puff = i % 6,
@@ -339,10 +334,6 @@ export class EnvironmentalDistrict {
       this.smoke.setMatrixAt(i, this.dummy.matrix);
     }
     this.smoke.instanceMatrix.needsUpdate = true;
-    this.smoke.boundingSphere = new THREE.Sphere(
-      new THREE.Vector3(0, 15, -30),
-      22,
-    );
     for (let i = 0; i < 9; i++) {
       const theta = time / 7000 + ((i % 3) * Math.PI * 2) / 3;
       this.dummy.position.set(
@@ -356,10 +347,6 @@ export class EnvironmentalDistrict {
       this.blades.setMatrixAt(i, this.dummy.matrix);
     }
     this.blades.instanceMatrix.needsUpdate = true;
-    this.blades.boundingSphere = new THREE.Sphere(
-      new THREE.Vector3(0, 14, -36),
-      19,
-    );
   }
   setQuality(low: boolean) {
     this.smoke.count = low ? 9 : 18;

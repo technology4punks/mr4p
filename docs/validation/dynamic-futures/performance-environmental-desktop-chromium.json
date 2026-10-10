@@ -1,0 +1,7 @@
+{
+  "theme": "environmental",
+  "profile": "desktop-chromium",
+  "transformationMs": 8079.300000000745,
+  "diagnostics": "HTTPS\nsì\nWebXR AR\nnon disponibile\nMicrofono\ndisponibile, spento\nAsset\nloaded\nClip\nDance, Death, Idle, Jump, No, Punch, Running, Sitting, Standing, ThumbsUp, Walking, WalkJump, Wave, Yes\nRiferimento\npreview\nPiani\n0\nPavimento\nsimulato\nQuota piedi\n0.00 m\nNEO e movimento\nsguardo 360°\nCalibrato\nsì\nAnchors\nda verificare\nAnchor\nnone\nPersistenza\nda verificare\nTracking\npreview\nHit test\nnon attivo\nPeer\nclosed\nAscolto\nVoce spenta · off\nPausa XR\nno\nLivello microfono\n0.000\nLivello uscita\n0.000\nFPS\n9\nDraw call\n76\nTriangoli\n22283\nGeometrie GPU\n73\nTexture GPU\n14\nQualità adattiva\nlow\nAsset osservatorio\nPoly Haven · PBR + glTF + HDRI\nAsset quartieri\nKenney CC0 · 4/4 GLB\nCompositing XR\n3D browser\nStato storia\nSUSTAINABLE_FUTURE\nTema\nenvironmental\nTrasformazione\n100%",
+  "hardware": "headless browser; not Quest Pro"
+}

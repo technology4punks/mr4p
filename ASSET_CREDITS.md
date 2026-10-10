@@ -53,3 +53,7 @@ Acquisiti il 10 ottobre 2026 da download ufficiali gratuiti; licenze originali i
 Manifest: `public/scenarios/kenney/manifest.json`, URL download, SHA-256, dipendenze, bounding box e assi verificati con GLTFLoader nel browser. I GLB industriali/commerciali referenziano `Textures/colormap.png`: file preservati. Supporto Three.js a KHR_texture_transform; il materiale unlit della panca è sostituito con MeshStandardMaterial. Normalizzazione delle dimensioni e rotazione degli ingressi verso la finestra; istanze per primitiva, materiali PBR ruvidi e illuminazione statica. Questi piccoli modelli hanno un dettaglio stilizzato: non sono presentati come asset fotorealistici. Quaternius non è stato acquisito.
 
 Cancelli, rampe, percorsi tattili, tavoli, sagome a distanza, materiali scartati/ordinati e banchi di riparazione sono geometrie procedurali originali; nessuna modellazione manuale. Non si generano ambienti AI durante il dialogo. Se un modello non carica, il quartiere conserva edifici procedurali e narrazione funzionanti.
+
+## Animazione dei sei futuri e dock discreto
+
+`UrbanLife.ts` aggiunge persone articolate a distanza, furgone/navetta, componenti di riuso in circolazione e segnalazioni luminose usando geometrie Three.js originali. Il cielo animato usa uno shader procedurale; menu e indicatore vocale usano canvas con bordi arrotondati. Nessun nuovo asset, font esterno, traccia audio o dipendenza è stato scaricato. Modelli e texture Poly Haven, Kenney e RobotExpressive restano quelli CC0 verificati nei manifest precedenti.

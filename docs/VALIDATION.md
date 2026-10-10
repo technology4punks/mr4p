@@ -109,3 +109,31 @@ Il feedback successivo dell’utente descrive un blocco dopo il primo scambio, c
 Nessun nuovo asset esterno. L’indicatore aggiunge tre piani e una texture; il testo si aggiorna solo al cambio di stato. Campioni software locali, voce spenta: 66–75 draw call e circa 18–22k triangoli, trasformazioni misurate di **8,01–9,88 s**. Campioni FPS **7–36**, non medie stabili. I nove JSON sono in [validation/voice-ux](validation/voice-ux). Questi sono snapshot headless, non misure Quest, né una verifica di 72 FPS. Vedere gli artefatti Playwright e la checklist aggiornata.
 
 Restano da verificare fisicamente: almeno cinque scambi vocali sul visore, perdita/ritorno del focus, interruzione di una risposta, rumori/eco, pannello fermo aperto e chiuso, controller/pinch, passthrough e continuità audio durante le transizioni. Nessuna nuova verifica hardware è dichiarata completata.
+
+## Revisione futuri dinamici, cambio tema e dock discreto — 10 ottobre 2026
+
+Build, lint, typecheck, 150 test unit/API e verifica bundle passano nel repository Node. L’adattatore Sites supera typecheck, 141 test e build Worker/client; il bundle client non contiene chiavi o la route OpenAI server. Nessuna variabile d’ambiente o chiave modificata.
+
+La suite browser comprende 30 casi su Chromium desktop, Android emulato e WebKit iPhone emulato: sei futuri, trasformazione, ritorno anticipato, controlli con RAF sospeso, cambio tema dentro la visita e durante le transizioni, confronto inverso, viewport/touch, voce simulata su tre turni e mantenimento del microfono durante i cambi di tema. I test di geometria verificano movimento in entrambi gli stati fin dal primo aggiornamento, culling bounds anche in low, riuso delle mesh e mancato aggiornamento dei distretti nascosti. La revisione del menu è stata controllata visivamente con renderer Three.js; questi screenshot non provano leggibilità o interazione sul Quest.
+
+Campioni dopo il futuro sostenibile (voce spenta; renderer headless software). I JSON grezzi sono in `docs/validation/dynamic-futures/`.
+
+| Tema | Profilo emulato | FPS istantanei | Draw call | Triangoli | Transizione s |
+|---|---|---:|---:|---:|---:|
+| economic | android-chromium | 16 | 75 | 19503 | 8.07 |
+| economic | desktop-chromium | 8 | 76 | 19505 | 8.08 |
+| economic | iphone-webkit | 39 | 75 | 19503 | 8.02 |
+| environmental | android-chromium | 13 | 76 | 22283 | 8.03 |
+| environmental | desktop-chromium | 9 | 76 | 22283 | 8.08 |
+| environmental | iphone-webkit | 31 | 76 | 22283 | 8.07 |
+| social | android-chromium | 17 | 75 | 21831 | 8.09 |
+| social | desktop-chromium | 11 | 72 | 21637 | 8.06 |
+| social | iphone-webkit | 35 | 71 | 21635 | 8.05 |
+
+Sono misure software puntuali, con carichi e viewport differenti e qualità adattiva low; non una media comparabile fra device né una misura del Quest. Il target 72 FPS resta da misurare sul visore con voce attiva. Le sagome e i veicoli civici sono procedurali leggeri; il dettaglio visivo mantiene i limiti dichiarati degli asset Kenney. Il bundle Vite finale è 1.001 kB / 278 kB gzip: warning dimensione non bloccante. Non si usano post-processing, nuove texture o decoder.
+
+Da verificare fisicamente: leggibilità periferica e comfort del dock world-locked in alto a destra, controller/pinch, occlusione del passthrough, room scale, latenza e falsi positivi del filtro vocale, 72 FPS. La procedura è aggiornata in DEVICE_TESTS.md.
+
+### Regressione del timer durante frame lenti
+
+Nella prima esecuzione, una scena sociale Android ha impiegato 21,70 s sotto forte carico software (1 FPS): il delta della grafica era limitato a un secondo e quel limite veniva applicato anche alla narrazione. Il campione è conservato in `docs/validation/timing-regression/pre-fix-android-social.json`. Ingresso, confronto e ritorno ora usano tempo monotono assoluto; avatar/seguito mantengono il delta limitato. Il cambio tema non riavvia il timer. Un nuovo test browser simula frame ogni 2,2 s e verifica il completamento del confronto senza perdere tempo; i test di trasformazione ordinari controllano anche il limite superiore di 12 s per il renderer software. Questo corregge la durata, non rende fluido un renderer a 1 FPS. Il requisito di comfort rimane una verifica hardware.

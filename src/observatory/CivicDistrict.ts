@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { UrbanLife } from "./UrbanLife";
 
 /** Two authored districts; shared geometry survives the eight-second change. */
 export class CivicDistrict {
@@ -14,10 +15,15 @@ export class CivicDistrict {
   private dummy = new THREE.Object3D();
   private shells = new THREE.Group();
   private labels: THREE.Mesh[] = [];
+  readonly activity: UrbanLife;
+  private wheelchair = new THREE.Group();
   assetCount = 0;
   constructor(readonly theme: "economic" | "social") {
     this.root.name = `${theme} district`;
     this.root.add(this.shells, this.critical, this.sustainable);
+    this.activity = new UrbanLife(theme);
+    this.root.add(this.activity.root);
+    this.activity.materials.forEach((m) => this.materials.add(m));
     this.critical.name = `${theme} exclusion and waste`;
     this.sustainable.name = `${theme} regeneration`;
     this.sustainable.add(this.detail);
@@ -119,11 +125,8 @@ export class CivicDistrict {
           [5.5, 5.2, -16, 6.6, 0.1, 4.5],
         ],
       );
-      batch(this.detail, "Cargo cycles for local production", clean, [
-        [1.5, 0.5, -6.8, 1.6, 0.45, 0.65],
-        [1, 0.2, -6.8, 0.3, 0.4, 0.7],
-        [2, 0.2, -6.8, 0.3, 0.4, 0.7],
-      ]);
+      this.sign("ATTIVITÀ CHIUSE", -6, 3.3, -12.2, "critical");
+      this.sign("PRODUZIONE FERMA", 5.5, 3.3, -13.2, "critical");
       this.sign("OFFICINA · RIUSO", -6, 3.3, -12.2);
       this.sign("PRODUZIONE LOCALE", 5.5, 3.3, -13.2);
     } else {
@@ -175,8 +178,9 @@ export class CivicDistrict {
         [-8, 0.32, -5.7, 2.5, 0.65, 1],
         [8, 0.32, -5.7, 2.5, 0.65, 1],
       ]);
+      this.detail.add(this.wheelchair);
       batch(
-        this.detail,
+        this.wheelchair,
         "Wheelchair wheels",
         material(0x3f4445, "sustainable"),
         [
@@ -186,45 +190,20 @@ export class CivicDistrict {
         new THREE.CylinderGeometry(0.5, 0.5, 1, 12).rotateX(Math.PI / 2),
       );
       const chair = material(0x456d85, "sustainable");
-      batch(this.detail, "Wheelchair seat and back", chair, [
+      batch(this.wheelchair, "Wheelchair seat and back", chair, [
         [1, 0.52, -6.25, 0.45, 0.1, 0.45],
         [0.78, 0.72, -6.25, 0.1, 0.5, 0.45],
       ]);
+      batch(this.wheelchair, "Seated resident", chair, [[1, 0.92, -6.25, 0.27, 0.5, 0.24]], new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
+      batch(this.wheelchair, "Seated resident head", material(0xae8e72, "sustainable"), [[1, 1.28, -6.25, 0.24, 0.24, 0.24]], new THREE.SphereGeometry(0.5, 8, 6));
+      this.sign("ACCESSO RISERVATO", -6, 3.3, -12.2, "critical");
+      this.sign("SERVIZI SEPARATI", 5.5, 3.3, -13.2, "critical");
       this.sign("BIBLIOTECA · INCONTRO", -6, 3.3, -12.2);
       this.sign("SALUTE DI QUARTIERE", 5.5, 3.3, -13.2);
     }
-    const bodies = material(0x748699, "sustainable");
-    batch(
-      this.detail,
-      "People sharing the square",
-      bodies,
-      [-4.7, -3.8, 2.5, 3.5, 6.2, -7.2].map((x, i) => [
-        x,
-        0.85,
-        -5.6 - (i % 2) * 0.5,
-        0.27,
-        1,
-        0.23,
-      ]),
-      new THREE.CylinderGeometry(0.5, 0.5, 1, 8),
-    );
-    batch(
-      this.detail,
-      "People heads",
-      material(0xae8e72, "sustainable"),
-      [-4.7, -3.8, 2.5, 3.5, 6.2, -7.2].map((x, i) => [
-        x,
-        1.48,
-        -5.6 - (i % 2) * 0.5,
-        0.24,
-        0.24,
-        0.24,
-      ]),
-      new THREE.SphereGeometry(0.5, 8, 6),
-    );
     this.setFuture(0);
   }
-  private sign(text: string, x: number, y: number, z: number) {
+  private sign(text: string, x: number, y: number, z: number, future: "critical" | "sustainable" = "sustainable") {
     if (typeof document === "undefined") return;
     const canvas = document.createElement("canvas");
     canvas.width = 1024;
@@ -240,11 +219,12 @@ export class CivicDistrict {
     const map = new THREE.CanvasTexture(canvas);
     map.colorSpace = THREE.SRGBColorSpace;
     const m = new THREE.MeshStandardMaterial({ map, roughness: 0.9 });
+    m.userData.futureFade = future;
     this.materials.add(m);
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.625), m);
     mesh.position.set(x, y, z);
     mesh.name = text;
-    this.root.add(mesh);
+    (future === "critical" ? this.critical : this.sustainable).add(mesh);
     this.labels.push(mesh);
   }
   async preload() {
@@ -332,6 +312,7 @@ export class CivicDistrict {
           });
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
           if (!asset.replace) m.userData.futureFade = "sustainable";
+          else m.userData.cityFacade = original.color.clone();
           this.materials.add(m);
           const mesh = new THREE.InstancedMesh(
             obj.geometry,
@@ -368,6 +349,7 @@ export class CivicDistrict {
           }
         }
         this.assetCount++;
+        this.setFuture(this.future);
       } catch {
         /* Local procedural structures remain fully usable offline. */
       }
@@ -375,6 +357,7 @@ export class CivicDistrict {
   }
   setFuture(value: number) {
     this.future = THREE.MathUtils.clamp(value, 0, 1);
+    this.activity.setFuture(this.future);
     this.critical.visible = this.future < 0.999;
     this.sustainable.visible = this.future > 0.002;
     this.facade.color
@@ -385,12 +368,19 @@ export class CivicDistrict {
         0.4 + this.future * 0.6,
       ),
     );
+    this.materials.forEach((m) => {
+      if (m.userData.cityFacade) m.color.copy(m.userData.cityFacade).multiplyScalar(0.52 + this.future * 0.48);
+    });
   }
   setQuality(low: boolean) {
     this.detail.visible = !low;
+    this.activity.setQuality(low);
   }
-  update() {
-    /* Static districts preserve budget for speech and head tracking. */
+  update(time: number) {
+    this.activity.update(time);
+    if (this.theme === "social" && this.sustainable.visible && this.detail.visible) {
+      this.wheelchair.position.set(Math.sin(time / 12000) * 1.2, 0, -2);
+    }
   }
   private release(root: THREE.Object3D) {
     root.traverse((obj) => {

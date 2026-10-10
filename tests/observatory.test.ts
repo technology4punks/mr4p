@@ -183,6 +183,70 @@ describe("environmental contrast and stable geometry", () => {
 });
 
 describe("six authored futures", () => {
+  it.each(["economic", "social"] as const)("keeps %s residents at pavement level throughout their stride", (theme) => {
+    const district = new CivicDistrict(theme);
+    const legs = district.root.getObjectByName("Walking residents · legs") as THREE.InstancedMesh;
+    legs.geometry.computeBoundingBox();
+    for (const future of [0, 1]) {
+      district.setFuture(future);
+      for (const time of [0, 500, 2000]) {
+        district.update(time);
+        for (const index of [0, 1]) {
+          const pose = new THREE.Matrix4();
+          legs.getMatrixAt(index, pose);
+          const foot = legs.geometry.boundingBox!.clone().applyMatrix4(pose).min.y;
+          expect(foot).toBeGreaterThanOrEqual(0);
+          expect(foot).toBeLessThan(0.06);
+        }
+      }
+    }
+    district.dispose();
+  });
+  it.each(["environmental", "economic", "social"] as const)(
+    "animates both %s futures immediately, including at low quality, and keeps routes in culling bounds",
+    (theme) => {
+      const scene = new FutureObservatory();
+      scene.setTheme(theme);
+      scene.setOpacity(1);
+      scene.setQuality("low");
+      const district = theme === "environmental" ? scene.district : theme === "economic" ? scene.economic : scene.social;
+      const mesh = district.root.getObjectByName(theme === "environmental" ? "Street vehicles" : "Walking residents · bodies") as THREE.InstancedMesh;
+      const geometry = mesh.geometry;
+      const start = new THREE.Matrix4(), end = new THREE.Matrix4();
+      for (const future of [0, 1]) {
+        scene.setFuture(future);
+        scene.update(0);
+        mesh.getMatrixAt(0, start);
+        scene.update(2000);
+        mesh.getMatrixAt(0, end);
+        expect(end.equals(start)).toBe(false);
+        for (const time of [5000, 120000]) {
+          scene.update(time);
+          for (let i = 0; i < mesh.count; i++) {
+            mesh.getMatrixAt(i, end);
+            expect(mesh.boundingSphere!.containsPoint(new THREE.Vector3().setFromMatrixPosition(end))).toBe(true);
+          }
+        }
+      }
+      expect(mesh.geometry).toBe(geometry);
+      scene.dispose();
+    },
+  );
+  it("preserves the transformed look and disables hidden district updates on an in-place theme change", () => {
+    const scene = new FutureObservatory();
+    scene.setOpacity(1);
+    scene.setFuture(0.6);
+    const updates = [vi.spyOn(scene.district, "update"), vi.spyOn(scene.economic, "update"), vi.spyOn(scene.social, "update")];
+    scene.setTheme("social");
+    scene.update(6000);
+    expect(updates.map((s) => s.mock.calls.length)).toEqual([0, 0, 1]);
+    expect(scene.social.critical.visible && scene.social.sustainable.visible).toBe(true);
+    scene.setFuture(1);
+    scene.setTheme("economic");
+    expect(scene.economic.critical.visible).toBe(false);
+    expect(scene.economic.sustainable.visible).toBe(true);
+    scene.dispose();
+  });
   it.each(["economic", "social"] as const)(
     "switches %s without leaving environmental effects or allocating transition geometry",
     (theme) => {

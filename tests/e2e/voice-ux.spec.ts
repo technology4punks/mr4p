@@ -94,6 +94,22 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     await expect(status).toHaveText("Puoi parlare");
     expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.live())).toBe(true);
   }
+  // Changing a theme (also during entry) must neither reconnect WebRTC nor
+  // change the microphone while the renderer is deliberately paused.
+  await page.getByRole("button", { name: "Visita il 2050" }).dispatchEvent("click");
+  await page.evaluate(() => {
+    const t = (window as unknown as VoiceTestWindow).neoVoiceTest;
+    t.deliver({ type: "response.created", response: { id: "visit" } });
+    t.deliver({ type: "response.done", response: { id: "visit", status: "completed" } });
+  });
+  for (const theme of ["social", "economic", "environmental"]) {
+    await page.getByRole("combobox", { name: "Tema della visita" }).selectOption(theme);
+    expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.live())).toBe(true);
+    const state = await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.commands as { type: string; item?: { content?: { text: string }[] } }[]);
+    const latest = state.filter((c) => c.type === "conversation.item.create").at(-1)?.item?.content?.[0].text;
+    expect(latest).toContain(`"theme":"${theme}"`);
+    await expect(status).toHaveText("Puoi parlare");
+  }
   await page.getByRole("button", { name: "Disattiva microfono", exact: true }).click();
   await expect(status).toHaveText("Microfono spento");
   expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.live())).toBe(false);

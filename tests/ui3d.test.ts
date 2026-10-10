@@ -10,6 +10,8 @@ beforeEach(() => {
     fillRect: vi.fn(),
     strokeRect: vi.fn(),
     fillText: vi.fn(),
+    clearRect: vi.fn(), beginPath: vi.fn(), roundRect: vi.fn(),
+    fill: vi.fn(), stroke: vi.fn(), arc: vi.fn(),
   } as unknown as ReturnType<HTMLCanvasElement["getContext"]>);
 });
 function rayTo(ui: UI3D, action: string) {
@@ -30,6 +32,8 @@ describe("immersive menu interaction", () => {
     ui.setOpen(true);
     ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
     const initial = ui.root.position.clone();
+    expect(initial.x).toBeGreaterThan(0.5);
+    expect(initial.y).toBeGreaterThan(1.6);
     ui.followViewer(
       new THREE.Vector3(1, 1.6, 0),
       new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.7),
@@ -124,7 +128,7 @@ describe("native and polled XR input deduplication", () => {
   });
 });
 
-it("offers theme selection in the Quest menu without exposing it during the visit", () => {
+it("offers theme selection in the open menu and compact dock during the visit", () => {
   const ui = new UI3D();
   ui.root.visible = true;
   ui.setContext("reality");
@@ -138,6 +142,11 @@ it("offers theme selection in the Quest menu without exposing it during the visi
   ui.root.traverse((o) => {
     if (o.userData.action) actions.push(o.userData.action);
   });
-  expect(actions).not.toContain("theme");
+  expect(actions).toContain("theme");
+  expect(ui.hit(rayTo(ui, "theme"))).toBe("theme");
+  ui.setFuture("sustainable");
+  expect(ui.hit(rayTo(ui, "future"))).toBe("future");
+  ui.setOpen(false);
+  expect(ui.hit(rayTo(ui, "theme"))).toBe("theme");
   ui.dispose();
 });

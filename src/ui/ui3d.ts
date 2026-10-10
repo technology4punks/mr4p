@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { VoiceActivity } from "../audio/voicePresentation";
+import { canvasSurface } from "./canvasSurface";
 export type XRAction =
   | "confirm"
   | "reposition"
@@ -46,45 +47,64 @@ export class UI3D {
   private keyboardFocus = false;
   private caster = new THREE.Raycaster();
   private forward = new THREE.Vector3(0, 0, -1);
+  private right = new THREE.Vector3();
+  private theme = "Ambiente";
+  private future: "critical" | "sustainable" = "critical";
   constructor() {
     this.canvas.width = 1024;
     this.canvas.height = 160;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     const status = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.04, 0.16),
+      new THREE.PlaneGeometry(0.67, 0.11),
       new THREE.MeshBasicMaterial({
         map: this.texture,
         depthTest: false,
         depthWrite: false,
+        transparent: true,
       }),
     );
-    status.position.set(0, 0.29, 0.002);
+    status.position.set(0, 0.225, 0.002);
     status.renderOrder = 101;
+    const backingCanvas = document.createElement("canvas");
+    backingCanvas.width = 768;
+    backingCanvas.height = 720;
+    const ctx = backingCanvas.getContext("2d")!;
+    canvasSurface(ctx, 768, 720, "rgba(12, 26, 34, 0.95)", "#3d5860", 38);
+    ctx.font = "600 25px sans-serif";
+    ctx.fillStyle = "#a5d6cc";
+    ctx.textAlign = "center";
+    ctx.fillText("NEO  /  FUTURE OBSERVATORY", 384, 48);
+    ctx.font = "22px sans-serif";
+    ctx.fillStyle = "#93aeb6";
+    ctx.fillText("Punta + pinch / grilletto · stick + A", 384, 686);
+    const backingTexture = new THREE.CanvasTexture(backingCanvas);
+    backingTexture.colorSpace = THREE.SRGBColorSpace;
     const backing = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.12, 0.98),
+      new THREE.PlaneGeometry(0.74, 0.7),
       new THREE.MeshBasicMaterial({
-        color: 0x10232b,
+        map: backingTexture,
+        transparent: true,
         depthTest: false,
         depthWrite: false,
       }),
     );
-    backing.position.set(0, -0.11, -0.008);
+    backing.position.set(0, -0.015, -0.008);
     backing.renderOrder = 100;
     this.panel.add(backing, status);
-    // Closed controls use a fixed offset in the menu's world pose so they do
-    // not cover NEO's face after the large panel closes.
-    this.shortcuts.position.set(0.63, -0.4, 0);
+    // The small dock shares the panel's upper-right world anchor.
+    this.shortcuts.position.set(0, 0, 0);
     this.root.add(this.panel, this.shortcuts);
-    this.makeButton(this.shortcuts, "menu", "Menu · A / X", 0, 0.02, 0.28);
+    this.makeButton(this.shortcuts, "menu", "Menu · A / X", 0, 0.07, 0.32);
     this.makeButton(
       this.shortcuts,
       "talk",
       "Avvia voce",
       0,
-      -0.09,
-      0.28,
+      -0.014,
+      0.32,
     );
+    this.makeButton(this.shortcuts, "theme", "Ambiente →", 0, -0.098, 0.32);
     this.rebuild();
     this.root.visible = false;
   }
@@ -94,7 +114,7 @@ export class UI3D {
     label: string,
     x: number,
     y: number,
-    width = 0.5,
+    width = 0.31,
   ) {
     const canvas = document.createElement("canvas");
     canvas.width = 640;
@@ -102,11 +122,12 @@ export class UI3D {
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(width, 0.095),
+      new THREE.PlaneGeometry(width, 0.07),
       new THREE.MeshBasicMaterial({
         map: texture,
         depthTest: false,
         depthWrite: false,
+        transparent: true,
       }),
     );
     mesh.position.set(x, y, 0.004);
@@ -119,13 +140,9 @@ export class UI3D {
   }
   private draw(button: Button, selected: boolean) {
     const ctx = button.canvas.getContext("2d")!;
-    ctx.fillStyle = selected ? "#276956" : "#193641";
-    ctx.fillRect(0, 0, 640, 112);
-    ctx.strokeStyle = selected ? "#a3ffe0" : "#50767c";
-    ctx.lineWidth = selected ? 7 : 3;
-    ctx.strokeRect(4, 4, 632, 104);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "34px sans-serif";
+    canvasSurface(ctx, 640, 112, selected ? "#285b57" : "rgba(24, 44, 53, 0.96)", selected ? "#9be8d4" : "#405c66", 24);
+    ctx.fillStyle = selected ? "#e5fff6" : "#d7e6e8";
+    ctx.font = "500 40px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(button.label, 320, 69, 606);
     button.mesh.material.map!.needsUpdate = true;
@@ -170,14 +187,9 @@ export class UI3D {
                 : "Prepara VR",
             ],
             ["ambience", "Suoni on / off"],
-            [
-              this.context === "reality" ? "theme" : "placement-menu",
-              this.context === "reality" ? "Tema: Ambiente" : "Posizionamento",
-            ],
+            ["theme", `${this.theme} →`],
             ["unlock", "Riattiva audio"],
-            ...(this.context === "reality"
-              ? [["placement-menu", "Posizionamento"] as [XRAction, string]]
-              : []),
+            ["placement-menu", "Posizionamento"],
             ["exit", "Esci da XR"],
             ["menu", "Chiudi menu"],
           ];
@@ -186,20 +198,29 @@ export class UI3D {
         this.panel,
         action,
         label,
-        i % 2 ? 0.27 : -0.27,
-        0.13 - Math.floor(i / 2) * 0.11,
+        i % 2 ? 0.166 : -0.166,
+        0.15 - Math.floor(i / 2) * 0.084,
       ),
     );
     this.focus = -1;
     this.keyboardFocus = false;
     this.updateTargets();
+    this.setTheme(this.theme);
+    this.setFuture(this.future);
   }
   setTheme(title: string) {
-    const button = this.buttons.find((b) => b.mesh.userData.action === "theme");
-    if (button && button.label !== `Tema: ${title}`) {
-      button.label = `Tema: ${title}`;
-      this.draw(button, false);
+    this.theme = title;
+    for (const button of this.buttons.filter((b) => b.mesh.userData.action === "theme")) {
+      if (button.label === `${title} →`) continue;
+      button.label = `${title} →`;
+      this.draw(button, this.targets[this.focus] === button);
     }
+  }
+  setFuture(future: "critical" | "sustainable") {
+    this.future = future;
+    const button = this.buttons.find((b) => b.mesh.userData.action === "future");
+    const label = future === "critical" ? "Futuro sostenibile" : "Futuro critico";
+    if (button && button.label !== label) { button.label = label; this.draw(button, this.targets[this.focus] === button); }
   }
   setContext(context: Context) {
     if (context === this.context) return;
@@ -259,25 +280,16 @@ export class UI3D {
     if (text === this.lastText) return;
     this.lastText = text;
     const ctx = this.canvas.getContext("2d")!;
-    ctx.fillStyle = "#10232b";
-    ctx.fillRect(0, 0, 1024, 160);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "30px sans-serif";
+    ctx.clearRect(0, 0, 1024, 160);
+    ctx.fillStyle = "#e6f3ef";
+    ctx.font = "500 35px sans-serif";
     ctx.textAlign = "center";
     text
       .split("\n")
       .slice(0, 2)
       .forEach((line, i) =>
-        ctx.fillText(line.slice(0, 70), 512, 49 + i * 43, 970),
+        ctx.fillText(line.slice(0, 70), 512, 56 + i * 55, 970),
       );
-    ctx.font = "25px sans-serif";
-    ctx.fillStyle = "#a6cdc1";
-    ctx.fillText(
-      "Punta + grilletto / pinch · stick per scegliere · A/X chiude",
-      512,
-      137,
-      980,
-    );
     this.texture.needsUpdate = true;
   }
   setVoiceControls(connected: boolean, muted: boolean, interruptions: boolean, activity: VoiceActivity = "off") {
@@ -311,11 +323,13 @@ export class UI3D {
     this.forward.y = 0;
     if (this.forward.lengthSq() < 0.001) this.forward.set(0, 0, -1);
     this.forward.normalize();
+    this.right.set(-this.forward.z, 0, this.forward.x);
     this.root.position
       .copy(position)
-      .addScaledVector(this.forward, 1.3);
-    this.root.position.y -= 0.08;
-    this.root.rotation.set(0, Math.atan2(-this.forward.x, -this.forward.z), 0);
+      .addScaledVector(this.forward, 1.65)
+      .addScaledVector(this.right, 0.8);
+    this.root.position.y += 0.32;
+    this.root.lookAt(position);
     this.align = false;
     this.root.updateMatrixWorld(true);
   }

@@ -134,3 +134,14 @@ La correzione descritta in [VOICE_UX.md](VOICE_UX.md) richiede una nuova prova s
 - Stato accanto a NEO coerente durante ascolto, risposta, mute, pausa e permesso revocato; la barra non promette comprensione delle parole.
 - Interrompi NEO e Riprendi ascolto durante una risposta o un turno fermo: nessuna riconnessione richiesta, nessuna risposta duplicata, rispetto del mute quando non si chiede esplicitamente di riattivare.
 - Provare le modalità intelligenti/protette con rumore, una parola reale, pausa lunga, trasformazione di scenario e ritorno MR/VR. Rilevare FPS e latenza audio sul dispositivo.
+
+## Nuova prova: futuri dinamici e dock in alto a destra
+
+**Da eseguire sul Quest Pro.**
+
+- All’ingresso osservare attività coerente in tutti i sei futuri; anche il profilo low deve mantenere persone, veicoli/cielo e attività essenziale. Non deve essere necessario parlare o attendere per far partire la scena.
+- Aprire il menu guardando in direzioni diverse: collocazione in alto a destra, contrasto e leggibilità dei pulsanti, centro della vista libero. Verificare che dock e pannello rimangano nel mondo quando si gira la testa; richiamarli con A/X o presa.
+- Cambiare tema dal dock chiuso, pannello aperto e voce, dentro l’osservatorio e durante la trasformazione. Robot, stanza, nome e peer devono restare nella visita; le insegne e i tre oggetti narrativi devono corrispondere al tema corrente.
+- Confrontare positivo → negativo e negativo → positivo dalla stessa finestra, senza scatti della camera. Ritorno MR sempre disponibile.
+- Verificare almeno cinque scambi: presentazione/nome, risposte pragmatiche brevi e approfondimento solo su richiesta. Controllare ascolto, interruzioni e focus XR.
+- Misurare FPS e frame time per ciascun tema/stato con voce attiva e durante i cambi; i risultati software non provano 72 FPS né comfort.

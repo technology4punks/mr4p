@@ -114,6 +114,7 @@ for (const theme of ["environmental", "economic", "social"])
     expect(measured.end).not.toBeNull();
     const transformationMs = measured.end! - measured.start!;
     expect(transformationMs).toBeGreaterThan(6500);
+    expect(transformationMs).toBeLessThan(12000);
     const diagnostics = await page.locator(".debug dl").innerText();
     writeFileSync(
       `test-results/performance-${theme}-${test.info().project.name}.json`,
@@ -175,6 +176,54 @@ test("returns before entry finishes without exposing a stale future", async ({
   await expect(
     page.getByRole("button", { name: "Mostra il futuro sostenibile" }),
   ).toHaveCount(0);
+});
+
+test("changes theme inside the observatory and during transformation, then reverses the comparison", async ({ page }) => {
+  test.setTimeout(90000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Visita il 2050" }).click();
+  const themes = page.getByRole("combobox", { name: "Tema della visita" });
+  await themes.selectOption("economic"); // Entry is already in progress.
+  await expect(page.getByRole("heading", { name: "Futuro critico", exact: true })).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".story-message")).toContainText("Negozi chiusi");
+  await themes.selectOption("social");
+  await expect(page.locator(".story-message")).toContainText("Servizi dietro cancelli");
+  await page.getByRole("button", { name: "Mostra il futuro sostenibile" }).click();
+  await themes.selectOption("environmental");
+  await page.locator("canvas").scrollIntoViewIfNeeded();
+  await expect(page.getByRole("heading", { name: "Futuro sostenibile", exact: true })).toBeVisible({ timeout: 18000 });
+  await expect(page.locator(".story-message")).toContainText("Verde urbano");
+  await themes.selectOption("economic");
+  await expect(page.locator(".story-message")).toContainText("Officine di riparazione");
+  await expect(page.getByRole("button", { name: "Visita il 2050" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Mostra il futuro critico" }).click();
+  await themes.selectOption("social");
+  await page.locator("canvas").scrollIntoViewIfNeeded();
+  await expect(page.getByRole("heading", { name: "Futuro critico", exact: true })).toBeVisible({ timeout: 18000 });
+  await expect(page.locator(".story-message")).toContainText("Servizi dietro cancelli");
+  await expect(page.getByRole("button", { name: "Torna alla realtà" })).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("keeps the eight-second fade on wall time when graphics run at less than one FPS", async ({ page }) => {
+  test.setTimeout(45000);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Visita il 2050" }).click();
+  await expect(page.getByRole("heading", { name: "Futuro critico", exact: true })).toBeVisible({ timeout: 20000 });
+  await page.locator("canvas").scrollIntoViewIfNeeded();
+  await page.evaluate(() => {
+    window.requestAnimationFrame = (callback) => window.setTimeout(() => callback(performance.now()), 2200);
+  });
+  // Deliberately avoid Playwright's RAF actionability wait in this regression.
+  const started = Date.now();
+  await page.getByRole("button", { name: "Mostra il futuro sostenibile" }).dispatchEvent("click");
+  await page.getByRole("combobox", { name: "Tema della visita" }).selectOption("social");
+  await expect(page.getByRole("heading", { name: "Futuro sostenibile", exact: true })).toBeVisible({ timeout: 13000 });
+  expect(Date.now() - started).toBeGreaterThan(7000);
+  expect(Date.now() - started).toBeLessThan(13000);
 });
 
 test("acknowledges narrative controls while graphics frames are paused", async ({

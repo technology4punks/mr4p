@@ -4,12 +4,12 @@ La prova dell'utente sul visore ha confermato che la base era utilizzabile, ma h
 
 ## Menu immersivo
 
-- Con local-floor il pannello resta chiuso durante l’avvio automatico a 1,3 m; si apre se occorre calibrare o scegliere un punto libero. Nel riposizionamento manuale si chiude dopo la conferma. Restano due piccoli comandi: Menu e Avvia voce / Interrompi NEO / Riprendi ascolto, secondo lo stato.
+- Con local-floor il pannello resta chiuso durante l’avvio automatico a 1,3 m; si apre se occorre calibrare o scegliere un punto libero. Nel riposizionamento manuale si chiude dopo la conferma. Restano tre piccoli comandi arrotondati: Menu, Avvia voce / Interrompi NEO / Riprendi ascolto e cambio tema.
 - A/X, clic dello stick o presa del controller aprono/chiudono il pannello. Puntatore, cursore e bordo illuminato indicano il pulsante selezionato; il grilletto attiva l'azione.
 - Lo stick sceglie i pulsanti con una zona morta e ripetizione controllata. Spostare intenzionalmente il controller restituisce il controllo al puntatore. Lo stick non sposta la camera.
 - Con il tracciamento mani disponibile: raggio della mano e pinch. Si richiede hand-tracking come funzionalità opzionale; gli eventi nativi e il controllo delle articolazioni hanno deduplicazione e isteresi.
-- Pannello e comandi chiusi rimangono fermi nello spazio anche girando la testa o camminando. Un’apertura esplicita del menu lo richiama davanti all’utente; una nuova sessione o un reset del riferimento ne inizializza la posa. Le azioni nascoste non intercettano i raggi.
-- Le funzioni di calibrazione restano in Posizionamento; nell'osservatorio compaiono Futuro sostenibile e Torna alla realtà.
+- Pannello e comandi chiusi rimangono fermi nello spazio anche girando la testa o camminando. Un’apertura esplicita del menu lo colloca in alto a destra rispetto allo sguardo attuale (1,65 m avanti, 0,8 m a destra, 0,32 m sopra la quota occhi); una nuova sessione o un reset del riferimento ne inizializza la posa. Le azioni nascoste non intercettano i raggi.
+- Le funzioni di calibrazione restano in Posizionamento; nell'osservatorio compaiono il confronto Futuro sostenibile / critico, cambio tema e Torna alla realtà. Il cambio tema è disponibile anche nel dock chiuso e durante le transizioni.
 - Nessuna dipendenza da DOM Overlay, modelli di controller esterni o locomozione artificiale.
 
 ## Voce in un ambiente rumoroso
@@ -57,3 +57,5 @@ Le decorazioni animate sono aggiornate a 30 Hz; camera, tracking XR e robot cons
 I test verificano menu ancorato, raggi su soli pulsanti visibili, selezione controller, pinch, deduplicazione, navigazione, protezione microfono, rispetto del mute, timer dopo lo stop e trasformazione senza nuove geometrie. Le prove browser desktop/Android/iPhone non attestano hand tracking, passthrough o 72 FPS sul Quest.
 
 La revisione room scale aggiunge sguardo continuo a 360° e seguito nella sola stanza virtuale: vedere [ROOM_SCALE.md](ROOM_SCALE.md).
+
+Il nuovo pannello misura 0,74 × 0,70 m, contro 1,12 × 0,98 m del precedente; il dock è largo 0,32 m. Usa bordi arrotondati con trasparenza ai margini, colori scuri e accenti verdi, senza post-processing. Le hit area conservano una superficie cliccabile ampia; il layout cambia solo su apertura esplicita/reset, mai inseguendo la testa. Visibilità periferica, leggibilità e comfort richiedono prova sul Quest.

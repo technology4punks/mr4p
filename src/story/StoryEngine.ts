@@ -27,7 +27,7 @@ export type StoryEvent =
   | { type: "entry_complete" }
   | { type: "show_future"; future: "critical" }
   | { type: "reflect" }
-  | { type: "transform_future"; future: "sustainable"; consent: boolean }
+  | { type: "transform_future"; future: "critical" | "sustainable"; consent: boolean }
   | { type: "transformation_complete" }
   | { type: "return_to_reality" }
   | { type: "return_complete" };
@@ -79,9 +79,12 @@ export class StoryEngine {
       case "select_theme":
         if (!Object.hasOwn(scenarioRegistry, event.theme))
           return reject("Tema non disponibile.");
-        if (s.environment !== "reality" || s.transitioning)
-          return reject("Il tema si sceglie prima della visita.");
-        patch = {
+        if (s.state === "RETURN_TO_REALITY")
+          return reject("Il ritorno è in corso.");
+        patch = s.environment === "observatory" ? {
+          theme: event.theme,
+          message: s.transitioning ? `Tema: ${scenario(event.theme).title}. La transizione continua.` : scenario(event.theme)[s.future],
+        } : {
           theme: event.theme,
           state: "INVITATION",
           message: `Vieni nel 2050: ${scenario(event.theme).title.toLowerCase()}. Puoi scegliere quando entrare.`,
@@ -135,16 +138,18 @@ export class StoryEngine {
         };
         break;
       case "transform_future":
-        if (event.future !== "sustainable" || !event.consent)
+        if (!["critical", "sustainable"].includes(event.future)) return reject("Futuro non disponibile.");
+        if (!event.consent)
           return reject("Il futuro alternativo richiede un sì esplicito.");
         if (
-          !["CRITICAL_FUTURE", "REFLECTION"].includes(s.state) ||
+          !["CRITICAL_FUTURE", "REFLECTION", "SUSTAINABLE_FUTURE"].includes(s.state) ||
           s.transitioning
         )
           return reject("La trasformazione non è disponibile in questo stato.");
+        if (event.future === s.future) return reject("Questo futuro è già visibile.");
         patch = {
           state: "REFLECTION",
-          future: "sustainable",
+          future: event.future,
           transitioning: true,
           message:
             "La città cambia gradualmente. Puoi continuare a parlare con NEO.",
@@ -153,14 +158,13 @@ export class StoryEngine {
       case "transformation_complete":
         if (
           s.state !== "REFLECTION" ||
-          !s.transitioning ||
-          s.future !== "sustainable"
+          !s.transitioning
         )
           return reject("Nessuna trasformazione da completare.");
         patch = {
-          state: "SUSTAINABLE_FUTURE",
+          state: s.future === "sustainable" ? "SUSTAINABLE_FUTURE" : "CRITICAL_FUTURE",
           transitioning: false,
-          message: scenario(s.theme).sustainable,
+          message: scenario(s.theme)[s.future],
         };
         break;
       case "return_to_reality":
@@ -265,10 +269,10 @@ export class StoryEngine {
       case "reflect":
         return this.dispatch({ type: name });
       case "transform_future":
-        if (args.future === "sustainable" && typeof args.consent === "boolean")
+        if ((args.future === "sustainable" || args.future === "critical") && typeof args.consent === "boolean")
           return this.dispatch({
             type: name,
-            future: "sustainable",
+            future: args.future,
             consent: args.consent,
           });
         break;

@@ -181,11 +181,12 @@ export class FutureObservatory {
         amount: { value: 0 },
         opacity: { value: 0 },
         badSky: { value: new THREE.Color(0x9e5e2b) },
+        time: { value: 0 },
       },
       vertexShader:
         "varying vec3 vDirection; void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
       fragmentShader:
-        "varying vec3 vDirection; uniform float amount; uniform float opacity; uniform vec3 badSky; void main(){float h=clamp(normalize(vDirection).y,0.0,1.0);vec3 bad=mix(badSky,vec3(0.22,0.23,0.23),pow(h,0.6));vec3 good=mix(vec3(0.87,0.93,0.91),vec3(0.14,0.43,0.73),pow(h,0.6));gl_FragColor=vec4(mix(bad,good,amount),opacity);}",
+        "varying vec3 vDirection; uniform float amount; uniform float opacity; uniform float time; uniform vec3 badSky; void main(){vec3 d=normalize(vDirection);float h=clamp(d.y,0.0,1.0);vec3 bad=mix(badSky,vec3(0.22,0.23,0.23),pow(h,0.6));vec3 good=mix(vec3(0.87,0.93,0.91),vec3(0.14,0.43,0.73),pow(h,0.6));float bands=sin(d.x*18.0+sin(d.z*13.0)+time*0.018)*sin(d.z*23.0+time*0.011);float cloud=smoothstep(0.28,0.7,bands)*smoothstep(0.08,0.3,h)*(1.0-smoothstep(0.6,0.95,h));vec3 color=mix(bad,good,amount);color=mix(color,mix(vec3(0.42,0.36,0.3),vec3(0.94,0.96,0.95),amount),cloud*0.32);gl_FragColor=vec4(color,opacity);}",
       transparent: true,
     });
     const skyMesh = new THREE.Mesh(
@@ -551,6 +552,7 @@ export class FutureObservatory {
       (1.7 + Math.max(0, this.cachedState) * 1.1) * value;
   }
   setTheme(theme: Theme) {
+    if (theme === this.theme) return;
     this.theme = theme;
     this.district.root.visible = theme === "environmental";
     this.economic.root.visible = theme === "economic";
@@ -627,8 +629,11 @@ export class FutureObservatory {
     this.tram.scale.setScalar(Math.max(0.001, amount));
   }
   update(time: number) {
-    if (this.root.visible && this.district.root.visible)
-      this.district.update(time);
+    if (!this.root.visible) return;
+    this.sky.uniforms.time.value = time / 1000;
+    if (this.district.root.visible) this.district.update(time);
+    if (this.economic.root.visible) this.economic.update(time);
+    if (this.social.root.visible) this.social.update(time);
     if (this.energyObjects.visible)
       this.tram.position.x = Math.sin(time / 18000) * 15;
   }

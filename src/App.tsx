@@ -171,25 +171,23 @@ export default function App() {
             <p className="story-message" role="status">
               {story?.message ?? "Un incontro, poi una finestra sul 2050."}
             </p>
-            {!inObservatory && (
-              <label className="theme-picker">
-                Tema della visita
-                <select
-                  aria-label="Tema della visita"
-                  value={story?.theme ?? "environmental"}
-                  disabled={!snapshot || story?.transitioning}
-                  onChange={(e) =>
-                    engine.current?.selectTheme(e.target.value as Theme)
-                  }
-                >
-                  {Object.entries(scenarios).map(([key, value]) => (
-                    <option key={key} value={key}>
-                      {value.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <label className="theme-picker">
+              {inObservatory ? "Cambia scenario · resta nell’osservatorio" : "Tema della visita"}
+              <select
+                aria-label="Tema della visita"
+                value={story?.theme ?? "environmental"}
+                disabled={!snapshot || story?.state === "RETURN_TO_REALITY"}
+                onChange={(e) =>
+                  engine.current?.selectTheme(e.target.value as Theme)
+                }
+              >
+                {Object.entries(scenarios).map(([key, value]) => (
+                  <option key={key} value={key}>
+                    {value.title}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="story-actions">
               {!inObservatory && (
                 <button
@@ -204,12 +202,10 @@ export default function App() {
                 <>
                   <button
                     className="primary"
-                    disabled={
-                      story?.transitioning || story?.future === "sustainable"
-                    }
+                    disabled={story?.transitioning}
                     onClick={() => engine.current?.alternative()}
                   >
-                    Mostra il futuro sostenibile
+                    {(story?.transitioning ? story?.future === "critical" : story?.future === "sustainable") ? "Mostra il futuro critico" : "Mostra il futuro sostenibile"}
                   </button>
                   <button
                     className="secondary"

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { voicePresentation } from "../audio/voicePresentation";
 import type { VoiceSnapshot } from "../audio/realtimeClient";
+import { canvasSurface } from "./canvasSurface";
 
 /** A status sign next to the avatar, never attached to the viewer or menu. */
 export class VoiceIndicator {
@@ -15,14 +16,14 @@ export class VoiceIndicator {
     this.canvas.height = 256;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.24),
-      new THREE.MeshBasicMaterial({ map: this.texture, side: THREE.DoubleSide }));
-    const track = new THREE.Mesh(new THREE.PlaneGeometry(0.87, 0.008),
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.185),
+      new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, side: THREE.DoubleSide }));
+    const track = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.006),
       new THREE.MeshBasicMaterial({ color: 0x304451 }));
-    this.meter = new THREE.Mesh(new THREE.PlaneGeometry(0.87, 0.008),
+    this.meter = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.006),
       new THREE.MeshBasicMaterial({ color: 0x7ae1c7 }));
-    track.position.set(0, -0.09, 0.002);
-    this.meter.position.set(0, -0.09, 0.003);
+    track.position.set(0, -0.064, 0.002);
+    this.meter.position.set(0, -0.064, 0.003);
     this.root.add(sign, track, this.meter);
     this.root.visible = false;
   }
@@ -38,23 +39,24 @@ export class VoiceIndicator {
     if (text !== this.lastText) {
       this.lastText = text;
       const ctx = this.canvas.getContext("2d")!;
-      ctx.fillStyle = "#10232b";
-      ctx.fillRect(0, 0, 1024, 256);
+      canvasSurface(ctx, 1024, 256, "rgba(13, 29, 37, 0.9)", "#52716f", 58);
       ctx.fillStyle = presentation.color;
-      ctx.fillRect(30, 35, 10, 142);
+      ctx.beginPath();
+      ctx.arc(65, 87, 14, 0, Math.PI * 2);
+      ctx.fill();
       ctx.textAlign = "center";
-      ctx.font = "bold 48px sans-serif";
-      ctx.fillText(presentation.label, 525, 88, 925);
+      ctx.font = "600 48px sans-serif";
+      ctx.fillText(presentation.label, 545, 102, 850);
       ctx.fillStyle = "#e0eded";
       ctx.font = "30px sans-serif";
-      ctx.fillText(presentation.detail, 525, 148, 925);
+      ctx.fillText(presentation.detail, 512, 156, 910);
       this.texture.needsUpdate = true;
     }
     const listening = voice.microphone === "live";
     const width = listening ? THREE.MathUtils.clamp(energy * 8, 0.015, 1) : 0;
     this.meter.visible = listening;
     this.meter.scale.x = width;
-    this.meter.position.x = -0.435 * (1 - width);
+    this.meter.position.x = -0.31 * (1 - width);
   }
   dispose() {
     this.root.traverse((object) => {

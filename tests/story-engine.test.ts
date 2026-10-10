@@ -14,6 +14,28 @@ function enter(engine: StoryEngine) {
   expect(engine.dispatch({ type: "entry_complete" }).accepted).toBe(true);
 }
 describe("authorized narrative flow", () => {
+  it("changes theme in-place at entry, reflection and both futures without losing name or consent", () => {
+    const engine = new StoryEngine();
+    engine.tool("remember_name", '{"name":"Ada"}');
+    engine.tool("select_theme", '{"theme":"environmental"}');
+    engine.tool("enter_observatory", '{"consent":true}');
+    for (const phase of ["entry", "critical", "reflection", "transforming", "sustainable"] as const) {
+      if (phase === "critical") engine.dispatch({ type: "entry_complete" });
+      if (phase === "reflection") engine.dispatch({ type: "reflect" });
+      if (phase === "transforming") engine.tool("transform_future", '{"future":"sustainable","consent":true}');
+      if (phase === "sustainable") engine.dispatch({ type: "transformation_complete" });
+      const before = { ...engine.snapshot };
+      const theme = before.theme === "economic" ? "social" : "economic";
+      expect(engine.tool("select_theme", JSON.stringify({ theme })).accepted).toBe(true);
+      expect(engine.snapshot).toMatchObject({ name: "Ada", theme, state: before.state, transitioning: before.transitioning, future: before.future, environment: "observatory" });
+    }
+    expect(engine.tool("transform_future", '{"future":"critical","consent":false}').accepted).toBe(false);
+    expect(engine.tool("transform_future", '{"future":"critical","consent":true}').accepted).toBe(true);
+    engine.dispatch({ type: "transformation_complete" });
+    expect(engine.snapshot.state).toBe("CRITICAL_FUTURE");
+    expect(engine.snapshot.future).toBe("critical");
+    expect(engine.snapshot.message).toContain("critico");
+  });
   it("gates both transitions on consent and renderer completion", () => {
     const engine = new StoryEngine();
     const listener = vi.fn();
@@ -122,6 +144,7 @@ describe("authorized narrative flow", () => {
     ["enter_observatory", '{"consent":"true"}'],
     ["return_to_reality", "x".repeat(2049)],
     ["transform_future", '{"future":"sustainable"}'],
+    ["transform_future", '{"future":"invented","consent":true}'],
   ])(
     "rejects untrusted tool %s with %s without changing state",
     (name, args) => {

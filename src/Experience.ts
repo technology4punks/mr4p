@@ -81,7 +81,7 @@ export class Experience {
   private ambientEnabled = false;
   private immersion = 0;
   private transformation = 0;
-  private transitionTime = 0;
+  private transitionStartedAt = 0;
   private transitionStart = 0;
   private needsAlignment = false;
   private visualStoryKey = "";
@@ -283,7 +283,7 @@ export class Experience {
     }
     if (this.needsAlignment && (!this.xr.session || frame))
       this.alignObservatory();
-    this.updateStoryVisuals(elapsed);
+    this.updateStoryVisuals();
     this.observatory.update(time);
     this.ambience.update(
       this.transformation,
@@ -322,6 +322,7 @@ export class Experience {
     );
     const voice = this.voice.snapshot;
     this.xr.ui.setTheme(scenario(this.story.snapshot.theme).title);
+    this.xr.ui.setFuture(this.story.snapshot.future);
     this.xr.ui.setVoiceControls(
       ["connected", "connecting"].includes(voice.status),
       voice.muted,
@@ -522,12 +523,16 @@ export class Experience {
     this.voice.synchronizeStory(snapshot);
     this.message = snapshot.message;
     this.xr.ui.setTheme(scenario(snapshot.theme).title);
+    this.xr.ui.setFuture(snapshot.future);
+    // Theme changes preserve pose, voice and transition timing. Updating the
+    // district must precede the state guard; theme is not an entry animation.
+    this.observatory.setTheme(snapshot.theme ?? "environmental");
+    this.ambience.setTheme(snapshot.theme ?? "environmental");
     const key = `${snapshot.state}:${snapshot.transitioning}`;
     if (key === this.visualStoryKey) return;
+    const justEntered = this.visualStoryKey.startsWith("ENTER_OBSERVATORY:");
     this.visualStoryKey = key;
     if (snapshot.state === "ENTER_OBSERVATORY") {
-      this.observatory.setTheme(snapshot.theme ?? "environmental");
-      this.ambience.setTheme(snapshot.theme ?? "environmental");
       this.savedRealityPose.position.copy(this.avatar.root.position);
       this.savedRealityPose.orientation.copy(this.avatar.root.quaternion);
       this.observatory.root.add(this.avatar.root);
@@ -538,22 +543,22 @@ export class Experience {
       this.needsAlignment = true;
       this.transformation = 0;
       this.observatory.setFuture(0);
-      this.transitionTime = 0;
+      this.transitionStartedAt = performance.now();
       this.transitionStart = this.immersion;
       if (!this.xr.session) this.configurePreview(true);
       void this.observatory.preload(this.renderer);
     }
     if (snapshot.state === "REFLECTION" && snapshot.transitioning) {
-      this.transitionTime = 0;
+      this.transitionStartedAt = performance.now();
       this.transitionStart = this.transformation;
     }
     if (snapshot.state === "RETURN_TO_REALITY") {
-      this.transitionTime = 0;
+      this.transitionStartedAt = performance.now();
       this.transitionStart = this.immersion;
     }
-    if (snapshot.state === "CRITICAL_FUTURE")
+    if (snapshot.state === "CRITICAL_FUTURE" && justEntered)
       this.voice.requestNarration(
-        `Ingresso completo. ${scenario(snapshot.theme).critical} Descrivi un solo dettaglio in una frase e chiedi cosa nota l’utente.`,
+        `Ingresso completo. ${scenario(snapshot.theme).critical} Una frase concreta su un dettaglio visibile, poi una breve domanda. Massimo 25 parole.`,
       );
   }
   private alignObservatory() {
@@ -576,26 +581,29 @@ export class Experience {
       this.observatory.root.rotation.set(0, 0, 0);
     }
   }
-  private updateStoryVisuals(delta: number) {
+  private updateStoryVisuals() {
     const s = this.story.snapshot;
-    this.transitionTime += delta;
+    // Head/companion animation still clamps delta for comfort. Narrative fades
+    // use monotonic wall time so a slow frame cannot stretch eight seconds.
+    // Only a phase change resets the clock, never a theme change.
+    const transitionTime = Math.max(0, performance.now() - this.transitionStartedAt) / 1000;
     if (s.state === "ENTER_OBSERVATORY") {
       this.immersion =
         this.transitionStart +
-        (1 - this.transitionStart) * smoothTransition(this.transitionTime, 3);
-      if (this.transitionTime >= 3)
+        (1 - this.transitionStart) * smoothTransition(transitionTime, 3);
+      if (transitionTime >= 3)
         this.story.dispatch({ type: "entry_complete" });
     } else if (s.state === "REFLECTION" && s.transitioning) {
       this.transformation =
         this.transitionStart +
-        (1 - this.transitionStart) * smoothTransition(this.transitionTime, 8);
+        ((s.future === "sustainable" ? 1 : 0) - this.transitionStart) * smoothTransition(transitionTime, 8);
       this.observatory.setFuture(this.transformation);
-      if (this.transitionTime >= 8)
+      if (transitionTime >= 8)
         this.story.dispatch({ type: "transformation_complete" });
     } else if (s.state === "RETURN_TO_REALITY") {
       this.immersion =
-        this.transitionStart * (1 - smoothTransition(this.transitionTime, 2.5));
-      if (this.transitionTime >= 2.5) {
+        this.transitionStart * (1 - smoothTransition(transitionTime, 2.5));
+      if (transitionTime >= 2.5) {
         this.scene.add(this.avatar.root);
         this.avatar.root.position.copy(this.savedRealityPose.position);
         this.avatar.root.quaternion.copy(this.savedRealityPose.orientation);
@@ -636,14 +644,15 @@ export class Experience {
       );
   }
   alternative() {
+    const future = this.story.snapshot.future === "critical" ? "sustainable" : "critical";
     const result = this.story.tool(
       "transform_future",
-      '{"future":"sustainable","consent":true}',
+      JSON.stringify({ future, consent: true }),
     );
     if (!result.accepted) this.message = result.reason;
     else
       this.voice.requestNarration(
-        "Ho accettato il futuro sostenibile. Una sola frase su una scelta diversa, poi lascia spazio alla mia osservazione.",
+        `Ho scelto il futuro ${future === "sustainable" ? "sostenibile" : "critico"}. Una sola frase concreta, poi lascia spazio alla mia osservazione.`,
       );
   }
   returnToReality() {
