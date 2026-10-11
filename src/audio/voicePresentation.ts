@@ -23,11 +23,17 @@ const options: Record<VoiceActivity, { label: string; detail: string; color: str
 /** Shared wording for the page, Quest menu and the indicator beside NEO. */
 export function voicePresentation(voice?: VoiceSnapshot) {
   const activity = voice?.activity ?? "off";
-  const detail = activity === "speaking" && !voice?.interruptions
+  const detail = activity === "paused" && voice?.inputHealth === "recovering"
+    ? "Ripristino del microfono in corso…"
+    : activity === "paused" && voice?.inputHealth === "stalled"
+      ? "Audio non inviato · premi Riprendi ascolto"
+      : activity === "speaking" && !voice?.interruptions
     ? "Microfono in pausa · premi Interrompi per parlare"
     : activity === "paused" && voice?.inputSuspended
       ? "Torna alla sessione nel visore per riprendere"
       : activity === "paused" && !voice?.inputBlocked
         ? "Microfono sospeso dal dispositivo · verifica i permessi" : options[activity].detail;
-  return { activity, ...options[activity], detail };
+  const label = activity === "paused" && voice?.inputHealth === "recovering" ? "Ripristino microfono…"
+    : activity === "paused" && voice?.inputHealth === "stalled" ? "Microfono da ripristinare" : options[activity].label;
+  return { activity, ...options[activity], label, detail };
 }

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { VoiceActivity } from "../audio/voicePresentation";
-import { canvasSurface } from "./canvasSurface";
+import { canvasSurface, glass } from "./canvasSurface";
 export type XRAction =
   | "confirm"
   | "reposition"
@@ -70,11 +70,11 @@ export class UI3D {
     backingCanvas.width = 768;
     backingCanvas.height = 720;
     const ctx = backingCanvas.getContext("2d")!;
-    canvasSurface(ctx, 768, 720, "rgba(12, 26, 34, 0.95)", "#3d5860", 38);
+    canvasSurface(ctx, 768, 720, glass.panel, glass.border, 64);
     ctx.font = "600 25px sans-serif";
     ctx.fillStyle = "#a5d6cc";
     ctx.textAlign = "center";
-    ctx.fillText("NEO  /  FUTURE OBSERVATORY", 384, 48);
+    ctx.fillText("NEO  ·  OSSERVATORIO", 384, 48);
     ctx.font = "22px sans-serif";
     ctx.fillStyle = "#93aeb6";
     ctx.fillText("Punta + pinch / grilletto · stick + A", 384, 686);
@@ -140,9 +140,9 @@ export class UI3D {
   }
   private draw(button: Button, selected: boolean) {
     const ctx = button.canvas.getContext("2d")!;
-    canvasSurface(ctx, 640, 112, selected ? "#285b57" : "rgba(24, 44, 53, 0.96)", selected ? "#9be8d4" : "#405c66", 24);
+    canvasSurface(ctx, 640, 112, selected ? glass.selected : glass.button, selected ? glass.accent : glass.border, 42);
     ctx.fillStyle = selected ? "#e5fff6" : "#d7e6e8";
-    ctx.font = "500 40px sans-serif";
+    ctx.font = "500 37px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(button.label, 320, 69, 606);
     button.mesh.material.map!.needsUpdate = true;

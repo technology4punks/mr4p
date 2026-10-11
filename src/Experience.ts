@@ -163,6 +163,7 @@ export class Experience {
       (action) => this.action(action),
       () => {
         // Session changes do not end the WebRTC connection.
+        this.voice.setImmersive(false);
         this.voice.setInputSuspended(false);
         this.savedRealityPose.position.set(0, 0, 0);
         this.savedRealityPose.orientation.identity();
@@ -362,8 +363,11 @@ export class Experience {
   async enter(mode: XRSessionMode = "immersive-ar") {
     try {
       this.renderer.xr.setFramebufferScaleFactor(this.quality.framebufferScale);
+      this.voice.setImmersive(true);
       await this.xr.enter(mode);
       if (this.xr.session) {
+        this.voice.setImmersive(true);
+        this.voice.setInputSuspended(this.xr.session.visibilityState !== "visible");
         this.floor.visible = false;
         this.controls.enabled = false;
         if (this.story.snapshot.environment === "observatory") {
@@ -376,8 +380,9 @@ export class Experience {
         const session = this.xr.session;
         if (session.supportedFrameRates?.includes(72))
           void session.updateTargetFrameRate(72).catch(() => {});
-      }
+      } else this.voice.setImmersive(false);
     } catch (error) {
+      this.voice.setImmersive(!!this.xr.session);
       this.message =
         error instanceof Error
           ? `MR non avviata: ${error.message}`
@@ -388,9 +393,7 @@ export class Experience {
     switch (action) {
       case "talk":
         if (this.voice.snapshot.status === "connected") {
-          this.voice.mute(false);
-          void this.voice.unlockAudio();
-          this.voice.interrupt();
+          void this.voice.resumeListening();
         } else if (this.voice.snapshot.status !== "connecting") void this.voice.start();
         break;
       case "suspend-voice":

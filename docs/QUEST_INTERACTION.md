@@ -14,9 +14,9 @@ La prova dell'utente sul visore ha confermato che la base era utilizzabile, ma h
 
 ## Voce in un ambiente rumoroso
 
-La modalità predefinita è ora **Interruzioni intelligenti**: il microfono resta aperto durante la voce di NEO, con echo cancellation, noise suppression e auto gain disabilitato dove supportato. VAD 0,60, pre-roll 350 ms, pausa 700 ms, riduzione near_field. Interruzioni e risposte automatiche del server sono disattivate: il client decide dopo una trascrizione riconoscibile. Un solo evento VAD o un rumore non cancella la voce.
+La modalità predefinita è ora **Interruzioni intelligenti**: il microfono resta aperto durante la voce di NEO, con echo cancellation, noise suppression e auto gain attivo dove supportato. VAD 0,50, pre-roll 350 ms, pausa 650 ms, riduzione near_field. Interruzioni e risposte automatiche del server sono disattivate: il client decide dopo una trascrizione riconoscibile. Un solo evento VAD o un rumore non cancella la voce.
 
-Una parola reale (anche “sì” o “no”), con durata minima se sovrapposta all’audio, può cancellare la risposta e svuotare l’audio remoto preservando l’input dell’utente. Si attende la fine della vecchia generazione prima di una sola nuova risposta. La trascrizione viene normalmente prodotta dopo una breve pausa: il filtro introduce quella latenza, ma non deve aspettare che NEO termini il monologo. È una euristica basata su ASR, non un classificatore infallibile di rumori o eco.
+Una parola reale (anche “sì” o “no”), con durata minima se sovrapposta all’audio, può cancellare la risposta e svuotare l’audio remoto preservando l’input dell’utente. Si attende la fine della vecchia generazione prima di una sola nuova risposta. I delta della trascrizione, quando disponibili, possono anticipare l’interruzione; il completamento arriva normalmente dopo una breve pausa: il filtro introduce quella latenza, ma non deve aspettare che NEO termini il monologo. È una euristica basata su ASR, non un classificatore infallibile di rumori o eco.
 
 La modalità **protetta** blocca il microfono fino a 350 ms dopo la fine dell’audio; **Interrompi NEO / Riprendi ascolto** restituisce esplicitamente il turno, riattiva un mute scelto dall’utente e tenta di sbloccare l’audio senza ricreare il peer. Mute, stop e background conservano la precedenza. Il cambio di scenario non chiude WebRTC. Sensibilità, rumori, eco e latenza reali richiedono nuova prova sul visore.
 
@@ -24,7 +24,7 @@ La modalità **protetta** blocca il microfono fino a 350 ms dopo la fine dell’
 
 L’indicatore sopra NEO e il pannello della pagina condividono parole e colori: **Puoi parlare**, **Ti ascolto**, **Sto preparando la risposta**, **NEO risponde**, **Microfono spento**, **Microfono in pausa**, **Audio da riattivare** e **Voce interrotta**. La barra mostra l’energia del microfono locale, non la comprensione delle parole da parte del modello. I colori accompagnano il testo, senza sostituirlo. Il segnale segue la posizione dell’avatar; gira per restare leggibile ma non cambia posizione con la testa. Il menu resta distinto e chiudibile.
 
-La perdita temporanea di focus WebXR sospende solo l’input. Il ritorno a `visible` o la fine della sessione XR rimuove quella pausa e conserva un eventuale mute manuale. La pagina realmente nascosta continua invece a terminare la connessione: non avvia microfoni automaticamente in background.
+La perdita temporanea di focus WebXR sospende solo l’input. Il ritorno a `visible` o la fine della sessione XR rimuove quella pausa e conserva un eventuale mute manuale. Fuori da una sessione XR, la pagina realmente nascosta continua invece a terminare la connessione: non avvia microfoni automaticamente in background.
 
 La coda Realtime correla gli eventi mediante `response.id` / `response_id`: un completamento o uno svuotamento tardivo del turno precedente non modifica quello nuovo. Una cancellazione già completata e una conferma persa non lasciano il client in attesa infinita. Le richieste rifiutate perché il server sta ancora rispondendo conservano il turno dell’utente. Una trascrizione che non arriva entro 10 s ritorna allo stato pronto con invito a ripetere; un evento tardivo non genera una risposta inattesa.
 
@@ -59,3 +59,6 @@ I test verificano menu ancorato, raggi su soli pulsanti visibili, selezione cont
 La revisione room scale aggiunge sguardo continuo a 360° e seguito nella sola stanza virtuale: vedere [ROOM_SCALE.md](ROOM_SCALE.md).
 
 Il nuovo pannello misura 0,74 × 0,70 m, contro 1,12 × 0,98 m del precedente; il dock è largo 0,32 m. Usa bordi arrotondati con trasparenza ai margini, colori scuri e accenti verdi, senza post-processing. Le hit area conservano una superficie cliccabile ampia; il layout cambia solo su apertura esplicita/reset, mai inseguendo la testa. Visibilità periferica, leggibilità e comfort richiedono prova sul Quest.
+
+
+La seconda revisione verifica anche l'invio WebRTC e può sostituire la traccia del microfono nella stessa sessione, con tentativi limitati e recupero esplicito. Attese di risposta/VAD non chiuse hanno watchdog; scheda e pannello sono semitrasparenti e arrotondati. Configurazione, fallback, nuove prove e limiti in [VOICE_UX.md](VOICE_UX.md#seconda-revisione--11-ottobre-2026).

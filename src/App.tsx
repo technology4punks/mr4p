@@ -284,7 +284,7 @@ export default function App() {
                 <span style={{ width: `${Math.min(100, (snapshot?.input ?? 0) * 800)}%` }} />
               </div>
             </div>
-            {(!voiceOn || snapshot?.voice.playbackBlocked || /ripetere|ancora rispondendo/.test(snapshot?.voice.message ?? "")) && (
+            {(!voiceOn || snapshot?.voice.playbackBlocked || snapshot?.voice.inputHealth === "stalled" || /ripetere|ancora rispondendo/.test(snapshot?.voice.message ?? "")) && (
             <p
               className={
                 snapshot?.voice.status === "error" ? "error" : "voice-message"
@@ -487,6 +487,7 @@ export default function App() {
               Tracking: snapshot?.xr.tracking,
               "Hit test": snapshot?.xr.hitTest,
               Peer: snapshot?.voice.peer,
+              "Invio microfono": snapshot?.voice.inputHealth ?? "checking",
               Ascolto: `${voiceInfo.label} · ${snapshot?.voice.microphone ?? "off"}`,
               "Pausa XR": snapshot?.voice.inputSuspended ? "sì" : "no",
               "Livello microfono": snapshot?.input.toFixed(3),

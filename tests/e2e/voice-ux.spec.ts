@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-type VoiceTestWindow = Window & { neoVoiceTest: { deliver: (event: object) => void; live: () => boolean; commands: object[] } };
+type VoiceTestWindow = Window & { neoVoiceTest: { deliver: (event: object) => void; live: () => boolean; pauseCapture: () => void; captures: () => number; commands: object[] } };
 
 test("shows three consecutive voice turns, mute and recovery even with graphics paused (mock audio/WebRTC)", async ({ page }) => {
   const errors: string[] = [];
@@ -11,6 +11,7 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
   await page.route("https://api.openai.com/v1/realtime/calls", (route) => route.fulfill({ body: "test-answer" }));
   await page.addInitScript(() => {
     let stream: MediaStream;
+    let captures = 0;
     // Headless WebKit has no device audio service. The transport test supplies
     // audio explicitly on every profile; it does not certify real capture.
     class Context {
@@ -33,7 +34,8 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     };
     Object.defineProperty(navigator, "mediaDevices", {
       value: { getUserMedia: async () => {
-        const track = { enabled: true, readyState: "live", stop() { this.readyState = "ended"; } };
+        captures++;
+        const track = { muted: false, onmute: undefined as (() => void) | undefined, enabled: true, readyState: "live", stop() { this.readyState = "ended"; } };
         stream = { getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream;
         return stream;
       } },
@@ -42,7 +44,7 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
       connectionState = "new";
       onconnectionstatechange?: () => void;
       createDataChannel() { return channel; }
-      addTrack() {}
+      addTrack() { return { async replaceTrack() {}, async getStats() { return new Map(); } }; }
       async createOffer() { return { type: "offer", sdp: "test-offer" }; }
       async setLocalDescription() {}
       async setRemoteDescription() {
@@ -56,6 +58,12 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     (window as unknown as VoiceTestWindow).neoVoiceTest = {
       deliver: (event) => channel.onmessage?.({ data: JSON.stringify(event) }),
       live: () => !!stream?.getAudioTracks().some((t) => t.enabled && t.readyState === "live"),
+      pauseCapture: () => {
+        const track = stream.getAudioTracks()[0];
+        Object.defineProperty(track, "muted", { value: true, configurable: true });
+        track.onmute?.(new Event("mute"));
+      },
+      captures: () => captures,
       commands,
     };
   });
@@ -110,6 +118,13 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     expect(latest).toContain(`"theme":"${theme}"`);
     await expect(status).toHaveText("Puoi parlare");
   }
+  // A live track can be suspended by the device: explicit recovery must
+  // reacquire capture rather than merely flip the enabled flag.
+  await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.pauseCapture());
+  await expect(status).toHaveText("Microfono in pausa");
+  await page.getByRole("button", { name: "Riprendi ascolto", exact: true }).click();
+  await expect(status).toHaveText("Puoi parlare");
+  expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.captures())).toBe(2);
   await page.getByRole("button", { name: "Disattiva microfono", exact: true }).click();
   await expect(status).toHaveText("Microfono spento");
   expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.live())).toBe(false);

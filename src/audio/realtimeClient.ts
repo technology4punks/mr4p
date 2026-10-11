@@ -15,6 +15,7 @@ export type VoiceSnapshot = {
   message: string;
   activity: VoiceActivity;
   microphone: "off" | "live" | "paused" | "ended";
+  inputHealth?: "checking" | "flowing" | "stalled" | "recovering";
 };
 export type RealtimeEvent = {
   type: string;
@@ -59,10 +60,22 @@ export class RealtimeClient {
     message: "Conversazione spenta",
     activity: "off",
     microphone: "off",
+    inputHealth: "checking",
   };
   private pc?: RTCPeerConnection;
   private channel?: RTCDataChannel;
   private mic?: MediaStream;
+  private sender?: RTCRtpSender;
+  private immersive = false;
+  private repairingInput = false;
+  private attemptedRepair = false;
+  private statsPending = false;
+  private lastInputCheck = 0;
+  private lastInputProgress = 0;
+  private inputBytes?: number;
+  private inputSamples?: number;
+  private lastResponseEvent = 0;
+  private responseFinishedAt = 0;
   private remote?: MediaStream;
   private audio = document.createElement("audio");
   private context?: AudioContext;
@@ -95,6 +108,7 @@ export class RealtimeClient {
     string,
     {
       start: number;
+      receivedAt: number;
       end?: number;
       overlap: boolean;
       text: string;
@@ -125,21 +139,28 @@ export class RealtimeClient {
       });
   };
   private background = (event: Event) => {
-    if (document.hidden || event.type === "pagehide")
+    if (event.type === "pagehide" || (document.hidden && !this.immersive))
       this.stop(
         "Conversazione terminata in background. Riavviala per continuare.",
       );
+    else if (!document.hidden && this.snapshot.status === "connected") void this.unlockAudio();
   };
+  setImmersive(active: boolean) {
+    this.immersive = active;
+    if (!active && document.hidden) this.background(new Event("visibilitychange"));
+  }
   private patch(patch: Partial<VoiceSnapshot>) {
     this.snapshot = { ...this.snapshot, ...patch };
     const tracks = this.mic?.getAudioTracks() ?? [];
     this.snapshot.microphone = !tracks.length ? "off"
+      : this.snapshot.inputHealth === "recovering" || this.snapshot.inputHealth === "stalled" ? "paused"
       : tracks.some((track) => track.readyState === "ended") ? "ended"
       : tracks.some((track) => track.enabled && !track.muted) ? "live" : "paused";
     this.snapshot.activity = this.snapshot.status !== "connected" ? this.snapshot.status
       : this.snapshot.muted ? "muted"
       : this.snapshot.playbackBlocked ? "audio-blocked"
       : this.snapshot.inputSuspended ? "paused"
+      : this.snapshot.inputHealth === "recovering" || this.snapshot.inputHealth === "stalled" ? "paused"
       : this.outputPlaying ? "speaking"
       : this.snapshot.inputBlocked ? "paused"
       : this.snapshot.microphone === "paused" ? "paused"
@@ -178,6 +199,7 @@ export class RealtimeClient {
     if (this.activeResponseId) this.remember(this.settledResponses, this.activeResponseId);
     this.activeResponseId = undefined;
     this.responseActive = false;
+    this.inflightRequest = undefined;
     this.flushResponse();
     this.refreshVoice();
   }
@@ -197,17 +219,146 @@ export class RealtimeClient {
     this.refreshVoice();
   }
   private watchPlayback = () => {
-    if (!this.outputPlaying) return;
+    const now = Date.now();
     const levels = this.levels();
+    if (now - this.lastInputCheck >= 1000) {
+      this.lastInputCheck = now;
+      void this.checkInput();
+    }
+    // Missing create/done events must not hold every later user turn forever.
+    // Streaming response events and audible playback keep this deadline alive.
+    if (this.responseActive && !this.cancelling && now - this.lastResponseEvent > 30000 && levels.output < 0.008) {
+      this.inflightRequest = undefined;
+      this.cancelResponse();
+      if (this.outputPlaying) {
+        this.send({ type: "output_audio_buffer.clear" });
+        if (this.outputResponseId) this.remember(this.cancelledPlayback, this.outputResponseId);
+        this.finishPlayback();
+      }
+      this.refreshVoice("Risposta interrotta. Puoi ripetere la domanda.");
+    }
+    if (!this.outputPlaying) return;
     if (levels.audible && levels.output > 0.008) {
       this.heardOutput = true;
       this.lastOutputEnergy = Date.now();
+      this.lastResponseEvent = Date.now();
     } else if (!this.responseActive && this.heardOutput && levels.audible && Date.now() - this.lastOutputEnergy >= 2500) {
       // Only recover after completed generation AND heard playback followed by
       // sustained silence. Never reopen protected input on response.done alone.
       this.finishPlayback();
+    } else if (!this.responseActive && !this.heardOutput && levels.audible && this.responseFinishedAt && now - this.responseFinishedAt >= 5000) {
+      // A completed empty/inaudible response can also lose its stopped event.
+      this.finishPlayback();
     }
   };
+  private resetInputHealth() {
+    this.lastInputProgress = Date.now();
+    this.inputBytes = this.inputSamples = undefined;
+  }
+  private bindMicrophone(mic: MediaStream) {
+    this.mic = mic;
+    this.inputLevel?.dispose();
+    this.inputLevel = new AudioLevel(this.context!, mic);
+    const generation = this.generation;
+    mic.getAudioTracks().forEach((track) => {
+      track.enabled = !this.snapshot.muted && !this.snapshot.inputBlocked && !this.snapshot.inputSuspended;
+      track.onmute = track.onunmute = () => {
+        if (generation !== this.generation) return;
+        this.resetInputHealth();
+        if (!track.muted && track.readyState === "live" && !this.repairingInput) this.patch({ inputHealth: "checking" });
+        this.refreshVoice();
+      };
+      track.onended = () => {
+        if (generation !== this.generation) return;
+        this.patch({ inputHealth: "stalled", message: "Microfono interrotto. Ripristino l’ascolto…" });
+        if (!this.snapshot.inputSuspended && !this.snapshot.muted) void this.repairMicrophone();
+      };
+    });
+    this.resetInputHealth();
+  }
+  private async checkInput() {
+    if (this.snapshot.status !== "connected" || this.repairingInput || this.statsPending) return;
+    if (this.snapshot.muted || this.snapshot.inputBlocked || this.snapshot.inputSuspended) {
+      this.resetInputHealth();
+      return;
+    }
+    const track = this.mic?.getAudioTracks()[0];
+    if (!track) return;
+    let stalled = track.readyState === "ended" || (track.muted && Date.now() - this.lastInputProgress >= 5000);
+    if (!track.muted && track.readyState === "live" && this.sender?.getStats) {
+      const generation = this.generation;
+      this.statsPending = true;
+      try {
+        const stats = await this.sender.getStats();
+        if (generation !== this.generation || this.repairingInput || track !== this.mic?.getAudioTracks()[0] || this.snapshot.muted || this.snapshot.inputBlocked || this.snapshot.inputSuspended) return;
+        let bytes: number | undefined, samples: number | undefined;
+        stats.forEach((report) => {
+          if (report.type === "outbound-rtp" && (report.kind === "audio" || report.mediaType === "audio")) bytes = report.bytesSent;
+          if (report.type === "media-source" && report.kind === "audio") samples = report.totalSamplesDuration;
+        });
+        if (bytes !== undefined) {
+          if (this.inputBytes === undefined) {
+            this.lastInputProgress = Date.now();
+          } else if (bytes > this.inputBytes) {
+            this.lastInputProgress = Date.now();
+            this.attemptedRepair = false;
+            if (this.snapshot.inputHealth !== "flowing") this.patch({ inputHealth: "flowing" });
+          } else if (Date.now() - this.lastInputProgress >= 8000) {
+            // Silence/DTX alone is not a fault. Require stopped capture or
+            // measurable local audio with no outbound packets as well.
+            stalled ||= (samples !== undefined && this.inputSamples !== undefined && samples === this.inputSamples) || this.levels().input > 0.015;
+          }
+          this.inputBytes = bytes;
+          this.inputSamples = samples;
+        }
+      } catch { /* Optional browser stats must not stop the conversation. */ }
+      finally { if (generation === this.generation) this.statsPending = false; }
+    }
+    if (stalled) {
+      if (this.snapshot.inputHealth !== "stalled") this.patch({ inputHealth: "stalled", message: "Il microfono non invia audio. Premi Riprendi ascolto." });
+      if (!this.attemptedRepair) void this.repairMicrophone();
+    }
+  }
+  private async repairMicrophone() {
+    if (this.repairingInput || this.snapshot.status !== "connected" || this.snapshot.inputSuspended) return;
+    const sender = this.sender;
+    if (!sender?.replaceTrack) {
+      this.patch({ inputHealth: "stalled", message: "Microfono interrotto. Termina e riavvia la conversazione." });
+      return;
+    }
+    const generation = this.generation;
+    this.repairingInput = this.attemptedRepair = true;
+    this.patch({ inputHealth: "recovering", message: "Ripristino del microfono…" });
+    let fresh: MediaStream | undefined;
+    try {
+      fresh = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      if (generation !== this.generation) { fresh.getTracks().forEach((t) => t.stop()); return; }
+      const track = fresh.getAudioTracks()[0];
+      if (!track || track.readyState !== "live" || track.muted) throw new Error("No microphone");
+      track.enabled = !this.snapshot.muted && !this.snapshot.inputBlocked && !this.snapshot.inputSuspended;
+      await sender.replaceTrack(track);
+      if (generation !== this.generation) { fresh.getTracks().forEach((t) => t.stop()); return; }
+      const previous = this.mic;
+      this.bindMicrophone(fresh);
+      previous?.getTracks().forEach((t) => { t.onended = t.onmute = t.onunmute = null; t.stop(); });
+      this.patch({ inputHealth: "checking", message: "Microfono ripristinato. Puoi parlare." });
+    } catch {
+      fresh?.getTracks().forEach((t) => t.stop());
+      if (generation === this.generation) this.patch({ inputHealth: "stalled", message: "Microfono non disponibile. Verifica i permessi e premi Riprendi ascolto." });
+    } finally {
+      if (generation === this.generation) this.repairingInput = false;
+    }
+  }
+  /** A deliberate recovery gesture repairs capture without replacing the session. */
+  async resumeListening() {
+    if (this.snapshot.status !== "connected" || this.snapshot.inputSuspended) return;
+    const repair = this.snapshot.activity !== "speaking" && this.snapshot.activity !== "processing";
+    this.mute(false);
+    const unlock = this.unlockAudio();
+    this.interrupt();
+    if (repair || this.snapshot.inputHealth === "stalled") await this.repairMicrophone();
+    await unlock;
+  }
   async start() {
     if (
       this.snapshot.status === "connected" ||
@@ -246,6 +397,11 @@ export class RealtimeClient {
     try {
       // Must happen synchronously in the user's gesture, before awaiting network/mic.
       this.context = new AudioContext();
+      this.context.onstatechange = () => {
+        if (generation !== this.generation || !this.remote || this.context?.state === "closed") return;
+        if (this.context?.state === "running") void this.unlockAudio();
+        else this.patch({ playbackBlocked: true, message: "Audio sospeso. Premi Riattiva audio." });
+      };
       const unlock = this.context.resume().catch(() => {});
       const buffer = this.context.createBuffer(1, 1, this.context.sampleRate);
       const silent = this.context.createBufferSource();
@@ -256,7 +412,7 @@ export class RealtimeClient {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: false,
+          autoGainControl: true,
         },
       });
       if (generation !== this.generation) {
@@ -266,18 +422,7 @@ export class RealtimeClient {
       this.mic = mic;
       await unlock;
       if (generation !== this.generation) return;
-      this.inputLevel = new AudioLevel(this.context!, mic);
-      mic.getTracks().forEach((track) => {
-        track.onmute = track.onunmute = () => {
-          if (generation === this.generation) this.refreshVoice();
-        };
-        track.onended = () => {
-          if (generation === this.generation)
-            this.fail(
-              "Microfono interrotto o permesso revocato. Riavvia la conversazione.",
-            );
-        };
-      });
+      this.bindMicrophone(mic);
       const tokenResponse = await fetch("/api/realtime-token", {
         method: "POST",
         signal: abort.signal,
@@ -365,7 +510,7 @@ export class RealtimeClient {
             5000,
           );
       };
-      mic.getTracks().forEach((track) => pc.addTrack(track, mic));
+      this.sender = pc.addTrack(mic.getAudioTracks()[0], mic);
       const offer = await pc.createOffer();
       if (generation !== this.generation) return;
       await pc.setLocalDescription(offer);
@@ -468,6 +613,7 @@ export class RealtimeClient {
         false;
     if (this.send({ type: "response.create" })) {
       this.responseActive = true;
+      this.lastResponseEvent = Date.now();
       this.refreshVoice();
     }
   }
@@ -476,16 +622,17 @@ export class RealtimeClient {
     if (!id || this.answeredItems.has(id)) return;
     const utterance = this.utterances.get(id) ?? {
       start: 0,
-      end: 0,
+      end: 450,
+      receivedAt: Date.now(),
       overlap: this.outputPlaying,
       text: "",
       interrupted: false,
     };
     utterance.text = event.transcript ?? utterance.text + (event.delta ?? "");
     this.utterances.set(id, utterance);
-    const duration = (utterance.end ?? utterance.start) - utterance.start;
+    const duration = utterance.end === undefined ? Date.now() - utterance.receivedAt + 350 : utterance.end - utterance.start;
     const valid =
-      !this.snapshot.muted && !this.snapshot.inputSuspended &&
+      !this.snapshot.muted && !this.snapshot.inputSuspended && !this.snapshot.inputBlocked &&
       recognizableSpeech(utterance.text, duration, utterance.overlap);
     const completed = event.type.endsWith(".completed");
     if (
@@ -523,7 +670,9 @@ export class RealtimeClient {
     this.refreshVoice();
   }
   private event(event: RealtimeEvent) {
+    if (event.type.startsWith("response.") && this.responseActive && (!event.response_id || !this.activeResponseId || event.response_id === this.activeResponseId)) this.lastResponseEvent = Date.now();
     if (event.type === "input_audio_buffer.speech_started" && event.item_id) {
+      if (this.answeredItems.has(event.item_id) || this.utterances.has(event.item_id)) return;
       if (this.utterances.size >= 32) {
         const oldest = this.utterances.keys().next().value!;
         this.utterances.delete(oldest);
@@ -533,10 +682,20 @@ export class RealtimeClient {
       }
       this.utterances.set(event.item_id, {
         start: event.audio_start_ms ?? 0,
+        receivedAt: Date.now(),
         overlap: this.outputPlaying,
         text: "",
         interrupted: false,
       });
+      const id = event.item_id, generation = this.generation;
+      this.transcriptionTimers.set(id, setTimeout(() => {
+        if (generation !== this.generation || !this.utterances.has(id)) return;
+        this.utterances.delete(id);
+        this.transcriptionTimers.delete(id);
+        this.remember(this.answeredItems, id);
+        this.send({ type: "input_audio_buffer.clear" });
+        this.refreshVoice("Ascolto ripristinato. Puoi ripetere la domanda?");
+      }, 60000));
     }
     if (event.type === "input_audio_buffer.speech_stopped" && event.item_id) {
       const utterance = this.utterances.get(event.item_id);
@@ -578,6 +737,7 @@ export class RealtimeClient {
       this.outputResponseId = event.response_id;
       this.heardOutput = false;
       this.lastOutputEnergy = Date.now();
+      this.responseFinishedAt = 0;
       if (!this.snapshot.interruptions) this.blockMicrophone(true);
     }
     if (
@@ -591,6 +751,7 @@ export class RealtimeClient {
     if (event.type === "response.created") {
       if (event.response?.id && this.settledResponses.has(event.response.id)) return;
       this.responseActive = true;
+      this.lastResponseEvent = Date.now();
       this.activeResponseId = event.response?.id;
       this.inflightRequest = undefined;
     }
@@ -629,6 +790,8 @@ export class RealtimeClient {
       clearTimeout(this.cancelTimer);
       this.cancelling = false;
       this.responseActive = false;
+      this.inflightRequest = undefined;
+      this.responseFinishedAt = Date.now();
       this.activeResponseId = undefined;
       if (event.response?.status !== "completed")
         this.pendingToolResponse = false;
@@ -700,7 +863,9 @@ export class RealtimeClient {
     this.mic?.getAudioTracks().forEach((track) => {
       track.enabled = !suspended && !this.snapshot.muted && !this.snapshot.inputBlocked;
     });
+    this.resetInputHealth();
     this.patch({ inputSuspended: suspended });
+    if (!suspended && this.snapshot.status === "connected") void this.unlockAudio();
     this.refreshVoice();
   }
   private updateTurnDetection() {
@@ -713,9 +878,9 @@ export class RealtimeClient {
             noise_reduction: { type: "near_field" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.6,
+              threshold: 0.5,
               prefix_padding_ms: 350,
-              silence_duration_ms: 700,
+              silence_duration_ms: 650,
               create_response: false,
               interrupt_response: false,
             },
@@ -777,6 +942,9 @@ export class RealtimeClient {
   }
   stop(message = "Conversazione spenta") {
     this.generation++;
+    this.sender = undefined;
+    this.repairingInput = this.statsPending = this.attemptedRepair = false;
+    this.resetInputHealth();
     this.processedCalls.clear();
     this.utterances.clear();
     this.answeredItems.clear();
@@ -829,6 +997,7 @@ export class RealtimeClient {
     this.inputLevel?.dispose();
     this.outputLevel?.dispose();
     this.inputLevel = this.outputLevel = undefined;
+    if (this.context) this.context.onstatechange = null;
     void this.context?.close().catch(() => {});
     this.context = undefined;
     this.patch({
@@ -837,6 +1006,7 @@ export class RealtimeClient {
       muted: false,
       inputBlocked: false,
       inputSuspended: false,
+      inputHealth: "checking",
       playbackBlocked: false,
       peer: "closed",
       message,
