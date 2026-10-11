@@ -1,0 +1,21 @@
+{
+  "quality": "high",
+  "future": 1,
+  "stats": {
+    "calls": 69,
+    "triangles": 30180,
+    "textures": 9,
+    "geometries": 53
+  },
+  "viewport": [
+    1100,
+    760
+  ],
+  "camera": [
+    0,
+    1.6,
+    1.8
+  ],
+  "elapsedSceneSeconds": 4,
+  "renderer": "Chromium SwiftShader, isolated scene without avatar/UI; not Quest Pro"
+}

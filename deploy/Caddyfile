@@ -1,0 +1,11 @@
+# Deploy only on the selected host. Secrets belong in that host's runtime.
+{$NEO_DOMAIN} {
+  basic_auth {
+    {$NEO_USER} {$NEO_PASSWORD_HASH}
+  }
+  reverse_proxy 127.0.0.1:3000 {
+    # Overwrite browser-supplied headers after Caddy authenticates the visitor.
+    header_up X-NEO-USER {http.auth.user.id}
+    header_up X-NEO-PROXY-SECRET {$PROXY_AUTH_SECRET}
+  }
+}

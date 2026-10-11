@@ -1,0 +1,19 @@
+{
+  "name": "Rigged robot",
+  "author": "joney_lol",
+  "source": "https://poly.pizza/m/BwjA6Thdzd",
+  "download": "https://static.poly.pizza/d6a9c09f-5e0f-46af-9ec0-577e91dda457.glb",
+  "license": "CC-BY-3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+  "file": "RiggedRobot.glb",
+  "bytes": 1551944,
+  "sha256": "8860f2259019f793a5be198dd70b2dbd301f1b0d30c3484d8bd510afa517fc7f",
+  "originalSha256": "0d173735faa4f95b00f27fe9025ab33755faca24c7ac31ea491fd11dc84d5c23",
+  "triangles": 18299,
+  "primitives": 6,
+  "joints": 48,
+  "animations": 0,
+  "textures": 0,
+  "status": "Optional research candidate; not loaded by the experience",
+  "modified": "Eight non-finite skin-weight vectors repaired to [1,0,0,0], retaining original joint indices. Geometry/materials unchanged."
+}

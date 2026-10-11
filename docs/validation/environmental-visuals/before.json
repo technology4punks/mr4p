@@ -1,0 +1,23 @@
+{
+  "renderer": "Chromium SwiftShader, same isolated scene, 1100x760, camera [0,1.6,1.8]; not Quest Pro",
+  "low": {
+    "critical": {
+      "calls": 54,
+      "triangles": 17088
+    },
+    "sustainable": {
+      "calls": 66,
+      "triangles": 25352
+    }
+  },
+  "high": {
+    "critical": {
+      "calls": 55,
+      "triangles": 20496
+    },
+    "sustainable": {
+      "calls": 67,
+      "triangles": 34304
+    }
+  }
+}
