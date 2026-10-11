@@ -909,6 +909,7 @@ export class RealtimeClient {
     this.outputResponseId = undefined;
     for (const timer of this.transcriptionTimers.values()) clearTimeout(timer);
     this.transcriptionTimers.clear();
+    for (const id of this.utterances.keys()) this.remember(this.answeredItems, id);
     this.utterances.clear();
     this.blockMicrophone(false);
     this.patch({

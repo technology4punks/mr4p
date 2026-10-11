@@ -798,3 +798,18 @@ it("reopens protected capture when both response completion and playback stop di
   const sent = FakePeer.latest.channel.send.mock.calls.map(([data]) => JSON.parse(data));
   expect(sent.some((e) => e.type === "output_audio_buffer.clear")).toBe(true);
 });
+
+
+it("ignores stale transcription after explicit listening reset but accepts the next turn", async () => {
+  getUserMedia.mockResolvedValue(mic().stream);
+  await client.start();
+  const deliver = (event: object) => (FakePeer.latest.channel.onmessage as (e: { data: string }) => void)({ data: JSON.stringify(event) });
+  deliver({ type: "input_audio_buffer.speech_started", item_id: "old", audio_start_ms: 1000 });
+  deliver({ type: "input_audio_buffer.speech_stopped", item_id: "old", audio_end_ms: 1800 });
+  client.interrupt();
+  deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: "old", transcript: "Domanda precedente" });
+  expect(client.snapshot.activity).toBe("ready");
+  deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: "new", transcript: "Mi senti adesso?" });
+  const sent = FakePeer.latest.channel.send.mock.calls.map(([data]) => JSON.parse(data));
+  expect(sent.filter((e) => e.type === "response.create")).toHaveLength(1);
+});

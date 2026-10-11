@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 test("local GLB renders, touch/resize work, emotes finish and no microphone request on load", async ({
   page,
 }) => {
+  // Includes a full-page software-rendered screenshot after the interaction checks.
+  test.setTimeout(60000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {

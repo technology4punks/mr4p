@@ -35,15 +35,15 @@ Il nuovo feedback segnala una traccia apparentemente accesa senza voce ricevuta 
 
 ### Pannelli e scheda NEO
 
-Pagina, selettori, posizionamento e diagnostica condividono bordi sottili, angoli morbidi e superfici traslucide. In XR si usano texture canvas con alpha: 64% per il pannello e 58% per la scheda, senza blur o effetti XR. La scheda non scrive nel depth buffer: anche gli angoli trasparenti lasciano vedere la scena. Posa dei menu, dimensioni cliccabili, raggi e stick restano quelli già verificati. Nessun nuovo asset o segreto.
+Pagina, selettori, posizionamento e diagnostica condividono bordi sottili, angoli morbidi e superfici traslucide. Anche i pannelli web evitano il backdrop blur per contenere il carico di compositing. In XR si usano texture canvas con alpha: 64% per il pannello e 58% per la scheda, senza blur o effetti XR. La scheda non scrive nel depth buffer: anche gli angoli trasparenti lasciano vedere la scena. Posa dei menu, dimensioni cliccabili, raggi e stick restano quelli già verificati. Nessun nuovo asset o segreto.
 
 Anteprime in [validation/voice-glass-ui](validation/voice-glass-ui): desktop e iPhone sul runtime Sites locale; `xr-panels-simulated.png` usa i componenti reali in un harness Three.js con edifici di prova, senza sessione XR. Le immagini attestano l'ispezione visiva, non compositing, comfort o leggibilità sul visore.
 
 ### Verifiche
 
-- Repository: lint, typecheck, build, scansione del bundle e **180 test** superati.
-- Sites: typecheck, build e **171 test** superati.
+- Repository: lint, typecheck, build, scansione del bundle e **181 test** superati.
+- Sites: typecheck, build e **172 test** superati.
 - Dialogo browser: **3/3 profili**, tre scambi consecutivi, traccia sospesa e riacquisita, mute, cambio tema e stop con render loop fermato. Audio/WebRTC/OpenAI simulati.
-- Undici nuove regressioni coprono invio bloccato con traccia live, silenzio/DTX, recupero fallito, stop durante acquisizione, visibilità XR, eventi risposta persi, delta di interruzione e VAD non chiuso.
+- Dodici nuove regressioni coprono invio bloccato con traccia live, silenzio/DTX, recupero fallito, stop durante acquisizione, visibilità XR, eventi risposta persi, delta di interruzione e VAD non chiuso. Una trascrizione tardiva precedente a un reset esplicito non genera una risposta inattesa.
 
 Sul Quest: riprovare almeno cinque scambi, interruzione con parola, rumore, menu di sistema, cambi scenario e ritorno MR. Se NEO non sente, controllare la barra locale e **Invio microfono** nella diagnostica; usare **Riprendi ascolto** e annotare se compare **Microfono da ripristinare**. Permessi hardware, voce, eco, latenza e 72 FPS restano da verificare fisicamente.

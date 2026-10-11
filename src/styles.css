@@ -205,8 +205,6 @@ h1 span {
   border-radius: 26px;
   background: var(--glass);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   max-width: 450px;
 }
 .panel-heading {
@@ -517,8 +515,6 @@ select {
   border-radius: 26px;
   background: linear-gradient(135deg, rgba(33, 66, 56, .55), rgba(17, 35, 44, .6));
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 .year-tag {
   font-size: 11px;
@@ -588,7 +584,7 @@ select {
 .voice-panel > .secondary { margin: 0 6px 8px 0; }
 .voice-panel > .text-button { padding: 10px 8px; font-size: 12px; }
 .voice-panel .hint { margin-top: 8px; }
-.stage-top .status-pill { border: 1px solid var(--glass-border); backdrop-filter: blur(8px); }
+.stage-top .status-pill { border: 1px solid var(--glass-border); }
 select option { background: #172f39; color: #eef5f5; }
 
 select {

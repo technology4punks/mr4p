@@ -214,7 +214,7 @@ test("keeps the eight-second fade on wall time when graphics run at less than on
   await page.getByRole("combobox", { name: "Tema della visita" }).selectOption("social");
   await page.getByRole("button", { name: "Visita il 2050" }).click();
   await expect(page.getByRole("heading", { name: "Futuro critico", exact: true })).toBeVisible({ timeout: 20000 });
-  await page.locator("canvas").scrollIntoViewIfNeeded();
+  await page.locator("canvas").evaluate((canvas) => canvas.scrollIntoView({ block: "center", behavior: "instant" }));
   await page.evaluate(() => {
     window.requestAnimationFrame = (callback) => window.setTimeout(() => callback(performance.now()), 2200);
   });
@@ -240,7 +240,7 @@ test("acknowledges narrative controls while graphics frames are paused", async (
     page.getByRole("heading", { name: "Futuro critico", exact: true }),
   ).toBeVisible({ timeout: 20000 });
   // Start from an actively rendering canvas before installing the RAF pause.
-  await page.locator("canvas").scrollIntoViewIfNeeded();
+  await page.locator("canvas").evaluate((canvas) => canvas.scrollIntoView({ block: "center", behavior: "instant" }));
   await page.evaluate(() => {
     const original = window.requestAnimationFrame.bind(window);
     const pending: FrameRequestCallback[] = [];
