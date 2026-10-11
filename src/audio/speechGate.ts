@@ -21,7 +21,7 @@ export function recognizableSpeech(
   )
     return false;
   const meaningful = words.some(
-    (word) => word.length >= 3 || /^(sì|si|no)$/u.test(word),
+    (word) => word.length >= 3 || /^(sì|si|no|ok)$/u.test(word),
   );
   // VAD timestamps include 350 ms of prefix. A short real answer remains valid.
   return meaningful && (!interrupting || durationMs >= 450);

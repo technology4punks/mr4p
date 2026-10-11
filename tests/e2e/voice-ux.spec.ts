@@ -88,7 +88,7 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     await page.evaluate((turn) => {
       const t = (window as unknown as VoiceTestWindow).neoVoiceTest;
       t.deliver({ type: "input_audio_buffer.speech_stopped", item_id: `user${turn}`, audio_end_ms: 1900 });
-      t.deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: `user${turn}`, transcript: "Parlami del futuro" });
+      t.deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: `user${turn}`, transcript: turn === 2 ? "OK" : "Parlami del futuro" });
       t.deliver({ type: "response.created", response: { id: `reply${turn}` } });
       t.deliver({ type: "output_audio_buffer.started", response_id: `reply${turn}` });
     }, i);
@@ -102,6 +102,7 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     await expect(status).toHaveText("Puoi parlare");
     expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.live())).toBe(true);
   }
+  expect(await page.evaluate(() => (window as unknown as VoiceTestWindow).neoVoiceTest.commands.filter((command) => (command as { type: string }).type === "response.create").length)).toBe(4);
   // Changing a theme (also during entry) must neither reconnect WebRTC nor
   // change the microphone while the renderer is deliberately paused.
   await page.getByRole("button", { name: "Visita il 2050" }).dispatchEvent("click");

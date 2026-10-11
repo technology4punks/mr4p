@@ -813,3 +813,18 @@ it("ignores stale transcription after explicit listening reset but accepts the n
   const sent = FakePeer.latest.channel.send.mock.calls.map(([data]) => JSON.parse(data));
   expect(sent.filter((e) => e.type === "response.create")).toHaveLength(1);
 });
+
+
+it("accepts a brief OK acknowledgement while still rejecting filler noise", async () => {
+  getUserMedia.mockResolvedValue(mic().stream);
+  await client.start();
+  const deliver = (event: object) => (FakePeer.latest.channel.onmessage as (e: { data: string }) => void)({ data: JSON.stringify(event) });
+  for (const [id, transcript] of [["noise", "eh"], ["ack", "OK"]]) {
+    deliver({ type: "input_audio_buffer.speech_started", item_id: id, audio_start_ms: 1000 });
+    deliver({ type: "input_audio_buffer.speech_stopped", item_id: id, audio_end_ms: 1600 });
+    deliver({ type: "conversation.item.input_audio_transcription.completed", item_id: id, transcript });
+  }
+  const sent = FakePeer.latest.channel.send.mock.calls.map(([data]) => JSON.parse(data));
+  expect(sent.filter((event) => event.type === "response.create")).toHaveLength(1);
+  expect(sent.filter((event) => event.type === "conversation.item.delete").map((event) => event.item_id)).toEqual(["noise"]);
+});

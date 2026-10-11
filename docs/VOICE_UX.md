@@ -29,7 +29,7 @@ Il nuovo feedback segnala una traccia apparentemente accesa senza voce ricevuta 
 
 - **Invio distinto dal permesso:** statistiche del sender WebRTC a 1 Hz, quando disponibili. `flowing` indica pacchetti in uscita, non parole comprese; `checking` non certifica il trasporto. Dopo 8 s senza progresso servono anche cattura ferma o energia locale presente. Il semplice silenzio con DTX non avvia il recupero; una traccia mutata dal dispositivo ha una soglia di 5 s.
 - **Recupero nella stessa conversazione:** un tentativo automatico riacquisisce il microfono con `replaceTrack`, conservando peer, cronologia, nome e Story Engine. Se fallisce, mostra **Microfono da ripristinare** e non ripete richieste di permesso in ciclo. **Riprendi ascolto** riprova su gesto esplicito. Durante una risposta normale, **Interrompi NEO** restituisce il turno senza riacquisire una cattura sana. Mute e pausa XR hanno la precedenza; una traccia acquisita dopo lo stop viene rilasciata.
-- **Sensibilità:** echo cancellation, noise suppression e ora auto gain. VAD 0,50, pre-roll 350 ms, silenzio 650 ms. L'interruzione richiede parole riconoscibili, non il solo VAD; i delta ASR possono anticiparla quando il servizio li invia. Eco e latenza reali restano da misurare.
+- **Sensibilità:** echo cancellation, noise suppression e ora auto gain. VAD 0,50, pre-roll 350 ms, silenzio 650 ms. Le risposte brevi “OK”, “sì” e “no” sono accettate: il filtro precedente scartava “OK”. L'interruzione richiede parole riconoscibili, non il solo VAD; i delta ASR possono anticiparla quando il servizio li invia. Eco e latenza reali restano da misurare.
 - **Attese limitate:** 30 s senza progresso della risposta e senza audio misurabile fanno cancellare il turno e liberare la coda. Delta e riproduzione udibile rinnovano il termine. VAD mai chiuso: pulizia dopo 60 s; attesa trascrizione: 10 s. Output completato ma mai udibile: ritorno pronto dopo 5 s, solo con riproduzione locale abilitata. Audio bloccato: **Riattiva audio**, senza fingere che NEO abbia sentito.
 - **WebXR:** l'avvio immersivo non viene confuso con un tab abbandonato. La visibilità XR controlla la pausa; `pagehide` termina sempre la voce. Fuori da XR una pagina nascosta chiude il microfono. La ripresa del focus tenta di sbloccare AudioContext/playback senza scavalcare il mute manuale.
 
@@ -41,9 +41,10 @@ Anteprime in [validation/voice-glass-ui](validation/voice-glass-ui): desktop e i
 
 ### Verifiche
 
-- Repository: lint, typecheck, build, scansione del bundle e **181 test** superati.
-- Sites: typecheck, build e **172 test** superati.
-- Dialogo browser: **3/3 profili**, tre scambi consecutivi, traccia sospesa e riacquisita, mute, cambio tema e stop con render loop fermato. Audio/WebRTC/OpenAI simulati.
-- Dodici nuove regressioni coprono invio bloccato con traccia live, silenzio/DTX, recupero fallito, stop durante acquisizione, visibilità XR, eventi risposta persi, delta di interruzione e VAD non chiuso. Una trascrizione tardiva precedente a un reset esplicito non genera una risposta inattesa.
+- Repository: lint, typecheck, build, scansione del bundle e **182 test** superati.
+- Sites: typecheck, build e **173 test** superati.
+- Suite browser completa: **30/30** superati dopo la correzione dei casi Android. La CI su `0322553` ha completato con successo entrambi i run (push e PR).
+- Dialogo browser: **3/3 profili**, anche dopo la correzione di “OK”, con verifica che ogni turno generi una richiesta di risposta; tre scambi consecutivi, traccia sospesa e riacquisita, mute, cambio tema e stop con render loop fermato. Audio/WebRTC/OpenAI simulati.
+- Tredici nuove regressioni coprono invio bloccato con traccia live, silenzio/DTX, recupero fallito, stop durante acquisizione, visibilità XR, eventi risposta persi, delta di interruzione e VAD non chiuso. Una trascrizione tardiva precedente a un reset esplicito non genera una risposta inattesa.
 
 Sul Quest: riprovare almeno cinque scambi, interruzione con parola, rumore, menu di sistema, cambi scenario e ritorno MR. Se NEO non sente, controllare la barra locale e **Invio microfono** nella diagnostica; usare **Riprendi ascolto** e annotare se compare **Microfono da ripristinare**. Permessi hardware, voce, eco, latenza e 72 FPS restano da verificare fisicamente.
