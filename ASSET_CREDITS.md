@@ -64,3 +64,7 @@ Cancelli, rampe, percorsi tattili, tavoli, sagome a distanza, materiali scartati
 “Rigged robot” di **joney_lol**, via [Poly Pizza](https://poly.pizza/m/BwjA6Thdzd), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Il modello e la licenza sono inclusi in `public/models/humanoid/`, con attribuzione, checksum e modifiche in `manifest.json` / `LICENSE.md`. L’immagine `preview.png` è un render locale del modello adattato, soggetto alla stessa attribuzione. Nessun avallo dell’autore è implicato. Non viene precaricato né sostituisce RobotExpressive. [Valutazione tecnica](docs/HUMANOID_CANDIDATE.md).
 
 I cittadini, le biciclette, tram/treno e le attività aggiunte alle sei scene sono geometrie originali procedurali, senza file o texture esterni nuovi. I materiali PBR Poly Haven e moduli Kenney già documentati sono conservati.
+
+## Rifinitura dei due futuri ambientali
+
+`EnvironmentalPlanting.ts` e `EnvironmentalStreetscape.ts` aggiungono vegetazione ramificata, facciate, balconi, tetti verdi, pavimentazioni e una piccola texture minerale deterministica originali del progetto. Nessun asset scaricato o nuova licenza di terzi; Poly Haven, Kenney e avatar esistenti restano invariati. La carrozzeria arrotondata usa la geometria ufficiale Three.js già incluso (MIT). Dettagli e budget in `docs/ENVIRONMENTAL_VISUALS.md`.

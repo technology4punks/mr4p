@@ -81,7 +81,7 @@ export class UrbanLife {
   }
   setQuality(low: boolean) { this.low = low; this.lastTime = -Infinity; }
   update(time: number) {
-    if (time - this.lastTime < 33) return;
+    if (this.theme !== "environmental" && time >= this.lastTime && time - this.lastTime < 33) return;
     this.lastTime = time;
     const seconds = time / 1000, f = this.future;
     const count = this.low ? 6 : 12;

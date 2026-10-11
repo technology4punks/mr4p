@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
 /** Shared, authored transport corridor. Six batches serve every theme/future. */
 export class CityTransit {
@@ -9,6 +10,14 @@ export class CityTransit {
   private dummy = new THREE.Object3D();
   private future = 0;
   private lastTime = -Infinity;
+  private smoothMotion = false;
+  private tramDistance = 0;
+  private trainDistance = 0;
+  private environmentalLayout = false;
+  private infrastructure: THREE.InstancedMesh;
+  private railDepths: number[];
+  private carriageBox: THREE.BufferGeometry;
+  private roundedCarriage?: THREE.BufferGeometry;
   constructor() {
     this.root.name = "Tram and regional rail corridor";
     const material = (color: number, roughness = 0.65, metalness = 0.25) => {
@@ -17,6 +26,7 @@ export class CityTransit {
       return m;
     };
     const cube = new THREE.BoxGeometry(1, 1, 1);
+    this.carriageBox = cube;
     const batch = (name: string, geometry: THREE.BufferGeometry, m: THREE.MeshStandardMaterial, count: number, dynamic = false) => {
       const mesh = new THREE.InstancedMesh(geometry, m, count);
       mesh.name = name;
@@ -26,6 +36,7 @@ export class CityTransit {
       return mesh;
     };
     const infrastructure = batch("Rail tracks, viaduct and tram stop", cube, material(0x75817c), 16);
+    this.infrastructure = infrastructure;
     const poses = [
       [0, 2.45, -12.5, 110, 0.18, 1.7],
       ...[-43, -25, -12, 12, 25, 43].map(x => [x, 1.2, -12.5, 0.32, 2.4, 0.5]),
@@ -36,6 +47,7 @@ export class CityTransit {
       ...[-7.3, -2.5].map(x => [x, 1.05, -7.6, 0.065, 2.1, 0.065]),
       [-4.9, 0.52, -7.45, 2.5, 0.12, 0.3],
     ];
+    this.railDepths = poses.slice(0, 9).map(p => p[2]);
     poses.forEach((p, i) => this.pose(infrastructure, i, p));
     const safety = batch("Platform edging and tram stop marker", cube, material(0xd6bd72), 3);
     [[-4.9, 0.16, -7.65, 5.6, 0.02, 0.12], [-2.5, 1.55, -7.23, 0.35, 0.35, 0.04], [-2.5, 1.98, -7.23, 0.2, 0.04, 0.05]].forEach((p, i) => this.pose(safety, i, p));
@@ -64,22 +76,57 @@ export class CityTransit {
     this.future = amount;
     this.shell.color.set(0x807867).lerp(new THREE.Color(0xb5d9cd), amount);
     this.shell.roughness = 0.8 - amount * 0.45;
-    this.lastTime = -Infinity;
+  }
+  /** Environmental traffic follows each rendered frame; other themes retain 30 Hz. */
+  setSmoothMotion(enabled: boolean) {
+    this.smoothMotion = enabled;
+  }
+  /** Move the environmental rail corridor behind the avenue to open the skyline. */
+  setEnvironmentalLayout(enabled: boolean) {
+    if (this.environmentalLayout === enabled) return;
+    this.environmentalLayout = enabled;
+    const pose = new THREE.Matrix4();
+    for (let i = 0; i < 9; i++) {
+      this.infrastructure.getMatrixAt(i, pose);
+      pose.elements[14] = this.railDepths[i] - (enabled ? 7 : 0);
+      this.infrastructure.setMatrixAt(i, pose);
+    }
+    this.infrastructure.instanceMatrix.needsUpdate = true;
+    if (enabled && !this.roundedCarriage) this.roundedCarriage = new RoundedBoxGeometry(1, 1, 1, 1, 0.07);
+    this.moving[0].geometry = enabled ? this.roundedCarriage! : this.carriageBox;
+    this.root.children.forEach(object => {
+      if (object instanceof THREE.InstancedMesh && object.boundingSphere) {
+        object.boundingSphere.center.z = enabled ? -14 : -10.5;
+        object.boundingSphere.radius = enabled ? 86 : 84;
+      }
+    });
+    this.updateVehicles();
   }
   update(time: number) {
-    if (time - this.lastTime < 33) return;
+    if (time >= this.lastTime && time - this.lastTime < (this.smoothMotion ? 0 : 33)) return;
+    // Integrate velocity instead of multiplying the entire session time by a
+    // changing speed. Future transformations must not teleport or reverse trains.
+    // A resumed tab advances at most 100 ms, without catching up offscreen time.
+    const delta = Number.isFinite(this.lastTime)
+      ? THREE.MathUtils.clamp((time - this.lastTime) / 1000, 0, 0.1)
+      : 0;
     this.lastTime = time;
-    const seconds = time / 1000;
-    // One tram travels each way. The train always crosses the clear foreground
+    this.tramDistance = (this.tramDistance + delta * (0.55 + this.future * 1.7)) % 110;
+    this.trainDistance = (this.trainDistance + delta * (1.5 + this.future * 2.5)) % 110;
+    this.updateVehicles();
+  }
+  private updateVehicles() {
+    // Two evenly spaced trams travel along the ground track, opposing the train.
+    // The train always crosses the clear foreground
     // viaduct; wrap points are outside the window's room-scale view envelope.
     for (let i = 0; i < 9; i++) {
       const train = i >= 4, run = train ? 2 : Math.floor(i / 2);
       const carriage = train ? i - 4 : i % 2;
       const direction = train ? -1 : 1;
-      const speed = (train ? 1.5 : 0.55) + this.future * (train ? 2.5 : 1.7);
-      const lead = ((seconds * speed + (run === 1 ? 0 : 55)) % 110) - 55;
+      const distance = train ? this.trainDistance : this.tramDistance;
+      const lead = ((distance + (run === 1 ? 0 : 55)) % 110) - 55;
       const x = direction * lead - direction * carriage * (train ? 5.25 : 3.65);
-      const y = train ? 2.65 : 0.14, z = train ? -12.5 : -8.4;
+      const y = train ? 2.65 : 0.14, z = train ? (this.environmentalLayout ? -19.5 : -12.5) : -8.4;
       const length = train ? 5 : 3.45, width = train ? 1.45 : 1.05;
       this.transform(this.moving[0], i, x, y + 0.8, z, length, 1.3, width);
       this.transform(this.moving[1], i, x, y + 1.03, z, length * 0.93, 0.52, width + 0.02);
@@ -90,5 +137,11 @@ export class CityTransit {
       }
     }
     this.moving.forEach(mesh => { mesh.instanceMatrix.needsUpdate = true; });
+  }
+  dispose() {
+    // The owning scene disposes active meshes. Also release the alternate shell
+    // when a different theme is active at teardown.
+    this.roundedCarriage?.dispose();
+    this.roundedCarriage = undefined;
   }
 }

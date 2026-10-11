@@ -6,6 +6,8 @@ import { CivicDistrict } from "./CivicDistrict";
 import { scenario, type Theme } from "../story/scenarios";
 import { CityTransit } from "./CityTransit";
 import { EnvironmentalDistrict } from "./EnvironmentalDistrict";
+import { EnvironmentalStreetscape } from "./EnvironmentalStreetscape";
+import { EnvironmentalPlanting } from "./EnvironmentalPlanting";
 export type NarrativeObject = "energy" | "water" | "mobility";
 export type CityBuilding = {
   x: number;
@@ -63,6 +65,10 @@ export class FutureObservatory {
     ),
   ];
   readonly district = new EnvironmentalDistrict();
+  readonly planting = new EnvironmentalPlanting();
+  readonly streetscape = new EnvironmentalStreetscape(cityLayout());
+  private legacyTrees = new THREE.Group();
+  private legacyArchitecture = new THREE.Group();
   readonly economic = new CivicDistrict("economic");
   readonly social = new CivicDistrict("social");
   private theme: Theme = "environmental";
@@ -102,12 +108,19 @@ export class FutureObservatory {
   private environment?: THREE.WebGLRenderTarget;
   constructor() {
     this.root.name = "Future Observatory";
+    this.hemisphere.groundColor.set(0x777870);
     this.root.visible = false;
     this.root.add(this.room, this.city, this.directional, this.hemisphere);
-    this.city.add(this.district.root, this.economic.root, this.social.root, this.transit.root);
+    this.city.add(this.district.root, this.planting.root, this.streetscape.root, this.economic.root, this.social.root, this.transit.root, this.legacyTrees, this.legacyArchitecture);
+    this.legacyTrees.visible = this.legacyArchitecture.visible = false;
+    this.transit.setSmoothMotion(true);
+    this.transit.setEnvironmentalLayout(true);
+    this.streetscape.textures.forEach(t => this.textures.add(t));
     this.economic.root.visible = this.social.root.visible = false;
     [
       ...this.transit.materials,
+      ...this.planting.materials,
+      ...this.streetscape.materials,
       ...this.district.materials,
       ...this.economic.materials,
       ...this.social.materials,
@@ -116,7 +129,7 @@ export class FutureObservatory {
       if (m instanceof THREE.MeshStandardMaterial) this.solids.push(m);
     });
     this.root.add(this.directional.target);
-    this.directional.position.set(-8, 12, -12);
+    this.directional.position.set(-8, 12, 8);
     const mat = (color: number, roughness = 0.75, metalness = 0) => {
       const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
       this.materials.add(m);
@@ -182,7 +195,7 @@ export class FutureObservatory {
       uniforms: {
         amount: { value: 0 },
         opacity: { value: 0 },
-        badSky: { value: new THREE.Color(0x9e5e2b) },
+        badSky: { value: new THREE.Color(0x9b8568) },
         time: { value: 0 },
       },
       vertexShader:
@@ -241,7 +254,7 @@ export class FutureObservatory {
         mesh.setMatrixAt(i, this.dummy.matrix);
       });
       mesh.computeBoundingSphere();
-      (layer === "far" ? this.far : this.city).add(mesh);
+      (layer === "far" ? this.far : layer === "near" ? this.legacyArchitecture : this.city).add(mesh);
     }
     const nearby = layout.filter((b) => b.layer === "near");
     const windowCells = new THREE.InstancedMesh(
@@ -264,7 +277,7 @@ export class FutureObservatory {
         }
     });
     windowCells.computeBoundingSphere();
-    this.details.add(windowCells);
+    this.legacyArchitecture.add(windowCells);
     const panelMaterial = mat(0x15344d, 0.2, 0.6);
     this.solar = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.2, 0.05, 0.8),
@@ -337,7 +350,7 @@ export class FutureObservatory {
     this.trunks.computeBoundingSphere();
     this.leaves.computeBoundingSphere();
     this.crowns.computeBoundingSphere();
-    this.city.add(this.trunks, this.leaves, this.crowns);
+    this.legacyTrees.add(this.trunks, this.leaves, this.crowns);
     // Branches remain exposed in the critical future and are covered by new foliage.
     const branches = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.025, 0.055, 1, 5),
@@ -359,7 +372,7 @@ export class FutureObservatory {
       branches.setMatrixAt(i, this.dummy.matrix);
     }
     branches.computeBoundingSphere();
-    this.city.add(branches);
+    this.legacyTrees.add(branches);
     this.dummy.rotation.set(0, 0, 0);
     // Deteriorated facade bands gradually become pale efficient envelopes.
     const cracks = mat(0x4a423b);
@@ -382,7 +395,7 @@ export class FutureObservatory {
       }
     });
     bands.computeBoundingSphere();
-    this.details.add(bands);
+    this.legacyArchitecture.add(bands);
     const accent = box(
       this.room,
       [3.8, 0.025, 0.04],
@@ -553,9 +566,15 @@ export class FutureObservatory {
     if (theme === this.theme) return;
     this.theme = theme;
     this.district.root.visible = theme === "environmental";
+    this.planting.root.visible = this.streetscape.root.visible = theme === "environmental";
+    this.legacyTrees.visible = this.legacyArchitecture.visible = theme !== "environmental";
+    this.transit.setSmoothMotion(theme === "environmental");
+    this.transit.setEnvironmentalLayout(theme === "environmental");
     this.economic.root.visible = theme === "economic";
     this.social.root.visible = theme === "social";
-    this.sky.uniforms.badSky.value.set(scenario(theme).badSky);
+    this.directional.position.set(-8, 12, theme === "environmental" ? 8 : -12);
+    this.hemisphere.groundColor.set(theme === "environmental" ? 0x777870 : 0x766956);
+    this.sky.uniforms.badSky.value.set(theme === "environmental" ? 0x9b8568 : scenario(theme).badSky);
     const current = Math.max(0, this.cachedState);
     this.cachedState = -1;
     this.setFuture(current);
@@ -569,6 +588,8 @@ export class FutureObservatory {
     amount = this.cachedState;
     this.transit.setFuture(amount);
     this.district.setFuture(amount);
+    this.planting.setFuture(amount);
+    this.streetscape.setFuture(amount);
     this.economic.setFuture(amount);
     this.social.setFuture(amount);
     this.crowns.visible = amount > 0.01;
@@ -585,7 +606,7 @@ export class FutureObservatory {
     this.hemisphere.intensity =
       (1.05 + amount * 0.8) * Math.max(0, this.cachedOpacity);
     this.directional.color
-      .set(0xffc294)
+      .set(this.theme === "environmental" ? 0xf0d4af : 0xffc294)
       .lerp(new THREE.Color(0xfff4dd), amount);
     this.directional.intensity =
       (1.7 + amount * 1.1) * Math.max(0, this.cachedOpacity);
@@ -630,7 +651,10 @@ export class FutureObservatory {
   update(time: number) {
     if (!this.root.visible) return;
     this.sky.uniforms.time.value = time / 1000;
-    if (this.district.root.visible) this.district.update(time);
+    if (this.district.root.visible) {
+      this.district.update(time);
+      this.planting.update(time);
+    }
     if (this.economic.root.visible) this.economic.update(time);
     if (this.social.root.visible) this.social.update(time);
     this.transit.update(time);
@@ -639,6 +663,8 @@ export class FutureObservatory {
     this.far.visible = quality !== "low";
     this.profile = quality;
     this.district.setQuality(quality === "low");
+    this.planting.setQuality(quality === "low");
+    this.streetscape.setQuality(quality === "low");
     this.economic.setQuality(quality === "low");
     this.social.setQuality(quality === "low");
     this.leaves.count = this.trunks.count = quality === "low" ? 15 : 30;
@@ -672,14 +698,14 @@ export class FutureObservatory {
     return this.narrativeRay(this.caster.ray);
   }
   get fogColor() {
-    return new THREE.Color(scenario(this.theme).badSky).lerp(
+    return new THREE.Color(this.theme === "environmental" ? 0x9b8568 : scenario(this.theme).badSky).lerp(
       new THREE.Color(0xb5cfda),
       Math.max(0, this.cachedState),
     );
   }
   get fogDensity() {
     const [bad, good] = scenario(this.theme).fog;
-    return THREE.MathUtils.lerp(bad, good, Math.max(0, this.cachedState));
+    return THREE.MathUtils.lerp(this.theme === "environmental" ? 0.027 : bad, good, Math.max(0, this.cachedState));
   }
   private disposeObject(root: THREE.Object3D) {
     root.traverse((obj) => {
@@ -703,6 +729,8 @@ export class FutureObservatory {
   }
   dispose() {
     this.disposed = true;
+    this.transit.dispose();
+    this.streetscape.dispose();
     this.economic.dispose();
     this.social.dispose();
     this.disposeObject(this.root);

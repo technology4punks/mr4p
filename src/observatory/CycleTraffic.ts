@@ -13,6 +13,7 @@ export class CycleTraffic {
   private meshes: THREE.InstancedMesh[];
   private dummy = new THREE.Object3D();
   private lastTime = -Infinity;
+  private distance = 0;
   constructor() {
     this.root.name = "Protected cycle lane riders";
     const batch = (name: string, geometry: THREE.BufferGeometry, color: number, count: number) => {
@@ -42,11 +43,12 @@ export class CycleTraffic {
     mesh.setMatrixAt(i, this.dummy.matrix);
   }
   update(time: number) {
-    if (time - this.lastTime < 33) return;
+    const delta = Number.isFinite(this.lastTime) ? THREE.MathUtils.clamp((time - this.lastTime) / 1000, 0, .1) : 0;
+    this.distance = (this.distance + delta * 1.9) % 76;
     this.lastTime = time;
     const seconds = time / 1000;
     for (let i = 0; i < 3; i++) {
-      const x = ((seconds * 1.9 + i * 22 + 34) % 76) - 38;
+      const x = ((this.distance + i * 22 + 34) % 76) - 38;
       const z = -6.1;
       frame.forEach((p, j) => this.pose(this.meshes[0], i * 7 + j, x + p[0], p[1], z, p[2], p[3], j === 5 ? 0.3 : 0.045, p[4]));
       for (let j = 0; j < 2; j++) this.pose(this.meshes[1], i * 2 + j, x + (j ? 0.48 : -0.48), 0.34, z, 1, 1, 1, seconds * 6);

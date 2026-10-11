@@ -110,7 +110,7 @@ export class EnvironmentalDistrict {
       "Industrial chimneys",
       new THREE.CylinderGeometry(0.45, 0.65, 1, 8),
       rust,
-      [-13, 3, 16].map((x, i) => [x, 6.3 + i, -28 - i * 2, 1, 12 + i * 2, 1]),
+      [-13, 3, 16].map((x, i) => [x, 3.75 + i * .6, -28 - i * 2, 1, 7.5 + i * 1.2, 1]),
     );
     const soot = new THREE.MeshBasicMaterial({
       color: 0x342e2a,
@@ -132,26 +132,11 @@ export class EnvironmentalDistrict {
       [0, -0.02, -5.1, 55, 0.045, 0.65],
     ]);
     const green = material(0x54793d),
-      leaf = material(0x397342),
       metal = material(0xbfc9c8, 0.3, 0.65);
     batch(this.sustainable, "Rain garden banks", box, green, [
       [0, -0.04, -4.55, 55, 0.04, 0.38],
       [0, -0.04, -5.6, 55, 0.04, 0.28],
     ]);
-    batch(
-      this.sustainable,
-      "Rain garden shrubs",
-      new THREE.SphereGeometry(1, 10, 7),
-      leaf,
-      Array.from({ length: 24 }, (_, i) => [
-        (i - 12) * 1.1,
-        0.26,
-        -4.5,
-        0.45,
-        0.28 + (i % 3) * 0.05,
-        0.25,
-      ]),
-    );
     batch(this.sustainable, "Cycling lane", box, material(0x669688), [
       [0, -0.055, -6.1, 55, 0.02, 0.5],
     ]);
@@ -205,14 +190,14 @@ export class EnvironmentalDistrict {
       "Wind turbine towers",
       new THREE.CylinderGeometry(0.1, 0.25, 1, 8),
       concrete,
-      towers.map((x) => [x, 7, -36, 1, 14, 1]),
+      towers.map((x) => [x, 4.5, -36, 1, 9, 1]),
     );
     batch(
       this.sustainable,
       "Wind turbine hubs",
       new THREE.SphereGeometry(0.24, 8, 6),
       metal,
-      towers.map((x) => [x, 14, -35.8, 1, 1, 1]),
+      towers.map((x) => [x, 9, -35.8, 1, 1, 1]),
     );
     this.blades = batch(
       this.sustainable,
@@ -265,9 +250,12 @@ export class EnvironmentalDistrict {
       ),
     );
     this.vehicles[0].userData.powertrain = "electric in sustainable future";
-    for (const mesh of this.vehicles) mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, -10), 43);
+    for (const mesh of this.vehicles) {
+      mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, -10), 43);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    }
     this.smoke.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 15, -30), 22);
-    this.blades.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 14, -36), 19);
+    this.blades.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 9, -36), 19);
     for (const group of [this.critical, this.sustainable])
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) {
@@ -296,12 +284,12 @@ export class EnvironmentalDistrict {
     this.time = -Infinity;
   }
   update(time: number) {
-    if (time - this.time < 33) return; // Decorative animation at 30 Hz, not XR locomotion.
-    this.time = time;
+    // Foreground vehicles track each rendered frame; only distant smoke/rotors
+    // are throttled. Head pose and the conversation keep their own clocks.
     if (Number.isFinite(this.trafficTime) && time >= this.trafficTime) {
       const seconds = time / 1000;
       const criticalSpeed = 0.62 + Math.cos(seconds * 0.9) * 0.38;
-      this.trafficDistance += Math.min(0.5, (time - this.trafficTime) / 1000) * THREE.MathUtils.lerp(criticalSpeed, 2.3, this.future);
+      this.trafficDistance += Math.min(0.1, (time - this.trafficTime) / 1000) * THREE.MathUtils.lerp(criticalSpeed, 2.3, this.future);
     }
     this.trafficTime = time;
     this.activity.update(time);
@@ -335,20 +323,23 @@ export class EnvironmentalDistrict {
       }
     }
     for (const mesh of this.vehicles) mesh.instanceMatrix.needsUpdate = true;
-    for (let i = 0; i < 18; i++) {
-      const stack = Math.floor(i / 6),
-        puff = i % 6,
-        drift = (time / 2800 + puff) % 6;
+    if (time >= this.time && time - this.time < 33) return;
+    this.time = time;
+    for (let i = 0; i < this.smoke.count; i++) {
+      const stack = i % 3,
+        puff = Math.floor(i / 3),
+        drift = (time / 2800 + puff * (18 / this.smoke.count)) % 6;
+      const envelope = Math.min(1, drift * 2, (6 - drift) * 1.5);
       this.dummy.position.set(
         [-13, 3, 16][stack] + drift * 0.38,
-        12 + stack * 2 + drift * 0.65,
+        7.5 + stack * 1.2 + drift * 0.65,
         -28 - stack * 2,
       );
       this.dummy.rotation.set(0, 0, 0);
       this.dummy.scale.set(
-        0.65 + drift * 0.12,
-        0.6 + drift * 0.11,
-        0.7 + drift * 0.12,
+        (0.65 + drift * 0.12) * envelope,
+        (0.6 + drift * 0.11) * envelope,
+        (0.7 + drift * 0.12) * envelope,
       );
       this.dummy.updateMatrix();
       this.smoke.setMatrixAt(i, this.dummy.matrix);
@@ -358,7 +349,7 @@ export class EnvironmentalDistrict {
       const theta = time / 7000 + ((i % 3) * Math.PI * 2) / 3;
       this.dummy.position.set(
         [-15, 0, 15][Math.floor(i / 3)] - Math.sin(theta) * 1.4,
-        14 + Math.cos(theta) * 1.4,
+        9 + Math.cos(theta) * 1.4,
         -35.65,
       );
       this.dummy.rotation.set(0, 0, theta);

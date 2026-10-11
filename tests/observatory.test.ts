@@ -80,10 +80,10 @@ describe("three-dimensional observatory", () => {
       new THREE.Vector3(0, 0, -1),
     );
     expect(scene.narrativeRay(ray)).toContain("Acqua");
-    const near = scene.city.children.filter(
-      (o) => o instanceof THREE.InstancedMesh,
-    );
-    expect(near.length).toBeGreaterThan(3);
+    const batches: THREE.InstancedMesh[] = [];
+    scene.city.traverseVisible(o => { if (o instanceof THREE.InstancedMesh) batches.push(o); });
+    expect(batches.some(o => o.name === "Environmental masonry envelopes")).toBe(true);
+    expect(batches.some(o => o.name === "Recessed front and side glazing")).toBe(true);
     scene.setOpacity(0);
     expect(scene.root.visible).toBe(false);
     scene.dispose();
