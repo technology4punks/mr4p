@@ -129,6 +129,9 @@ test("V4: four cumulative decisions, one revision, reflection, consent, persiste
 test("returns while entering, declines storage, then restarts cleanly", async ({
   page,
 }) => {
+  // Two portal sequences plus return/farewell and software-rendered actionability.
+  // Keep the phase assertions bounded; allow the entire multi-phase visit to finish.
+  test.setTimeout(60000);
   await page.addInitScript(() =>
     Object.defineProperty(navigator, "mediaDevices", {
       value: {
