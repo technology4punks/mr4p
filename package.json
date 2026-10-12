@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently -k \"node --use-env-proxy --env-file-if-exists=.env --import tsx --watch server/index.ts\" \"vite --host 0.0.0.0\"",
     "build": "npm run typecheck && vite build && tsc -p tsconfig.server.json",
-    "start": "node --use-env-proxy --env-file-if-exists=.env dist-server/index.js",
+    "start": "node --use-env-proxy --env-file-if-exists=.env dist-server/server/index.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",

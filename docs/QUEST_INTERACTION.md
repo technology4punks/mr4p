@@ -4,12 +4,12 @@ La prova dell'utente sul visore ha confermato che la base era utilizzabile, ma h
 
 ## Menu immersivo
 
-- Con local-floor il pannello resta chiuso durante l’avvio automatico a 1,3 m; si apre se occorre calibrare o scegliere un punto libero. Nel riposizionamento manuale si chiude dopo la conferma. Restano tre piccoli comandi arrotondati: Menu, Avvia voce / Interrompi NEO / Riprendi ascolto e cambio tema.
+- Con local-floor il pannello resta chiuso durante l’avvio automatico a 1,3 m; si apre se occorre calibrare o scegliere un punto libero. Nel riposizionamento manuale si chiude dopo la conferma. Restano tre piccoli comandi arrotondati: Menu, Avvia voce / Interrompi NEO / Riprendi ascolto e scelte cumulative.
 - A/X, clic dello stick o presa del controller aprono/chiudono il pannello. Puntatore, cursore e bordo illuminato indicano il pulsante selezionato; il grilletto attiva l'azione.
 - Lo stick sceglie i pulsanti con una zona morta e ripetizione controllata. Spostare intenzionalmente il controller restituisce il controllo al puntatore. Lo stick non sposta la camera.
 - Con il tracciamento mani disponibile: raggio della mano e pinch. Si richiede hand-tracking come funzionalità opzionale; gli eventi nativi e il controllo delle articolazioni hanno deduplicazione e isteresi.
 - Pannello e comandi chiusi rimangono fermi nello spazio anche girando la testa o camminando. Un’apertura esplicita del menu lo colloca in alto a destra rispetto allo sguardo attuale (1,65 m avanti, 0,8 m a destra, 0,32 m sopra la quota occhi); una nuova sessione o un reset del riferimento ne inizializza la posa. Le azioni nascoste non intercettano i raggi.
-- Le funzioni di calibrazione restano in Posizionamento; nell'osservatorio compaiono il confronto Futuro sostenibile / critico, cambio tema e Torna alla realtà. Il cambio tema è disponibile anche nel dock chiuso e durante le transizioni.
+- Le funzioni di calibrazione restano in Posizionamento; nell’osservatorio compaiono le scelte V4, la revisione finale e Torna alla realtà. Gli interventi si applicano nello stesso ambiente.
 - Nessuna dipendenza da DOM Overlay, modelli di controller esterni o locomozione artificiale.
 
 ## Voce in un ambiente rumoroso
@@ -18,7 +18,7 @@ La modalità predefinita è ora **Interruzioni intelligenti**: il microfono rest
 
 Una parola reale (anche “sì” o “no”), con durata minima se sovrapposta all’audio, può cancellare la risposta e svuotare l’audio remoto preservando l’input dell’utente. Si attende la fine della vecchia generazione prima di una sola nuova risposta. I delta della trascrizione, quando disponibili, possono anticipare l’interruzione; il completamento arriva normalmente dopo una breve pausa: il filtro introduce quella latenza, ma non deve aspettare che NEO termini il monologo. È una euristica basata su ASR, non un classificatore infallibile di rumori o eco.
 
-La modalità **protetta** blocca il microfono fino a 350 ms dopo la fine dell’audio; **Interrompi NEO / Riprendi ascolto** restituisce esplicitamente il turno, riattiva un mute scelto dall’utente e tenta di sbloccare l’audio senza ricreare il peer. Mute, stop e background conservano la precedenza. Il cambio di scenario non chiude WebRTC. Sensibilità, rumori, eco e latenza reali richiedono nuova prova sul visore.
+La modalità **protetta** blocca il microfono fino a 350 ms dopo la fine dell’audio; **Interrompi NEO / Riprendi ascolto** restituisce esplicitamente il turno, riattiva un mute scelto dall’utente e tenta di sbloccare l’audio senza ricreare il peer. Mute, stop e background conservano la precedenza. Le trasformazioni V4 non chiudono WebRTC. Sensibilità, rumori, eco e latenza reali richiedono nuova prova sul visore.
 
 ## Stato di ascolto e recupero dopo un turno
 

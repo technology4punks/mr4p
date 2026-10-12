@@ -130,6 +130,7 @@ export class EnvironmentalStreetscape {
     // The alternate envelope may be detached when quality has dropped.
     this.roundedEnvelope.dispose();
   }
+  setCityEfficiency(amount: number) { this.setFuture(amount); this.roofGardens.visible=false; }
   setQuality(low: boolean) {
     this.fineDetails.visible = !low;
     this.buildings.geometry = low ? this.simpleEnvelope : this.roundedEnvelope;

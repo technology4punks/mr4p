@@ -122,12 +122,13 @@ describe("Realtime narrative transport", () => {
     expect(ready).toHaveBeenCalledTimes(1);
     expect(
       sent().find((e) => e.item?.role === "system").item.content[0].text,
-    ).toContain("INTRODUCTION");
+    ).toContain("WAITING_FOR_START");
     expect(sent().at(-1).type).toBe("response.create");
   });
   it("executes full validated calls once, returns rejection and waits until response completion", async () => {
     client.dispose();
     const engine = new StoryEngine();
+    engine.dispatch({type:"start"});
     const onTool = vi.fn((name: string, args: string) =>
       engine.tool(name, args),
     );
@@ -137,15 +138,16 @@ describe("Realtime narrative transport", () => {
     const call = {
       type: "response.function_call_arguments.done",
       call_id: "call1",
-      name: "select_theme",
-      arguments: '{"theme":"environmental"}',
+      name: "remember_name",
+      arguments: '{"name":"Luca"}',
     };
     deliver({ ...call, type: "response.function_call_arguments.delta" });
     expect(onTool).not.toHaveBeenCalled();
     deliver(call);
     deliver(call);
     expect(onTool).toHaveBeenCalledTimes(1);
-    expect(engine.snapshot.state).toBe("INVITATION");
+    expect(engine.snapshot.state).toBe("INITIALIZING_MR");
+    expect(engine.snapshot.name).toBe("Luca");
     expect(JSON.parse(sent()[0].item.output).accepted).toBe(true);
     expect(sent().some((e) => e.type === "response.create")).toBe(false);
     deliver({ type: "response.done", response: { status: "completed" } });

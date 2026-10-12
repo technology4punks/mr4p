@@ -1,14 +1,20 @@
-# NEO — Future Observatory
+# NEO · Future Observatory V4
 
-MVP React + TypeScript + Vite + Three.js/WebXR, con backend Node e voce OpenAI Realtime via WebRTC. RobotExpressive e gli asset Poly Haven CC0 sono inclusi nel repository: nessun asset remoto a runtime. [Architettura e prova dell’osservatorio](docs/FUTURE_OBSERVATORY.md).
+**The Complexity of Choice**: una città del 2050 che cambia attraverso le decisioni del partecipante. React/TypeScript, Three.js/WebXR e conversazione OpenAI Realtime. La V4 estende avatar, stanza, controllo room scale e correzioni del microfono esistenti.
 
-Nuova revisione 3D: tram e treno visibili in tutti i temi, traffico critico che avanza, pedoni e ciclisti, officine e piazze animate. [Dettagli delle sei ambientazioni](docs/SIX_SCENARIOS.md). [Candidato umanoide futuristico](docs/HUMANOID_CANDIDATE.md), separato dal robot attuale.
+## Esperienza
 
-Estensione narrativa dell’MVP: stanza 3D, città a profondità reale e sei futuri e trasformazione critico → sostenibile. **MR, voce live, persistenza e compatibilità su dispositivi fisici restano da validare.** [Risultati e limiti](docs/VALIDATION.md), [checklist hardware](docs/DEVICE_TESTS.md), [specifica](SPEC.md), [istruzioni progetto](AGENTS.md).
+Premi **INIZIA ESPERIENZA**: soltanto allora vengono richiesti microfono e, sui browser compatibili, una sessione AR. Un portale ancorato nello spazio introduce NEO. Dopo l’invito entri nell’osservatorio tridimensionale con finestra e città su tre livelli di profondità.
+
+Scegli fra dieci ambiti e trenta interventi. Ogni scelta modifica lo stesso ambiente in sette secondi; la conversazione resta aperta. Puoi scegliere più opzioni distinte nello stesso ambito, concludere dopo quattro scelte oppure aggiungerne una quinta. La città conserva benefici, compromessi e problemi residui. Nella riflessione finale puoi sostituire una sola scelta, anche con un altro ambito: gli effetti superati vengono rimossi.
+
+Puoi fare domande, mettere in pausa o tornare alla realtà. Dopo una riflessione libera, NEO propone un messaggio collegato alle tue scelte. **Il consenso a salvarlo è separato**. La schermata finale permette di ricominciare; voce e XR vengono chiusi.
+
+La V4 contiene esclusivamente lo scenario ambientale. Le precedenti città sociali/economiche e il pulsante che rendeva tutto sostenibile sono sostituiti dal modello cumulativo richiesto in `SPEC.md`.
 
 ## Avvio locale
 
-Richiede Node **24.5+** (consigliato ultimo Node 24 LTS) e npm.
+Node **24.5+** (SQLite nativo), npm:
 
 ```sh
 npm ci
@@ -16,77 +22,72 @@ cp .env.example .env
 npm run dev
 ```
 
-Apri `http://localhost:5173`. Il proxy Vite inoltra `/api` al backend sulla porta 3000. `.env` è ignorato da Git ed è caricato soltanto dal processo server. In sviluppo lascia `APP_ORIGIN` vuoto e `REQUIRE_PROXY_AUTH=false`. Configura `OPENAI_API_KEY` nel runtime server tramite un gestore di segreti; un `.env` locale non tracciato è supportato per sviluppo. **Mai usare `VITE_*` per segreti**, inserire la chiave nella pagina, in una chat o nel repository. Senza chiave, la preview funziona e la route voce risponde 503 con un messaggio recuperabile.
+Configura `OPENAI_API_KEY` esclusivamente nel backend. `REALTIME_MODEL` e `REALTIME_VOICE` sono modificabili; i default esistenti sono preservati. Vite inoltra `/api` al backend. Per una build di produzione locale:
 
 ```sh
-npm run check
-npx playwright install --with-deps chromium webkit
-npm run test:e2e
 npm run build
 npm start
 ```
 
-`npm start` serve il bundle e la stessa API su `http://localhost:3000`. I comandi Node usano `--use-env-proxy` per rispettare proxy HTTP/HTTPS del runtime senza disabilitare TLS. I test E2E avviano il server di produzione locale senza chiavi API e con trasporto microfono negato simulato. La CI esegue gli stessi quality gate e salva screenshot/trace.
+La modalità 3D è utilizzabile anche se manca una chiave o viene negato il microfono. Le funzioni vocali richiedono HTTPS o localhost e accesso al servizio OpenAI.
 
-## Funzionamento
+## Componenti
 
-- **Future Observatory:** sei futuri ambientali, economici e sociali, stanza 5 × 5 m, skyline 3D a tre profondità, vera parallasse, transizione di otto secondi, oggetti narrativi e ritorno sempre disponibile. Pulsanti e voce condividono lo Story Engine; scena e WebRTC restano separati.
-
-- **Anteprima 3D:** scena orbitabile con mouse/touch, zoom, statura 1,5–1,7 m, saluto, approvazione e dissenso. Nessuna simulazione AR tramite videocamera su iPhone.
-- **MR:** pulsante soltanto dopo `isSessionSupported('immersive-ar')`; sfondo trasparente e `local-floor`, oppure `local` con calibrazione manuale obbligatoria. L’avatar è nel world space della scena e si volta gradualmente verso il visore, anche quando gli si passa dietro.
-- **Posizionamento:** avvio automatico a 1,3 m dopo tre secondi di ricerca del pavimento; se una superficie rilevata occupa il punto previsto, viene richiesta una posizione manuale. Quota/estensione/orientamento escludono tavoli dal pavimento; hit-test e scelta con ray/controller o tocco restano nel flusso manuale, con quota ±5 cm e conferma. Le superfici sono suggerimenti da verificare visivamente.
-- **Anchor:** creazione sul frame attivo, aggiornamento da `anchorSpace`, salvataggio/restore dell’handle sullo stesso origin quando le API sono esposte. Un anchor recuperato è riusato se entro 20 cm dal punto atteso a 1,3 m davanti al visore; altrimenti viene sostituito. Posa congelata se il tracking degrada; reset locale e sul dispositivo se supportato. Un recenter senza anchor richiede nuovo posizionamento.
-- **Voce:** microfono solo dopo click, secret effimero dal backend, SDP all'endpoint GA `/v1/realtime/calls`, VAD con interruzioni, mute/stop, cleanup e sblocco audio esplicito. Background, chiamate/interruzioni e perdita di rete terminano la sessione; la ripresa richiede un nuovo click.
-- **Animazione:** `AnimationMixer`, crossfade e one-shot, head-follow lieve, gesture durante risposte lunghe. Bocca proxy sulla testa pilotata da RMS smussato dell'audio remoto effettivamente riprodotto: nessun visema fonetico, nessun movimento se l'audio è assente/bloccato.
-- **Diagnostica:** capability, riferimento, piani, quota, anchor/persistenza, tracking, peer, livelli e FPS. Trascrizioni opzionali solo in memoria finché la vista debug è attiva, senza log di token o audio.
-
-Nel visore punta il controller e usa il grilletto sul pannello 3D: Conferma, Riposiziona, Quota, Avvia/stop voce, Mute, Riattiva audio, Reset anchor, Esci. Toccare il pavimento sceglie un punto, poi occorre confermare. Se manca `local-floor`, regola il marker ai piedi e seleziona **Quota corretta**; se hai regolato la quota manualmente, conferma il punto.
-
-## HTTPS e accesso privato
-
-Il progetto produce `dist/` e `dist-server/`. Serve **entrambi** con Node dietro un reverse proxy HTTPS; un hosting esclusivamente statico non può erogare la route voce. Non occorrono WebSocket custom: l'audio WebRTC va dal browser a OpenAI, il backend usa soltanto HTTPS.
-
-È incluso un esempio [Caddy](deploy/Caddyfile) per un host scelto dall'utente. L’adattamento Sites è pubblicato separatamente; il backend Node rimane disponibile per hosting autonomo. Configura nel runtime del server:
-
-| Variabile | Valore / comportamento |
+| Modulo | Responsabilità |
 |---|---|
-| `NODE_ENV` | `production` |
-| `OPENAI_API_KEY` | Segreto server OpenAI |
-| `REALTIME_MODEL` | Default `gpt-realtime-2.1-mini`; confronto `gpt-realtime-2.1`, se abilitato |
-| `REALTIME_VOICE` | Default `marin`; configurabile con una voce supportata |
-| `APP_ORIGIN` | Origin HTTPS esatto, senza slash finale |
-| `REQUIRE_PROXY_AUTH` | `true` in produzione |
-| `PROXY_AUTH_SECRET` | Segreto condiviso solo tra proxy e backend |
-| `TRUST_PROXY_HOPS` | Numero esatto di proxy fidati, per esempio `1` con Caddy direttamente davanti a Node |
-| `TOKEN_LIMIT_PER_MINUTE` | Default `5` per IP |
-| `TOKEN_GLOBAL_LIMIT_PER_MINUTE` | Default `30` per processo |
+| `src/decision/catalog.ts` | 10 leve, 30 interventi, benefici, compromessi e metadati |
+| `src/decision/DecisionEngine.ts` | slot, duplicati, revisione e ricostruzione delle 12 regole |
+| `src/story/StoryEngine.ts` | stati, consensi, proposte ambigue e tool autorizzati |
+| `src/observatory/CityTransformationEngine.ts` | strati e collegamenti predefiniti sulla stessa città |
+| `src/Experience.ts` | portale, transizioni, avatar, UI e persistenza |
+| `src/audio/realtimeClient.ts` | WebRTC, turni, interruzioni e recupero input |
+| `server/story-config.ts` | prompt V4 e schema dei tool Realtime |
+| `server/session-store.ts` | SQLite persistente, scadenza e cancellazione |
 
-Configura Caddy con `NEO_DOMAIN`, `NEO_USER`, `NEO_PASSWORD_HASH` (hash prodotto con `caddy hash-password`) e lo stesso `PROXY_AUTH_SECRET`. Il proxy autentica tutto il sito e **sovrascrive** gli header `X-NEO-USER` e `X-NEO-PROXY-SECRET`. Il backend verifica il segreto con confronto a tempo costante. Il porto Node deve essere accessibile soltanto dal proxy; gli header inviati direttamente dal browser non sono un'identità.
+Nessuna geometria viene generata dal modello linguistico. I cinque contesti interni WATER, ENERGY, LAND, INVESTMENT e ACCESSIBILITY sono qualitativi e non costituiscono un punteggio educativo né una simulazione scientifica.
 
-In produzione la voce rifiuta accessi senza configurazione autenticata, origin corretto e prova del proxy. La route applica rate limit globale/per IP, `no-store`, timeout upstream e risposte sanificate; non accetta impostazioni del modello dal client. Sono impostati CSP, `frame-ancestors 'none'`, permessi microfono/XR sullo stesso origin e videocamera disabilitata. I piedi e il passthrough usano WebXR, non i pixel della videocamera.
+## Developer panel
 
-I limiter sono in memoria **per processo**: per questo MVP usa una sola istanza. Prima di scalare occorre un limite condiviso presso il gateway. Il timer browser chiude le sessioni dopo 10 minuti, ma non è un limite contabile affidabile: un utente autorizzato può modificare il client. Configura budget e limiti nell'account OpenAI. ChatGPT e le API hanno fatturazione separata.
+È chiuso nella modalità normale. **Developer → Ingresso manuale** avvia l’osservatorio senza microfono; puoi applicare tutti i trenta interventi in visite ripetute, vedere risorse, interdipendenze, draw call, FPS, connessione e stato del salvataggio. Reset permette di ripetere la simulazione. Il normale percorso finale offre la revisione.
 
-### Sites
+## Voce e menu
 
-Sito di test **pubblico**: **https://neo-mr-avatar-test.sk1kko.chatgpt.site** (aprire direttamente nel Meta Quest Browser; nessun login ChatGPT). Il sorgente Sites usa Vinext e route server Worker native e abilita esplicitamente l’avvio voce anonimo, con origine esatta e limiti di richiesta; non esegue Express nel Worker. La chiave esistente rimane un segreto backend, senza variabili `VITE_*`. Dopo modifiche ai segreti occorre ridistribuire la versione perché il deployment usa una revisione del runtime.
+Start precede qualsiasi acquisizione audio. NEO usa risposte concise e informative, conosce scelte e stato autorevole e chiede chiarimenti sulle intenzioni ambigue. Il nome è una memoria transitoria della visita, esclusa dal salvataggio.
 
-Questa repository conserva il backend Node richiesto da AGENTS.md; l’adattamento Sites riusa lo stesso frontend e protocollo Story Engine. Servire solo `dist/` su hosting statico non abilita la voce. Lo stato dettagliato delle verifiche è in `docs/VALIDATION.md`; hardware e OpenAI live non sono attestati dai test automatici.
+Il microfono rimane aperto con interruzioni intelligenti: un evento VAD da solo non cancella l’audio. Il client aspetta parole riconoscibili e gestisce fine risposta, mute, pause XR, eventi tardivi e recupero della traccia. **Riprendi ascolto** riattiva l’acquisizione se il dispositivo l’ha sospesa. Non esiste un timer narrativo che obblighi a concludere la visita.
 
-## Struttura
+Menu e dock sono traslucidi, arrotondati e fermi nello spazio; un richiamo esplicito li riposiziona in alto a destra. Controller/raggio, stick per il focus e mani/pinch sono mantenuti. In XR le scelte sono disponibili nel menu, insieme a ritorno, revisione e consenso. Le risorse interne non compaiono nell’esperienza del partecipante.
 
-`src/App.tsx` contiene l'interfaccia React; `src/Experience.ts` gestisce scena e lifecycle. `src/xr` isola capability, pavimento, sessione e anchor; `src/avatar` animazioni e bocca; `src/audio` WebRTC/RMS; `src/ui/ui3d.ts` il pannello immersivo. `src/story` valida la narrazione; `src/observatory` contiene stanza, città, qualità e suoni. `server/` contiene backend sicuro e configurazione Realtime/Story; `tests/` test unitari, API e browser. [Crediti asset](ASSET_CREDITS.md).
+## Persistenza e hosting
 
-## Fonti verificate
+Node salva in `FUTURE_DB_PATH` (default `./data/future-observatory.sqlite`), su disco persistente. `RETENTION_DAYS` è configurabile da 1 a 365, default 30; il processo elimina record scaduti all’avvio, ogni ora e sulle operazioni di salvataggio/cancellazione. Un filesystem effimero non è adatto alla produzione.
 
-- [OpenAI Realtime WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc): client secret GA, SDP e data channel.
-- [Meta Mixed Reality in Browser](https://developers.meta.com/vr/documentation/web/webxr-mixed-reality/): rilevamento capability, attesa dei piani, anchor e limiti di persistenza.
-- [RobotExpressive](https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/RobotExpressive): asset, clip e licenza CC0.
+Su **Sites** il progetto pubblico esistente usa D1, binding `DB`, schema e migration Drizzle. Il segreto OpenAI rimane nelle variabili runtime del Site. L’overlay riproducibile è in `deploy/sites/`; il client e il catalogo sono gli stessi della versione Node. I record scaduti vengono eliminati alle operazioni API e alla prima richiesta dopo ogni ora; in assenza totale di traffico la rimozione fisica attende una richiesta successiva. Non sono esposti endpoint di lettura pubblica.
 
-Il Quest può conservare al massimo otto anchor persistenti per origin; modalità privata, cancellazione dati o cambiamenti nei permessi della stanza possono invalidarli. L'app mantiene una sola posizione e non promette persistenza senza verifica hardware.
+Il backend Node in produzione conserva l’autenticazione tramite reverse proxy: `APP_ORIGIN`, `REQUIRE_PROXY_AUTH=true`, `PROXY_AUTH_SECRET` e numero esatto di hop. Il proxy deve rimuovere gli header ricevuti e impostare `X-NEO-USER` solo dopo l’autenticazione. Il Site pubblico usa il proprio endpoint con limiti per visitatori anonimi e origine esatta, senza richiedere login al visore.
 
-## Controlli Quest e voce protetta
+Il salvataggio restituisce un identificativo e la scadenza. La cancellazione richiede un token privato, conservato in memoria durante la visita e scaricabile come ricevuta: conservalo se vuoi cancellare dopo aver chiuso la pagina. Il database conserva solo l’hash del token. Non usare nomi, contatti o altre informazioni identificanti nella riflessione.
 
-Il menu si chiude dopo il posizionamento: A/X o presa lo richiamano, grilletto/pinch selezionano e lo stick sceglie i pulsanti. Anche i comandi chiusi restano fermi nello spazio. Un indicatore accanto a NEO mostra quando si può parlare, quando ascolta, risponde o ha il microfono spento/in pausa. **Interrompi NEO / Riprendi ascolto** restituisce il turno senza riconnettere. Una pausa di focus XR si rimuove al ritorno, conservando il mute manuale. Le interruzioni intelligenti attendono una parola trascritta; resta disponibile la modalità protetta. Il selettore e il dock Quest cambiano tema senza uscire dall’osservatorio, anche durante le transizioni. Tutti i sei futuri hanno attività animata fin dall’ingresso e il confronto critico/sostenibile funziona in entrambe le direzioni. Il menu arrotondato viene collocato in alto a destra su apertura esplicita e rimane world-locked. NEO si presenta, chiede il nome e lo ricorda nella pagina; risponde normalmente in 10–25 parole, con informazioni concrete e domande solo quando utili. [Scenari e dialogo](docs/SIX_SCENARIOS.md). [Correzione ascolto e UX](docs/VOICE_UX.md). [Controlli e limiti](docs/QUEST_INTERACTION.md).
+## Documentazione e verifica
 
-NEO guarda il visore a 360° in tutti gli stati. Nell’osservatorio room scale segue lentamente di fianco, con collisioni su pareti e arredi virtuali; in MR resta ancorato e si volta, perché i piani WebXR non garantiscono una mappa completa dei mobili reali. [Posizionamento, seguito e limiti](docs/ROOM_SCALE.md).
+- [Specifica integrale V4](SPEC.md)
+- [Catalogo dei 30 interventi](docs/V4_CATALOG.md)
+- [Interdipendenze e trasformazioni](docs/V4_INTERDEPENDENCIES.md)
+- [API e privacy](docs/V4_PERSISTENCE.md)
+- [Architettura e journey](docs/FUTURE_OBSERVATORY.md)
+- [Asset e licenze](ASSET_CREDITS.md)
+- [Prove e misure](docs/VALIDATION.md)
+- [Checklist dei dispositivi](docs/DEVICE_TESTS.md)
+
+```sh
+npm run check
+npm run test:e2e
+```
+
+Le prove browser usano Chromium desktop/Android e WebKit iPhone, con rendering software. Il test vocale simula acquisizione e WebRTC: non certifica microfono, servizio Realtime live o latenza hardware. Il target Quest Pro resta 72 FPS, da misurare sul dispositivo. Nessun post-processing pesante; geometrie condivise, instancing, frustum culling e qualità adattiva preservano gli interventi scelti.
+
+## Limiti WebXR
+
+Si preferisce occultare il passthrough con la stanza opaca dentro `immersive-ar`; il compositing effettivo non è verificato sul Quest Pro. Il blend additive non può essere reso opaco: il percorso propone una sessione VR separata con gesto esplicito. AR/VR non sono intercambiabili automaticamente. In VR il ritorno chiude la sessione e richiede un nuovo gesto AR, mantenendo la conversazione quando disponibile.
+
+La stanza virtuale non segnala gli ostacoli fisici. Camera XR, portal lock, tracking mani, anchoring locale, ingresso/ritorno e confini vanno verificati sul visore. Android usa AR solo se rilevata; iPhone e desktop usano camera 3D mouse/touch senza locomozione XR artificiale.

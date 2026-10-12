@@ -34,37 +34,14 @@ Acquisiti e verificati il 10 ottobre 2026. Tutti **CC0 1.0 Universal**, come dic
 
 La città, il cielo a gradiente, gli oggetti narrativi, il tram e la vegetazione sono generati deterministicamente da geometrie Three.js. I suoni ambiente sono sintetizzati dall’app e non contengono registrazioni di terzi.
 
-## Revisione ambientale e controlli Quest
+## V4 · geometrie e suoni originali
 
-Auto, ruote, colonnine, pensilina, turbine, fumo, macerie, canale, arbusti e chiome stratificate sono geometrie procedurali originali del progetto (EnvironmentalDistrict.ts e FutureObservatory.ts). I pulsanti e i cursori XR sono generati dall’app. Nessun nuovo modello, texture o suono di terzi è stato aggiunto; le licenze e il manifest degli asset CC0 precedenti restano invariati.
+Portale, trenta strati d’intervento, connessioni fra settori, persone a distanza, traffico, cargo bike, furgoni, skyline, cielo e UI sono geometrie/shader originali del progetto. Geometrie statiche ripetute sono instanziate; nessun asset AI viene generato durante la conversazione. Suoni sintetici Web Audio, senza registrazioni di terzi. Three.js è MIT.
 
+## Risorse precedenti conservate, non precaricate nella V4
 
-## Sei scenari — Kenney CC0
+I quattro GLB Kenney in `public/scenarios/kenney/` sono **CC0**, autore Kenney; licenze e manifest originali sono conservati. Fonti: [City Kit Industrial](https://kenney.nl/assets/city-kit-industrial), [City Kit Commercial](https://kenney.nl/assets/city-kit-commercial), [Furniture Kit](https://kenney.nl/assets/furniture-kit). Le precedenti città separate non sono parte del percorso V4, pertanto questi modelli non vengono caricati dal renderer attuale.
 
-Acquisiti il 10 ottobre 2026 da download ufficiali gratuiti; licenze originali incluse in ogni directory. Autore **Kenney**, licenza [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Quattro GLB e due texture PNG 512 × 512, **241.590 byte** inclusi i file di licenza. Nessun CDN o account richiesto a runtime.
+“Rigged robot” di **joney_lol**, via [Poly Pizza](https://poly.pizza/m/BwjA6Thdzd), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), resta un candidato umanoide opzionale in `public/models/humanoid/`, con attribuzione, checksum, modifiche e licenza. Non è caricato automaticamente e non sostituisce RobotExpressive. [Valutazione tecnica](docs/HUMANOID_CANDIDATE.md).
 
-| Asset / fonte | Uso effettivo | Triangoli sorgente |
-|---|---|---:|
-| `industrial/building-h.glb` — [Industrial 2.0](https://kenney.nl/assets/city-kit-industrial) | Fabbrica/officina nello scenario economico | 698 |
-| `industrial/solar-panel-flat.glb` — Industrial 2.0 | Due moduli fotovoltaici condivisi | 164 |
-| `commercial/building-e.glb` — [Commercial 2.1](https://kenney.nl/assets/city-kit-commercial) | Due edifici di servizi nello scenario sociale | 1.509 |
-| `furniture/bench.glb` — [Furniture Kit 2.0](https://kenney.nl/assets/furniture-kit) | Panchine dello spazio pubblico sociale | 170 |
-
-Manifest: `public/scenarios/kenney/manifest.json`, URL download, SHA-256, dipendenze, bounding box e assi verificati con GLTFLoader nel browser. I GLB industriali/commerciali referenziano `Textures/colormap.png`: file preservati. Supporto Three.js a KHR_texture_transform; il materiale unlit della panca è sostituito con MeshStandardMaterial. Normalizzazione delle dimensioni e rotazione degli ingressi verso la finestra; istanze per primitiva, materiali PBR ruvidi e illuminazione statica. Questi piccoli modelli hanno un dettaglio stilizzato: non sono presentati come asset fotorealistici. Quaternius non è stato acquisito.
-
-Cancelli, rampe, percorsi tattili, tavoli, sagome a distanza, materiali scartati/ordinati e banchi di riparazione sono geometrie procedurali originali; nessuna modellazione manuale. Non si generano ambienti AI durante il dialogo. Se un modello non carica, il quartiere conserva edifici procedurali e narrazione funzionanti.
-
-## Animazione dei sei futuri e dock discreto
-
-`UrbanLife.ts` aggiunge persone articolate a distanza, furgone/navetta, componenti di riuso in circolazione e segnalazioni luminose usando geometrie Three.js originali. Il cielo animato usa uno shader procedurale; menu e indicatore vocale usano canvas con bordi arrotondati. Nessun nuovo asset, font esterno, traccia audio o dipendenza è stato scaricato. Modelli e texture Poly Haven, Kenney e RobotExpressive restano quelli CC0 verificati nei manifest precedenti.
-
-
-## Candidato umanoide opzionale — non attivo nell’esperienza
-
-“Rigged robot” di **joney_lol**, via [Poly Pizza](https://poly.pizza/m/BwjA6Thdzd), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Il modello e la licenza sono inclusi in `public/models/humanoid/`, con attribuzione, checksum e modifiche in `manifest.json` / `LICENSE.md`. L’immagine `preview.png` è un render locale del modello adattato, soggetto alla stessa attribuzione. Nessun avallo dell’autore è implicato. Non viene precaricato né sostituisce RobotExpressive. [Valutazione tecnica](docs/HUMANOID_CANDIDATE.md).
-
-I cittadini, le biciclette, tram/treno e le attività aggiunte alle sei scene sono geometrie originali procedurali, senza file o texture esterni nuovi. I materiali PBR Poly Haven e moduli Kenney già documentati sono conservati.
-
-## Rifinitura dei due futuri ambientali
-
-`EnvironmentalPlanting.ts` e `EnvironmentalStreetscape.ts` aggiungono vegetazione ramificata, facciate, balconi, tetti verdi, pavimentazioni e una piccola texture minerale deterministica originali del progetto. Nessun asset scaricato o nuova licenza di terzi; Poly Haven, Kenney e avatar esistenti restano invariati. La carrozzeria arrotondata usa la geometria ufficiale Three.js già incluso (MIT). Dettagli e budget in `docs/ENVIRONMENTAL_VISUALS.md`.
+Non sono stati scaricati nuovi asset esterni per la V4: avatar e materiali/modello/HDRI Poly Haven già verificati sono riutilizzati. Le texture 1k sono JPEG e l’HDRI è 1k; non si dichiara compressione GPU KTX2 o Draco che non è stata applicata.

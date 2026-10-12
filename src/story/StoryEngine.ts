@@ -1,284 +1,554 @@
-import { scenario, scenarios, type Theme } from "./scenarios";
-export type { Theme } from "./scenarios";
+import {
+  DecisionEngine,
+  type DecisionSnapshot,
+} from "../decision/DecisionEngine.js";
+import {
+  interventions,
+  levers,
+  optionsFor,
+  optionById,
+} from "../decision/catalog.js";
 export type StoryState =
-  | "INTRODUCTION"
-  | "DISCOVER_INTEREST"
+  | "WAITING_FOR_START"
+  | "INITIALIZING_MR"
+  | "OPENING_PORTAL"
+  | "AVATAR_GREETING"
   | "INVITATION"
-  | "ENTER_OBSERVATORY"
-  | "CRITICAL_FUTURE"
-  | "REFLECTION"
-  | "SUSTAINABLE_FUTURE"
-  | "RETURN_TO_REALITY"
-  | "CONCLUSION";
+  | "ENTERING_OBSERVATORY"
+  | "SHOWING_CRITICAL_FUTURE"
+  | "WAITING_FOR_LEVER"
+  | "PRESENTING_OPTIONS"
+  | "WAITING_FOR_CHOICE"
+  | "APPLYING_INTERVENTION"
+  | "REVEALING_CONSEQUENCES"
+  | "DECISION_RECAP"
+  | "OPTIONAL_FIFTH_DECISION"
+  | "FINAL_CITY_REFLECTION"
+  | "OPTIONAL_REVISION"
+  | "RETURNING_TO_MR"
+  | "ASKING_FINAL_QUESTION"
+  | "WAITING_FOR_CONSENT"
+  | "SAVING_MESSAGE"
+  | "FAREWELL"
+  | "EXPERIENCE_COMPLETED"
+  | "PAUSED"
+  | "ERROR"
+  | "USER_EXIT";
 export type StorySnapshot = {
   name: string | null;
   state: StoryState;
-  theme: Theme | null;
   environment: "reality" | "observatory";
-  future: "critical" | "sustainable";
+  future: "critical" | "transformed";
   transitioning: boolean;
   revision: number;
   message: string;
+  lever: string | null;
+  proposal: string | null;
+  decisions: DecisionSnapshot;
+  reflection: string;
+  generatedMessage: string;
+  consent: boolean;
+  saved: boolean;
+  error: string | null;
 };
-export type StoryEvent =
-  | { type: "start_discovery" }
-  | { type: "select_theme"; theme: Theme }
-  | { type: "enter_observatory"; consent: boolean }
-  | { type: "entry_complete" }
-  | { type: "show_future"; future: "critical" }
-  | { type: "reflect" }
-  | { type: "transform_future"; future: "critical" | "sustainable"; consent: boolean }
-  | { type: "transformation_complete" }
-  | { type: "return_to_reality" }
-  | { type: "return_complete" };
+export type StoryEvent = {
+  type:
+    | "start"
+    | "initialized"
+    | "portal_open"
+    | "portal_complete"
+    | "entry_complete"
+    | "begin_decisions"
+    | "transformation_complete"
+    | "return_complete"
+    | "saved"
+    | "save_failed"
+    | "farewell_complete"
+    | "edit_reflection"
+    | "pause"
+    | "resume"
+    | "exit";
+  message?: string;
+};
 export type StoryResult = {
   accepted: boolean;
   reason: string;
   snapshot: StorySnapshot;
+  data?: unknown;
 };
-export const scenarioRegistry = scenarios;
 export class StoryEngine {
-  snapshot: StorySnapshot = {
-    name: null,
-    state: "INTRODUCTION",
-    theme: null,
-    environment: "reality",
-    future: "critical",
-    transitioning: false,
-    revision: 0,
-    message: "Un incontro, poi una finestra sul 2050.",
-  };
+  readonly decisions = new DecisionEngine();
+  snapshot: StorySnapshot = this.initial();
+  private pausedState?: StoryState;
   private listeners = new Set<(snapshot: StorySnapshot) => void>();
-  subscribe(listener: (snapshot: StorySnapshot) => void) {
+  private initial(): StorySnapshot {
+    return {
+      name: null,
+      state: "WAITING_FOR_START",
+      environment: "reality",
+      future: "critical",
+      transitioning: false,
+      revision: 0,
+      message: "Il futuro non è scritto. Ma ogni scelta ha delle conseguenze.",
+      lever: null,
+      proposal: null,
+      decisions: this.decisions.snapshot,
+      reflection: "",
+      generatedMessage: "",
+      consent: false,
+      saved: false,
+      error: null,
+    };
+  }
+  subscribe(listener: (s: StorySnapshot) => void) {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   }
-  dispatch(event: StoryEvent): StoryResult {
-    const s = this.snapshot;
-    const reject = (reason: string): StoryResult => ({
-      accepted: false,
-      reason,
-      snapshot: { ...s },
-    });
-    let patch: Partial<StorySnapshot>;
-    switch (event.type) {
-      case "start_discovery":
-        if (s.environment !== "reality" || s.transitioning)
-          return reject(
-            "Torna alla realtà prima di iniziare una nuova visita.",
-          );
-        patch = {
-          state: "DISCOVER_INTEREST",
-          theme: null,
-          future: "critical",
-          message: "Racconta a NEO cosa ti interessa della sostenibilità.",
-        };
-        break;
-      case "select_theme":
-        if (!Object.hasOwn(scenarioRegistry, event.theme))
-          return reject("Tema non disponibile.");
-        if (s.state === "RETURN_TO_REALITY")
-          return reject("Il ritorno è in corso.");
-        patch = s.environment === "observatory" ? {
-          theme: event.theme,
-          message: s.transitioning ? `Tema: ${scenario(event.theme).title}. La transizione continua.` : scenario(event.theme)[s.future],
-        } : {
-          theme: event.theme,
-          state: "INVITATION",
-          message: `Vieni nel 2050: ${scenario(event.theme).title.toLowerCase()}. Puoi scegliere quando entrare.`,
-        };
-        break;
-      case "enter_observatory":
-        if (!event.consent)
-          return reject("È necessario il tuo consenso per entrare.");
-        if (s.state !== "INVITATION" || !s.theme || s.transitioning)
-          return reject("Scegli prima un tema e attendi l’invito.");
-        patch = {
-          state: "ENTER_OBSERVATORY",
-          environment: "observatory",
-          future: "critical",
-          transitioning: true,
-          message:
-            "Rimani comodamente nel tuo spazio sicuro. La stanza prende forma.",
-        };
-        break;
-      case "entry_complete":
-        if (s.state !== "ENTER_OBSERVATORY")
-          return reject("Nessun ingresso da completare.");
-        patch = {
-          state: "CRITICAL_FUTURE",
-          transitioning: false,
-          message: scenario(s.theme).critical,
-        };
-        break;
-      case "show_future":
-        if (
-          event.future !== "critical" ||
-          s.environment !== "observatory" ||
-          s.transitioning ||
-          s.future !== "critical"
-        )
-          return reject(
-            "Lo scenario critico non è disponibile in questo momento.",
-          );
-        patch = {
-          state: "CRITICAL_FUTURE",
-          message: scenario(s.theme).critical,
-        };
-        break;
-      case "reflect":
-        if (s.state !== "CRITICAL_FUTURE" || s.transitioning)
-          return reject("Esplora prima il futuro critico.");
-        patch = {
-          state: "REFLECTION",
-          message:
-            "Vuoi vedere cosa sarebbe potuto succedere con decisioni diverse?",
-        };
-        break;
-      case "transform_future":
-        if (!["critical", "sustainable"].includes(event.future)) return reject("Futuro non disponibile.");
-        if (!event.consent)
-          return reject("Il futuro alternativo richiede un sì esplicito.");
-        if (
-          !["CRITICAL_FUTURE", "REFLECTION", "SUSTAINABLE_FUTURE"].includes(s.state) ||
-          s.transitioning
-        )
-          return reject("La trasformazione non è disponibile in questo stato.");
-        if (event.future === s.future) return reject("Questo futuro è già visibile.");
-        patch = {
-          state: "REFLECTION",
-          future: event.future,
-          transitioning: true,
-          message:
-            "La città cambia gradualmente. Puoi continuare a parlare con NEO.",
-        };
-        break;
-      case "transformation_complete":
-        if (
-          s.state !== "REFLECTION" ||
-          !s.transitioning
-        )
-          return reject("Nessuna trasformazione da completare.");
-        patch = {
-          state: s.future === "sustainable" ? "SUSTAINABLE_FUTURE" : "CRITICAL_FUTURE",
-          transitioning: false,
-          message: scenario(s.theme)[s.future],
-        };
-        break;
-      case "return_to_reality":
-        if (s.environment === "reality") return reject("Sei già nella realtà.");
-        if (s.state === "RETURN_TO_REALITY")
-          return reject("Il ritorno è già in corso.");
-        patch = {
-          state: "RETURN_TO_REALITY",
-          transitioning: true,
-          message: "Ritorno graduale alla realtà. La conversazione continua.",
-        };
-        break;
-      case "return_complete":
-        if (s.state !== "RETURN_TO_REALITY")
-          return reject("Nessun ritorno da completare.");
-        patch = {
-          state: "CONCLUSION",
-          environment: "reality",
-          transitioning: false,
-          message: "Bentornato. Quale scelta vorresti portare nel presente?",
-        };
-        break;
-      default:
-        return reject("Evento non autorizzato.");
-    }
-    this.snapshot = { ...s, ...patch, revision: s.revision + 1 };
-    this.listeners.forEach((listener) => listener({ ...this.snapshot }));
+  private result(
+    accepted: boolean,
+    reason: string,
+    data?: unknown,
+  ): StoryResult {
     return {
-      accepted: true,
-      reason: "Evento applicato.",
-      snapshot: { ...this.snapshot },
+      accepted,
+      reason,
+      snapshot: structuredClone(this.snapshot),
+      ...(data !== undefined ? { data } : {}),
     };
   }
+  private patch(patch: Partial<StorySnapshot>, data?: unknown) {
+    this.snapshot = {
+      ...this.snapshot,
+      ...patch,
+      decisions: this.decisions.snapshot,
+      revision: this.snapshot.revision + 1,
+    };
+    this.listeners.forEach((fn) => fn(structuredClone(this.snapshot)));
+    return this.result(true, "Evento applicato.", data);
+  }
+  reset() {
+    this.decisions.reset();
+    this.snapshot = this.initial();
+    this.pausedState = undefined;
+    this.listeners.forEach((fn) => fn(structuredClone(this.snapshot)));
+  }
+  dispatch(event: StoryEvent): StoryResult {
+    const s = this.snapshot,
+      reject = (text: string) => this.result(false, text);
+    switch (event.type) {
+      case "start":
+        return s.state === "WAITING_FOR_START"
+          ? this.patch({
+              state: "INITIALIZING_MR",
+              message: "Inizializzazione dell’esperienza…",
+            })
+          : reject("Esperienza già avviata.");
+      case "initialized":
+        return s.state === "INITIALIZING_MR"
+          ? this.patch({
+              state: "OPENING_PORTAL",
+              message: "NEO sta arrivando dal portale.",
+            })
+          : reject("Inizializzazione non attiva.");
+      case "portal_open":
+        return s.state === "OPENING_PORTAL"
+          ? this.patch({
+              state: "AVATAR_GREETING",
+              message: "Ciao, sono NEO. Ti mostro una città del 2050?",
+            })
+          : reject("Portale non attivo.");
+      case "portal_complete":
+        return s.state === "AVATAR_GREETING"
+          ? this.patch({
+              state: "INVITATION",
+              message:
+                "Visita l’osservatorio del futuro, senza dover camminare.",
+            })
+          : reject("Saluto non attivo.");
+      case "entry_complete":
+        return s.state === "ENTERING_OBSERVATORY"
+          ? this.patch({
+              state: "SHOWING_CRITICAL_FUTURE",
+              transitioning: false,
+              message:
+                "Caldo, smog, traffico e acqua sotto pressione. Da dove cominceresti?",
+            })
+          : reject("Ingresso non attivo.");
+      case "begin_decisions":
+        return s.state === "SHOWING_CRITICAL_FUTURE"
+          ? this.patch({
+              state: "WAITING_FOR_LEVER",
+              message: "Scegli liberamente un ambito su cui intervenire.",
+            })
+          : reject("La città non è pronta.");
+      case "transformation_complete": {
+        if (s.state !== "APPLYING_INTERVENTION")
+          return reject("Nessun intervento in trasformazione.");
+        const city = this.decisions.snapshot.city,
+          last = this.decisions.snapshot.revision
+            ? this.decisions.snapshot.active.find(
+                (d) => d.slotId === this.decisions.snapshot.revision!.slotId,
+              )
+            : this.decisions.snapshot.active.at(-1);
+        const option = optionById.get(last?.optionId ?? "");
+        return this.patch({
+          state: "REVEALING_CONSEQUENCES",
+          transitioning: false,
+          message: [
+            option?.benefits[0],
+            city.relations.at(-1)?.text ?? option?.tradeoffs[0],
+          ]
+            .filter(Boolean)
+            .join(" "),
+        });
+      }
+      case "return_complete":
+        return s.state === "RETURNING_TO_MR"
+          ? this.patch({
+              state: "ASKING_FINAL_QUESTION",
+              environment: "reality",
+              transitioning: false,
+              message:
+                "Cosa pensi sia necessario per costruire un futuro sostenibile, dopo queste decisioni?",
+            })
+          : reject("Ritorno non attivo.");
+      case "saved":
+        return s.state === "SAVING_MESSAGE" && s.consent
+          ? this.patch({
+              state: "FAREWELL",
+              saved: true,
+              error: null,
+              message:
+                "Il messaggio è stato salvato. Grazie per aver esplorato queste possibilità.",
+            })
+          : reject("Nessun salvataggio autorizzato.");
+      case "save_failed":
+        return s.state === "SAVING_MESSAGE"
+          ? this.patch({
+              state: "WAITING_FOR_CONSENT",
+              error: event.message ?? "Salvataggio non riuscito.",
+              message:
+                "Salvataggio non riuscito. Puoi riprovare o proseguire senza salvare.",
+            })
+          : reject("Nessun salvataggio in corso.");
+      case "farewell_complete":
+        return s.state === "FAREWELL"
+          ? this.patch({
+              state: "EXPERIENCE_COMPLETED",
+              message:
+                "Esperienza conclusa. Il futuro resta una possibilità da comprendere.",
+            })
+          : reject("Saluto non attivo.");
+      case "edit_reflection":
+        return s.state === "WAITING_FOR_CONSENT"
+          ? this.patch({
+              state: "ASKING_FINAL_QUESTION",
+              consent: false,
+              error: null,
+              message: "Puoi correggere la riflessione prima di salvare.",
+            })
+          : reject("Modifica non disponibile.");
+      case "pause":
+        if (
+          [
+            "WAITING_FOR_START",
+            "EXPERIENCE_COMPLETED",
+            "PAUSED",
+            "SAVING_MESSAGE",
+          ].includes(s.state)
+        )
+          return reject("Pausa non disponibile.");
+        this.pausedState = s.state;
+        return this.patch({ state: "PAUSED", message: "Esperienza in pausa." });
+      case "resume":
+        return s.state === "PAUSED" && this.pausedState
+          ? this.patch({
+              state: this.pausedState,
+              message: "Riprendiamo da dove eravamo.",
+            })
+          : reject("Nessuna pausa.");
+      case "exit":
+        return this.patch({
+          state: "USER_EXIT",
+          transitioning: false,
+          message:
+            "Esperienza interrotta. Nessun dato personale è stato salvato senza consenso.",
+        });
+    }
+  }
   tool(name: string, jsonArguments: string): StoryResult {
-    const reject = (reason: string): StoryResult => ({
-      accepted: false,
-      reason,
-      snapshot: { ...this.snapshot },
-    });
-    if (jsonArguments.length > 2048) return reject("Argomenti troppo grandi.");
+    const reject = (text: string) => this.result(false, text),
+      s = this.snapshot;
+    if (jsonArguments.length > 6000) return reject("Argomenti troppo grandi.");
     let args: Record<string, unknown>;
     try {
-      const value: unknown = JSON.parse(jsonArguments);
-      if (!value || typeof value !== "object" || Array.isArray(value))
+      args = JSON.parse(jsonArguments);
+      if (!args || typeof args !== "object" || Array.isArray(args))
         return reject("Argomenti non validi.");
-      args = value as Record<string, unknown>;
     } catch {
       return reject("JSON non valido.");
     }
+    const keys: Record<string, string[]> = {
+      remember_name: ["name"],
+      forget_name: [],
+      enter_observatory: ["consent"],
+      list_available_levers: [],
+      select_lever: ["leverId"],
+      list_options: ["leverId"],
+      choose_intervention: ["optionId", "confirmed"],
+      confirm_intervention: ["optionId", "consent"],
+      get_city_state: [],
+      get_active_consequences: [],
+      explain_tradeoff: ["interventionId"],
+      continue_decisions: [],
+      finish_decisions: [],
+      request_revision: [],
+      revise_intervention: ["slotId", "newOptionId", "consent"],
+      complete_reflection: [],
+      request_return_to_reality: [],
+      submit_reflection: ["text", "message"],
+      set_storage_consent: ["consent"],
+    };
+    if (
+      !Object.hasOwn(keys, name) ||
+      Object.keys(args).some(
+        (k) => !keys[name].includes(k) && k !== "expectedRevision",
+      )
+    )
+      return reject("Funzione o proprietà non autorizzata.");
+    if (
+      args.expectedRevision !== undefined &&
+      args.expectedRevision !== s.revision
+    )
+      return reject("Evento superato: rileggi lo stato corrente.");
+    if (name === "list_available_levers")
+      return this.result(true, "Dieci ambiti disponibili.", levers);
+    if (name === "get_city_state")
+      return this.result(true, "Stato autorevole.", this.decisions.snapshot);
+    if (name === "get_active_consequences")
+      return this.result(
+        true,
+        "Conseguenze qualitative.",
+        this.decisions.snapshot.city,
+      );
+    if (name === "explain_tradeoff") {
+      const option = optionById.get(String(args.interventionId));
+      return option
+        ? this.result(true, "Benefici, compromessi e incertezza.", option)
+        : reject("Intervento inesistente.");
+    }
     if (name === "remember_name" || name === "forget_name") {
+      if (
+        ["WAITING_FOR_START", "EXPERIENCE_COMPLETED", "USER_EXIT"].includes(
+          s.state,
+        )
+      )
+        return reject("Memoria non disponibile.");
       const value =
         typeof args.name === "string" ? args.name.trim().normalize("NFC") : "";
       if (
         name === "remember_name" &&
-        (Object.keys(args).length !== 1 ||
-          !/^[\p{L}][\p{L} ’'-]{0,39}$/u.test(value))
+        !/^[\p{L}][\p{L} ’'-]{0,39}$/u.test(value)
       )
         return reject("Nome non valido.");
-      if (name === "forget_name" && Object.keys(args).length)
-        return reject("Parametri non validi.");
-      this.snapshot = {
-        ...this.snapshot,
-        name: name === "forget_name" ? null : value,
-        revision: this.snapshot.revision + 1,
-      };
-      this.listeners.forEach((listener) => listener({ ...this.snapshot }));
-      return {
-        accepted: true,
-        reason: "Memoria della pagina aggiornata.",
-        snapshot: { ...this.snapshot },
-      };
+      return this.patch({ name: name === "forget_name" ? null : value });
     }
-    const keys: Record<string, string[]> = {
-      select_theme: ["theme"],
-      enter_observatory: ["consent"],
-      show_future: ["future"],
-      reflect: [],
-      transform_future: ["future", "consent"],
-      return_to_reality: [],
-    };
-    if (
-      !Object.hasOwn(keys, name) ||
-      Object.keys(args).some((k) => !keys[name].includes(k))
-    )
-      return reject("Funzione o proprietà non autorizzata.");
-    switch (name) {
-      case "select_theme":
-        if (
-          typeof args.theme === "string" &&
-          ["environmental", "social", "economic"].includes(args.theme)
-        )
-          return this.dispatch({ type: name, theme: args.theme as Theme });
-        break;
-      case "enter_observatory":
-        if (typeof args.consent === "boolean")
-          return this.dispatch({ type: name, consent: args.consent });
-        break;
-      case "show_future":
-        if (args.future === "critical")
-          return this.dispatch({ type: name, future: "critical" });
-        break;
-      case "reflect":
-        return this.dispatch({ type: name });
-      case "transform_future":
-        if ((args.future === "sustainable" || args.future === "critical") && typeof args.consent === "boolean")
-          return this.dispatch({
-            type: name,
-            future: args.future,
-            consent: args.consent,
-          });
-        break;
-      case "return_to_reality":
-        return this.dispatch({ type: name });
+    if (name === "enter_observatory")
+      return s.state === "INVITATION" && args.consent === true
+        ? this.patch({
+            state: "ENTERING_OBSERVATORY",
+            environment: "observatory",
+            transitioning: true,
+            message: "Entriamo nell’osservatorio.",
+          })
+        : reject("Ingresso richiede invito e consenso esplicito.");
+    if (name === "request_return_to_reality")
+      return s.environment === "observatory" && s.state !== "RETURNING_TO_MR"
+        ? this.patch({
+            state: "RETURNING_TO_MR",
+            transitioning: true,
+            message: "Ritorniamo nella tua stanza.",
+          })
+        : reject("Il ritorno non è disponibile.");
+    const deciding = [
+      "WAITING_FOR_LEVER",
+      "PRESENTING_OPTIONS",
+      "WAITING_FOR_CHOICE",
+      "DECISION_RECAP",
+      "OPTIONAL_FIFTH_DECISION",
+    ].includes(s.state);
+    if (name === "select_lever" || name === "list_options") {
+      if (!deciding || s.transitioning || this.decisions.snapshot.finished)
+        return reject("Le scelte non sono disponibili in questo stato.");
+      if (!levers.some((l) => l.id === args.leverId))
+        return reject("Leva inesistente.");
+      return this.patch(
+        {
+          state: "WAITING_FOR_CHOICE",
+          lever: String(args.leverId),
+          proposal: null,
+          message: "Tre possibilità, con benefici e limiti differenti.",
+        },
+        optionsFor(String(args.leverId)),
+      );
     }
-    return reject("Parametri non validi.");
+    if (name === "choose_intervention" || name === "confirm_intervention") {
+      const id = String(args.optionId),
+        option = optionById.get(id);
+      if (!deciding || s.transitioning || !option || option.lever !== s.lever)
+        return reject("Scegli prima una leva e una sua opzione valida.");
+      if (this.decisions.snapshot.active.some((d) => d.optionId === id))
+        return reject("Scelta già attiva: non consuma uno slot.");
+      if (name === "choose_intervention" && typeof args.confirmed !== "boolean")
+        return reject("Confidenza non valida.");
+      if (name === "choose_intervention" && args.confirmed !== true)
+        return this.patch({
+          proposal: id,
+          state: "WAITING_FOR_CHOICE",
+          message: `Intendi ${option.label.toLowerCase()}? Conferma prima di applicarla.`,
+        });
+      if (
+        name === "confirm_intervention" &&
+        (args.consent !== true || s.proposal !== id)
+      )
+        return reject("Conferma non valida.");
+      const error = this.decisions.choose(id);
+      if (error) return reject(error);
+      return this.patch({
+        state: "APPLYING_INTERVENTION",
+        future: "transformed",
+        transitioning: true,
+        proposal: null,
+        message: `${option.label}: la città si trasforma. Puoi continuare a parlare.`,
+      });
+    }
+    if (name === "continue_decisions") {
+      if (s.state === "SHOWING_CRITICAL_FUTURE")
+        return this.dispatch({ type: "begin_decisions" });
+      if (
+        ![
+          "REVEALING_CONSEQUENCES",
+          "DECISION_RECAP",
+          "OPTIONAL_FIFTH_DECISION",
+        ].includes(s.state)
+      )
+        return reject("Completa prima la trasformazione.");
+      if (this.decisions.snapshot.finished)
+        return this.patch({
+          state: "FINAL_CITY_REFLECTION",
+          message:
+            "Osserva il futuro costruito: miglioramenti, compromessi e problemi ancora aperti.",
+        });
+      return this.patch({
+        state:
+          this.decisions.snapshot.active.length === 4 &&
+          s.state !== "OPTIONAL_FIFTH_DECISION"
+            ? "OPTIONAL_FIFTH_DECISION"
+            : "WAITING_FOR_LEVER",
+        lever: null,
+        message:
+          this.decisions.snapshot.active.length === 4 &&
+          s.state !== "OPTIONAL_FIFTH_DECISION"
+            ? "Un ultimo intervento oppure preferisci concludere?"
+            : "Su quale ambito continuiamo?",
+      });
+    }
+    if (name === "finish_decisions") {
+      if (
+        ![
+          "OPTIONAL_FIFTH_DECISION",
+          "REVEALING_CONSEQUENCES",
+          "DECISION_RECAP",
+          "WAITING_FOR_LEVER",
+        ].includes(s.state) ||
+        s.transitioning
+      )
+        return reject("Conclusione non disponibile.");
+      const error = this.decisions.finish();
+      if (error) return reject(error);
+      return this.patch({
+        state: "FINAL_CITY_REFLECTION",
+        message:
+          "Quali miglioramenti vedi? Quale problema resta irrisolto? Ripenseresti una decisione?",
+      });
+    }
+    if (name === "request_revision")
+      return s.state === "FINAL_CITY_REFLECTION" &&
+        !this.decisions.snapshot.revision
+        ? this.patch({
+            state: "OPTIONAL_REVISION",
+            message:
+              "Puoi sostituire una sola decisione, anche con una leva diversa.",
+          })
+        : reject("Revisione non disponibile.");
+    if (name === "revise_intervention") {
+      if (s.state !== "OPTIONAL_REVISION" || args.consent !== true)
+        return reject("Revisione richiede richiesta e conferma esplicita.");
+      const error = this.decisions.revise(
+        String(args.slotId),
+        String(args.newOptionId),
+      );
+      if (error) return reject(error);
+      return this.patch({
+        state: "APPLYING_INTERVENTION",
+        transitioning: true,
+        message:
+          "Ricalcolo della città: gli effetti precedenti non più validi vengono rimossi.",
+      });
+    }
+    if (name === "complete_reflection")
+      return ["FINAL_CITY_REFLECTION", "OPTIONAL_REVISION"].includes(s.state)
+        ? this.tool("request_return_to_reality", "{}")
+        : reject("Riflessione non disponibile.");
+    if (name === "submit_reflection") {
+      if (
+        !["ASKING_FINAL_QUESTION", "WAITING_FOR_CONSENT"].includes(s.state) ||
+        typeof args.text !== "string" ||
+        typeof args.message !== "string" ||
+        !args.text.trim() ||
+        args.text.length > 2000 ||
+        !args.message.trim() ||
+        args.message.length > 1000
+      )
+        return reject("Riflessione non valida.");
+      return this.patch({
+        state: "WAITING_FOR_CONSENT",
+        consent: false,
+        error: null,
+        reflection: this.anonymize(args.text.trim()),
+        generatedMessage: this.anonymize(args.message.trim()),
+        message:
+          "Vuoi salvare in forma anonima questo messaggio e le decisioni? Senza nome, audio o trascrizione completa.",
+      });
+    }
+    if (name === "set_storage_consent") {
+      if (
+        s.state !== "WAITING_FOR_CONSENT" ||
+        typeof args.consent !== "boolean"
+      )
+        return reject("Consenso non disponibile.");
+      return this.patch({
+        state: args.consent ? "SAVING_MESSAGE" : "FAREWELL",
+        consent: args.consent,
+        message: args.consent
+          ? "Salvataggio in corso…"
+          : "Grazie per aver esplorato queste possibilità. Nessun dato salvato.",
+      });
+    }
+    return reject("Evento non autorizzato nello stato corrente.");
+  }
+  private anonymize(text: string) {
+    const name = this.snapshot.name;
+    if (!name) return text;
+    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replace(
+      new RegExp(`(?<!\\p{L})${safe}(?!\\p{L})`, "giu"),
+      "[partecipante]",
+    );
+  }
+  get catalog() {
+    return interventions;
   }
 }

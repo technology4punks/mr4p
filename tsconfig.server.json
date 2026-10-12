@@ -6,9 +6,14 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "rootDir": "server",
+    "rootDir": ".",
     "outDir": "dist-server",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["server"]
+  "include": [
+    "server",
+    "src/decision"
+  ]
 }

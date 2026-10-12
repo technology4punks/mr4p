@@ -90,12 +90,12 @@ describe("immersive menu interaction", () => {
     ui.setContext("observatory");
     ui.setOpen(true);
     ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
-    expect(ui.hit(rayTo(ui, "future"))).toBe("future");
+    expect(ui.hit(rayTo(ui, "decision"))).toBe("decision");
     ui.navigate(0, 1);
     expect(ui.focusedAction).toBe("voice");
     ui.navigate(1, 0);
     expect(ui.focusedAction).toBe("talk");
-    ui.pointerFocus("future");
+    ui.pointerFocus("decision");
     expect(ui.focusedAction).toBeUndefined();
     ui.setOpen(false);
     expect(ui.focusedAction).toBeUndefined();
@@ -128,25 +128,7 @@ describe("native and polled XR input deduplication", () => {
   });
 });
 
-it("offers theme selection in the open menu and compact dock during the visit", () => {
-  const ui = new UI3D();
-  ui.root.visible = true;
-  ui.setContext("reality");
-  ui.setOpen(true);
-  ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
-  ui.setTheme("Economia");
-  expect(ui.hit(rayTo(ui, "theme"))).toBe("theme");
-  expect(ui.hit(rayTo(ui, "placement-menu"))).toBe("placement-menu");
-  ui.setContext("observatory");
-  const actions: string[] = [];
-  ui.root.traverse((o) => {
-    if (o.userData.action) actions.push(o.userData.action);
-  });
-  expect(actions).toContain("theme");
-  expect(ui.hit(rayTo(ui, "theme"))).toBe("theme");
-  ui.setFuture("sustainable");
-  expect(ui.hit(rayTo(ui, "future"))).toBe("future");
-  ui.setOpen(false);
-  expect(ui.hit(rayTo(ui, "theme"))).toBe("theme");
-  ui.dispose();
+it("offers decision choices in the open menu and compact dock", () => {
+ const ui=new UI3D();ui.root.visible=true;ui.setContext("observatory");ui.setOpen(true);ui.followViewer(new THREE.Vector3(0,1.6,0),new THREE.Quaternion());
+ expect(ui.hit(rayTo(ui,"decision"))).toBe("decision");ui.setOpen(false);expect(ui.hit(rayTo(ui,"decision"))).toBe("decision");ui.dispose();
 });

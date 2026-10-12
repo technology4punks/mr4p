@@ -3,6 +3,8 @@ import { storyInstructions, storyTools } from "./story-config.js";
 
 export const instructions = storyInstructions;
 export type ServerConfig = {
+  databasePath?: string;
+  retentionDays?: number;
   apiKey?: string;
   model?: string;
   voice?: string;
@@ -20,12 +22,10 @@ export function tokenHandler(
 ): RequestHandler {
   return async (_req, res) => {
     if (!config.apiKey) {
-      res
-        .status(503)
-        .json({
-          error:
-            "Voce non configurata: aggiungere il segreto OpenAI nel runtime server.",
-        });
+      res.status(503).json({
+        error:
+          "Voce non configurata: aggiungere il segreto OpenAI nel runtime server.",
+      });
       return;
     }
     try {
@@ -77,13 +77,11 @@ export function tokenHandler(
           404: "Modello Realtime non disponibile: verificare REALTIME_MODEL.",
           429: "Quota OpenAI o limite richieste raggiunto. Riprova più tardi.",
         };
-        res
-          .status(upstream.status === 429 ? 429 : 502)
-          .json({
-            error:
-              messages[upstream.status] ||
-              "Servizio voce temporaneamente indisponibile.",
-          });
+        res.status(upstream.status === 429 ? 429 : 502).json({
+          error:
+            messages[upstream.status] ||
+            "Servizio voce temporaneamente indisponibile.",
+        });
         return;
       }
       const data = (await upstream.json()) as {
@@ -103,11 +101,9 @@ export function tokenHandler(
       // Deliberate allowlist: never forward session settings or upstream diagnostics.
       res.json({ value: data.value, expires_at: data.expires_at });
     } catch {
-      res
-        .status(502)
-        .json({
-          error: "Connessione al servizio voce scaduta o rete indisponibile.",
-        });
+      res.status(502).json({
+        error: "Connessione al servizio voce scaduta o rete indisponibile.",
+      });
     }
   };
 }

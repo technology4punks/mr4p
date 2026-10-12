@@ -1,329 +1,2008 @@
-# Quest Pro — Conversational MR Avatar
-
-**Specifica eseguibile per Codex · MVP v1.1 · 10 ottobre 2026**
-
-> **Obiettivo per Codex:** crea una web app completa e testabile sul **Meta Quest Pro**, senza Unity, che visualizzi nel passthrough un avatar tridimensionale **con i piedi sul pavimento e una posizione stabile nella stanza**, con cui conversare a voce in italiano mediante **OpenAI Realtime API**. Prepara il progetto per **deploy HTTPS**; Sites soltanto se disponibile nel territorio/workspace. Non fermarti a un mockup o a una pagina dimostrativa: implementa le funzionalità, i test e la gestione degli errori descritti sotto.
->
-> **Vincolo di sicurezza:** non chiedere mai di incollare la chiave OpenAI in una pagina web, un prompt, il codice sorgente o un file tracciato da Git. Usa `OPENAI_API_KEY` soltanto lato server, come segreto del runtime Sites.
-
-## 1. Risultato atteso
-
-L'utente indossa il Quest Pro, apre l'URL HTTPS pubblicato in **Meta Quest Browser**, seleziona **Entra in realtà mista**, vede la propria stanza attraverso il passthrough a colori e posiziona un avatar **a scala umana** sul pavimento. L'avatar resta **nello stesso punto del mondo** mentre l'utente gira la testa, cammina e gli gira intorno. L'utente avvia la conversazione, parla nel microfono del visore e riceve risposte vocali naturali dall'avatar. Il personaggio passa tra animazioni appropriate (attesa, ascolto, risposta, saluto, reazioni), con un semplice indicatore di parlato e **movimento della bocca approssimato dall'ampiezza audio**. Dopo la chiusura e riapertura della sessione, l'app prova a ripristinare l'ancoraggio salvato.
-
-### Criteri di accettazione prioritari
-
-1. **MR reale sul Quest Pro:** sessione WebXR `immersive-ar`, sfondo trasparente, passthrough visibile.
-2. **Piedi sul pavimento:** posizionamento rispetto al piano rilevato; fallback funzionale con `local-floor` e calibrazione manuale dell'altezza.
-3. **World locking:** l'avatar non è figlio della camera; resta nello spazio reale quando la testa si muove o ruota.
-4. **Anchoring:** usa WebXR Anchors quando disponibile; ripristina un persistent anchor quando consentito e possibile; fallisce in modo esplicito e recuperabile.
-5. **Conversazione vocale bidirezionale:** microfono Quest → OpenAI Realtime API → voce riprodotta nel visore; avvio e stop espliciti.
-6. **Avatar animato:** modello 3D locale al progetto; animazioni di base e almeno tre emote funzionanti; sincronizzazione visiva del parlato **best effort**, non visemi fonetici.
-7. **Sicurezza e deploy:** chiave solo lato server; sito pubblicato via Sites se il runtime supporta tutte le API effettivamente necessarie; test finale sull'URL di produzione.
-
-> **Nota sul perimetro:** l'avatar NON deve riconoscere sedie, tavoli o persone tramite le telecamere, muoversi autonomamente nella stanza, navigare ostacoli, né mantenere una memoria cloud tra sessioni. L'obiettivo è una presenza spaziale credibile e una conversazione naturale. La persistenza qui riguarda **la posizione**, non la cronologia del dialogo.
-
-
-## 1 bis. Estensione multi-device obbligatoria (decisione del 10 ottobre 2026)
-
-**Unico codebase e backend voce, tre modalità d'uso:**
-
-| Dispositivo | Rendering | Posizionamento | Voce OpenAI |
-|---|---|---|---|
-| Meta Quest Pro / Quest Browser | `immersive-ar`, passthrough a colori | `local-floor`, plane detection + XR anchors se disponibili | Microfono visore, WebRTC |
-| Android compatibile ARCore, Chrome | `immersive-ar` WebXR se supportato | Hit-test/plane detection e ancoraggio di sessione con feature detection, fallback calibrazione | Microfono smartphone, WebRTC |
-| iPhone / Safari iOS | Three.js 3D nel browser (NON WebXR AR) | Scena 3D orbitabile; nessuna pretesa di world-locking nella stanza | Microfono smartphone, WebRTC |
-
-**UX:** rilevamento capability all'avvio, non solo user agent; selettore/pulsante «Entra in realtà mista» solo dove `navigator.xr.isSessionSupported('immersive-ar')` lo conferma; «Anteprima 3D» ovunque; tasti touch responsivi e gestione dei permessi microfono. Su iPhone, non simulare AR usando soltanto la fotocamera: il requisito iOS MVP è **visualizzazione 3D + conversazione**. Un eventuale Quick Look USDZ non condivide automaticamente audio/conversazione live e non è parte di questa v1.1.
-
-**Test aggiuntivi obbligatori:** verificare Android Chrome con un dispositivo ARCore reale; iPhone Safari per rendering, gesture touch, audio unlock e conversazione; testare cambio orientamento, ritorno da background, interruzione chiamata e permessi negati. Non dichiarare che i tre dispositivi supportano le medesime API spaziali.
-
-## 1 ter. Avvio in Codex Cloud e pubblicazione: vincoli aggiornati
-
-**Codex Cloud:** il passaggio del progetto avviene tramite repository GitHub selezionato nell'ambiente Cloud. Creare o selezionare un repository dedicato, caricare questa specifica e lo starter, pubblicare l'ambiente Cloud e avviare la task Codex leggendo `AGENTS.md` e questo documento. Non presumere che allegare un file a una chat lo trasmetta automaticamente a Codex Cloud. Codex deve operare su branch dedicato, rendere disponibili diff, test e PR.
-
-**Disponibilità Sites:** al 10 ottobre 2026 la guida ufficiale OpenAI indica che **Sites non è disponibile nello Spazio Economico Europeo, inclusa l'Italia**. Questo cambia la raccomandazione precedente che presumeva accessibilità su Plus. Non bloccare lo sviluppo: mantenere applicazione distribuibile anche con Node.js su un host HTTPS (per esempio Google Cloud Run, previa scelta dell'utente). **Non eseguire deploy su servizi esterni senza conferma dell'ambiente e credenziali.** L'API key OpenAI resta segreto esclusivamente server-side. L'abbonamento ChatGPT Plus non copre il consumo di API OpenAI.
-
-**Stato codice scaffold consegnato:** anteprima Three.js con placeholder procedurale e download script RobotExpressive, rilevamento WebXR, posizionamento preliminare su `local-floor`, anchor di sessione quando disponibile, backend token temporaneo e WebRTC, responsive UI e fallback iOS. **Da completare/validare:** floor-plane detection, hit-test, ancoraggi persistenti, UI immersiva per voce, build/typecheck e test su dispositivi fisici. Non dichiararli funzionanti finché non passano prove reali.
+# FUTURE OBSERVATORY — V4
+## The Complexity of Choice
+### Specifica completa per Codex — Esperienza Mixed Reality con simulazione narrativa della sostenibilità ambientale
 
 ---
 
-## 2. Architettura proposta
+# 0. ISTRUZIONI PRIORITARIE PER CODEX
 
-```text
-Quest Pro / Meta Quest Browser (HTTPS)
- ├── WebXR immersive-ar → passthrough + tracking 6DoF
- ├── ReferenceSpace local-floor + XRPlane (se disponibili)
- ├── XRAnchor + persistent handle (se disponibili)
- ├── Three.js → GLB, AnimationMixer, grafica/UI 3D
- ├── getUserMedia(microfono) + AudioContext/AnalyserNode
- └── WebRTC (audio + data channel)
-           │                   ▲
-           │ client secret     │ audio di risposta
-           ▼                   │
- Server HTTPS / API route (Sites soltanto se disponibile)      │
- └── POST /api/realtime-token   │
-     └── OpenAI API: client secret temporaneo
-         (OPENAI_API_KEY solo server)
-                    │
-                    ▼
-          OpenAI Realtime API
-       (gpt-realtime-2.1-mini)
-```
+Stai sviluppando Future Observatory, un'esperienza immersiva basata su Meta Quest Pro, WebXR, Three.js e OpenAI Realtime.
 
-**Stack preferito:** TypeScript + Vite + Three.js + GLTFLoader + WebXR API native. Interfaccia 2D essenziale in HTML/CSS; per i controlli visibili *durante* la sessione XR usare mesh/UI 3D con interazioni controller, invece di dare per scontato il DOM Overlay. Usa l'architettura full-stack compatibile con Sites e le sue route server; **non richiedere un processo Node persistente o WebSocket custom lato Sites**. Puoi adattare il framework allo starter ufficiale Sites, ma non cambiare i requisiti.
+Questo documento definisce la nuova versione del progetto e **sostituisce tutte le precedenti istruzioni riguardanti gli scenari narrativi, le categorie di sostenibilità e il sistema di decisioni**.
 
-### Compatibilità da verificare prima dell'implementazione estesa
+Prima di procedere:
 
-- Supporto `navigator.xr` e `navigator.xr.isSessionSupported('immersive-ar')` sul visore.
-- `XRSession` con `local-floor`; plane detection, anchors e persistenza: **feature detection effettiva**, non user-agent sniffing.
-- Possibilità per il runtime di ChatGPT Sites di distribuire asset GLB, erogare `/api/realtime-token` **sul server**, accedere in HTTPS a microfono e WebRTC, e aprire l'esperienza in finestra **top-level**, non in un iframe di anteprima.
-- Se Sites non supporta un elemento indispensabile, **segnala il blocco con evidenza e proponi una correzione o una modalità di distribuzione alternativa; non simulare il requisito e non dichiarare successo.** L'obiettivo rimane Sites, senza passare automaticamente a hosting esterni.
+1. Analizza il repository esistente.
+2. Leggi README.md, SPEC.md e AGENTS.md.
+3. Identifica le funzionalità già implementate.
+4. Conserva tutto il codice funzionante compatibile con questa specifica.
+5. Non ricominciare il progetto da zero.
+6. Non eliminare le funzionalità tecniche già operative.
+7. Aggiorna la documentazione affinché non contenga più requisiti narrativi obsoleti.
+8. Procedi con l'implementazione effettiva, senza fermarti alla sola pianificazione.
 
-## 3. Avatar placeholder scelto: RobotExpressive (CC0)
+La nuova esperienza è dedicata **esclusivamente alla sostenibilità ambientale**.
 
-**Asset:** `RobotExpressive.glb` di Tomás Laulhé, adattato da Don McCurdy, disponibile negli esempi ufficiali Three.js. **Licenza: CC0 1.0**; registra comunque gli autori in `ASSET_CREDITS.md`.
+Elimina completamente la selezione iniziale tra sostenibilità ambientale, sociale ed economica.
 
-- Scheda e licenza: <https://github.com/mrdoob/three.js/blob/dev/examples/models/gltf/RobotExpressive/README.md>
-- Download modello: <https://github.com/mrdoob/three.js/blob/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb>
-- URL asset diretto: <https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb>
-- Esempio ufficiale con animazioni: <https://threejs.org/examples/webgl_animation_skinning_morph.html>
-- Sorgente dell'esempio Three.js: <https://github.com/mrdoob/three.js/blob/dev/examples/webgl_animation_skinning_morph.html>
+Elimina le relative ambientazioni autonome.
 
-**Clip verificate nell'esempio Three.js:** `Idle`, `Walking`, `Running`, `Dance`, `Death`, `Sitting`, `Standing`, `Jump`, `Yes`, `No`, `Wave`, `Punch`, `ThumbsUp` (non necessariamente tutte utili nel MVP). **Morph target facciali:** `Angry`, `Surprised`, `Sad`. Non presumere che il modello fornisca visemi o un blendshape `mouthOpen`: **non li offre come prerequisito garantito**. Implementare il parlato con un piccolo elemento bocca 3D aggiuntivo agganciato alla testa, oppure un indicatore emissivo sulla faccia, pilotato dall'ampiezza della voce, con animazioni leggere della testa. Il risultato è **lip-sync visivo approssimativo**, non fonetico.
+Gli aspetti sociali ed economici possono emergere come conseguenze delle decisioni ambientali, ma non devono diventare scenari separati.
 
-**Istruzioni asset per Codex:** scarica il `.glb` una sola volta in `public/models/RobotExpressive.glb`; non usare fetch runtime a GitHub; verifica caricamento e nomi delle clip a build/runtime; centra il modello sui piedi tramite bounding box, calibra una statura target di circa **1,5–1,7 metri** e mantieni altezza e scala configurabili. Non usare asset con licenza sconosciuta.
+Non creare tre città, tre storie o tre percorsi narrativi.
 
-## 4. Requisiti funzionali
-
-### 4.1 Avvio, diagnostica e fallback desktop
-
-- Pagina di ingresso con nome app, pulsante **Entra in MR**, **Anteprima 3D desktop** e breve messaggio sui permessi di stanza/microfono.
-- Esegui capability detection e visualizza diagnostica leggibile: WebXR AR, floor reference, plane detection, anchors, persistent anchors, microfono, connessione voce, asset loaded.
-- Non richiedere il microfono prima del click dell'utente su **Parla con l'avatar**.
-- Su desktop senza WebXR mostra una scena 3D orbitabile con pavimento simulato; disabilita in modo trasparente funzionalità reali di mixed reality/ancoraggio.
-- Nel visore rendi il mondo virtuale trasparente, senza skybox opaco. Non presentare il video passthrough come una texture accessibile: il browser **non espone i pixel della camera**.
-
-### 4.2 Pavimento e posizionamento
-
-1. Richiedi una sessione `immersive-ar` e `local-floor` se supportato. Richiedi `plane-detection` e `anchors` con gestione di indisponibilità/permessi; se una feature opzionale fa fallire la sessione, riprova senza quella feature ma mostra lo stato ridotto.
-2. Attendi alcuni frame / almeno **2–3 secondi** per la popolazione di `session.detectedPlanes` prima di concludere che non sono presenti superfici.
-3. Se ci sono piani orizzontali, identifica il pavimento in maniera ragionevole (orientamento, quota rispetto a `local-floor`, estensione e vicinanza); **non** confondere il piano di un tavolo con il pavimento. Mostra una preview della posizione proposta e chiedi un click per confermare.
-4. Se il pavimento non è rilevato, usa `local-floor` come quota iniziale `y=0` **solo se quel riferimento è disponibile e calibrato**; altrimenti chiedi calibrazione manuale. Fornisci `±` per regolare l'altezza e mostra un marcatore temporaneo ai piedi.
-5. La prima posizione suggerita è circa **1,5–2 metri davanti all'utente**, con la base del modello a contatto col piano e volto rivolto verso chi lo posiziona. Non mantenere mai la coordinata di camera come parent dell'avatar dopo la conferma.
-6. Consenti **Riposiziona** tramite controller/ray, oppure un flusso con marker e conferma se il raycast verso il pavimento non è disponibile. Salva una sola posizione per stanza/sessione in v1.
-7. Se il piano non è più tracciato, **non attaccare l'avatar alla camera**; mantieni l'ultima posa valida e indica tracking degradato.
-
-### 4.3 Anchor spaziale e persistenza
-
-- Alla conferma della posa crea un `XRAnchor` (con la API supportata dall'implementazione corrente), associato al `XRSpace` opportuno.
-- Ad ogni frame applica all'avatar la posa ottenuta dall'`anchorSpace` rispetto al reference space, gestendo pose temporaneamente non disponibili.
-- Se disponibile, usa `requestPersistentHandle()` e conserva l'handle in `localStorage` sullo **stesso origin**. Alla sessione successiva tenta `restorePersistentAnchor(handle)`.
-- Se il ripristino non funziona, mostra **Posizione non recuperata — riposiziona**, senza inventare una posizione stabile dalla sola stringa in storage.
-- Offri **Reset posizione**: elimina l'handle sia dallo storage locale sia dal dispositivo tramite le API di eliminazione se esposte, poi torna al posizionamento iniziale.
-- Ricorda i limiti di Meta: massimo **8 anchor persistenti** per sito e persistenza non garantita in modalità privata, dopo cancellazione della cronologia del sito o se cambiano permessi/configurazione della stanza.
-- La posa deve restare stabile mentre l'utente ruota la testa, fa qualche passo e gira intorno all'avatar; **l'orientamento di testa/corpo può seguire l'utente con moderazione, ma la posizione world-space rimane fissa**.
-
-### 4.4 Gestore delle animazioni
-
-Crea `AvatarController` usando `THREE.AnimationMixer`, transizioni `crossFadeTo`/fade e un piccolo state machine:
-
-| Stato | Comportamento |
-|---|---|
-| `idle` | `Idle` in loop, respirazione/micro-movimenti leggeri |
-| `greeting` | `Wave` una volta, poi `Idle` |
-| `listening` | `Idle` + orientamento lieve della testa verso utente, indicatore ascolto |
-| `thinking` | `Idle`, piccolo gesto naturale senza interrompere l'audio |
-| `speaking` | `Idle` + mouth proxy sincronizzato con RMS audio + piccoli gesti occasionali (`Yes`, `ThumbsUp`) |
-| `positive` | `ThumbsUp` una volta, poi `Idle` |
-| `negative` | `No` una volta, poi `Idle` |
-| `error` | indicatore discreto + eventuale morph `Sad` |
-
-- Non accumulare gesture incontrollate. Distinguere clip one-shot e loop; interrompere/crossfadare le one-shot quando necessario.
-- Usa i morph `Angry`, `Surprised`, `Sad` solo quando appropriato; transizioni morbide.
-- Movimento parlato: l'audio remoto WebRTC confluisce in un `AudioContext`/`AnalyserNode`; stima RMS/envelope, applica smoothing e mappa l'energia ad apertura bocca simulata, con quiet threshold. **Non far parlare la bocca quando l'audio è mutato o assente.**
-- Aggiorna `AnimationMixer` sul delta time, non creando nuovi oggetti/clip ogni frame. Riduci draw call ed effetti superflui sul Quest Pro.
-- Opzionale: un canale dati OpenAI può pilotare lo stato di risposta; non richiedere output strutturato aggiuntivo del modello per scegliere ogni gesto.
-
-### 4.5 Voce e LLM OpenAI
-
-**Modello di default:** `gpt-realtime-2.1-mini` per il costo inferiore del test; rendere configurabile lato server `gpt-realtime-2.1` per confronto qualitativo. **Lingua:** italiano; voce supportata dal modello, inizialmente `marin` se disponibile nella configurazione corrente (se non lo è, selezionarne una documentata senza bloccare l'MVP).
-
-- Utilizzare **WebRTC** per audio a bassa latenza e un data channel per eventi e stato. Browser: `getUserMedia({ audio: true })`, `RTCPeerConnection`, traccia audio remota con riproduzione udibile nel visore.
-- Sul server implementare `POST /api/realtime-token`: autentica/limita la chiamata secondo le funzionalità di Sites, legge `process.env.OPENAI_API_KEY`, chiama `POST https://api.openai.com/v1/realtime/client_secrets`, restituisce **solo** il client secret temporaneo e le informazioni strettamente necessarie.
-- Per la configurazione della sessione usa **l'API GA corrente**, non l'endpoint legacy `/v1/realtime/sessions`. Non usare la normale API key direttamente dal client, nemmeno temporaneamente.
-- Client: richiede il token alla propria route, crea offer SDP e connette a `https://api.openai.com/v1/realtime/calls` secondo la guida WebRTC corrente. Implementa lifecycle, error handling e chiusura della peer connection.
-- Impostare istruzioni dell'avatar: amichevole, concreto, in italiano, conversazione breve, naturale, non finge di vedere l'ambiente fisico o di riconoscere oggetti.
-- Voice activity detection configurata per turni conversazionali naturali, con interruzioni/barging-in quando supportate; gestire la transizione ascolto → risposta e ritorno.
-- Consentire **Avvia conversazione**, **Disattiva/Riattiva microfono**, **Termina conversazione**. Chiudendo, fermare le tracks e liberare risorse audio/WebRTC.
-- Fallback di debug: mostra trascrizione del dialogo solo quando disponibile negli eventi Realtime e non come sostituzione forzata dell'audio.
-- Visualizzare errori chiari per microfono negato, sessione non autorizzata, quota raggiunta, rete indisponibile, modello non abilitato, audio che non parte.
-- Su Safari/Browser embedded non garantire playback automatico: chiedi un'interazione esplicita prima dell'avvio e usa un meccanismo di audio unlock appropriato.
-
-#### Prompt di sistema suggerito
-
-```text
-Sei NEO, un avatar tridimensionale presente nella stanza dell'utente tramite realtà mista.
-Parla in italiano in modo naturale, amichevole e sintetico. Usa frasi relativamente brevi
-adatte al dialogo vocale. Puoi discutere liberamente di argomenti generali e rispondere
-alle domande. Sai di essere visualizzato in un ambiente fisico, ma NON hai accesso ai
-fotogrammi delle telecamere né riconosci automaticamente oggetti, persone o gesti.
-Se l'utente ti chiede cosa stai vedendo, dichiara il limite e chiedi una descrizione.
-Non affermare di poterti muovere o interagire fisicamente con gli oggetti.
-```
-
-### 4.6 UI minima e debug
-
-**Prima di entrare in MR:** titolo, verifica compatibilità, tasto MR, tasto anteprima 3D, breve spiegazione dei permessi.
-
-**Dentro MR:** indicatore contestuale con stato `Posiziona` / `Pronto` / `Ascolto` / `Rispondo` / `Errore`; azioni **Posiziona**, **Conferma**, **Riposiziona**, **Avvia/Termina voce**, **Mute**, **Reset anchor**. Usa un pannello 3D ancorato temporaneamente allo sguardo o al controller **solo per la UI**, non per l'avatar, e dimensioni leggibili nel visore.
-
-**Modalità debug attivabile:** reference space usato, n. piani, piano scelto, quota piedi, stato anchor (`session / persistent / failed`), stato peer connection, input mic, output audio level, FPS. Nessuna chiave, token o trascrizione sensibile nei log di produzione.
-
-## 5. Struttura indicativa del progetto
-
-Adattare a uno starter supportato da Sites, preservando responsabilità e nomi logici:
-
-```text
-/
-├── README.md                       # setup locale, test Quest, deploy Sites
-├── AGENTS.md                       # istruzioni durevoli per Codex
-├── ASSET_CREDITS.md
-├── .env.example                    # OPENAI_API_KEY= (mai il valore reale)
-├── package.json
-├── public/
-│   └── models/RobotExpressive.glb
-├── src/
-│   ├── main.ts
-│   ├── xr/
-│   │   ├── capabilities.ts
-│   │   ├── xrSession.ts
-│   │   ├── floorPlacement.ts
-│   │   └── anchors.ts
-│   ├── avatar/
-│   │   ├── AvatarController.ts
-│   │   ├── animations.ts
-│   │   └── speechVisual.ts
-│   ├── audio/
-│   │   ├── realtimeClient.ts
-│   │   └── audioLevel.ts
-│   ├── ui/
-│   │   ├── ui2d.ts
-│   │   └── ui3d.ts
-│   └── styles.css
-├── server/                         # oppure API routes native dello starter Sites
-│   └── realtime-token.ts
-└── tests/
-    ├── placement.test.ts
-    └── animation-state.test.ts
-```
-
-## 6. Piano operativo obbligatorio per Codex
-
-**Esegui per fasi, senza fermarti dopo la progettazione.** Ogni fase produce codice, una build verificabile e un aggiornamento sintetico dello stato.
-
-**Fase A — Compatibilità e scaffold.** Verifica documentazione corrente di Meta Quest Browser, Sites e OpenAI Realtime; crea starter full-stack compatibile con Sites; installa dipendenze minime; esegui `npm run build` e `npm run typecheck` (o equivalenti).
-
-**Fase B — Avatar desktop.** Scarica RobotExpressive, aggiungilo localmente, renderizza scena preview, implementa scala/piedi e `AnimationMixer`, UI di stato, saluto e gesture manualmente provabili.
-
-**Fase C — WebXR MR.** Implementa `immersive-ar`, passthrough trasparente, `local-floor`, plane detection, preview, conferma e posizionamento; assicurati che il root avatar non dipenda da head pose.
-
-**Fase D — Anchor.** Aggiungi anchor alla posizione confermata, handle persistente e restore con fallback/diagnostica.
-
-**Fase E — Conversazione.** Crea route server sicura per client secret, `RTCPeerConnection`, data channel, input/output audio, mute, stato VAD, errori e cleanup. Testa prima fuori da XR, poi in XR.
-
-**Fase F — Animazioni conversazionali.** Collega transizioni agli eventi voce e ampiezza audio al mouth proxy. Riduci latenza percepita e jitter dell'avatar.
-
-**Fase G — Quality gate e deploy HTTPS.** Esegui lint/typecheck/build/test automatici; prepara segreti nel runtime Sites senza includerli nel codice; crea una versione salvata, verifica il sito direttamente nel **Quest Browser sull'URL finale HTTPS**, poi pubblica soltanto la versione approvata e riporta URL e risultati reali del test.
-
-**Cosa non fare:** niente Unity, APK, riconoscimento immagini, DB, login aggiuntivo complesso, avatar generativo, rigging manuale completo, editor 3D, infrastruttura esterna, API key nel frontend o simulazioni presentate come test effettivi del Quest.
-
-## 7. Test e definizione di “fatto”
-
-### Automatizzabili (Codex)
-
-- `npm run build`, typecheck e lint passano; nessun errore JS bloccante nella demo desktop.
-- Asset GLB caricato da URL relativo locale e clip `Idle`, `Wave`, `Yes`, `No`, `ThumbsUp` individuate.
-- Test di unità della funzione che colloca il piede sul pavimento e delle transizioni degli stati animazione.
-- Assenza di `OPENAI_API_KEY` e segreti nel bundle frontend e nel repository.
-- `/api/realtime-token` gestisce metodi non consentiti, credenziali mancanti, errori upstream e limite richieste; non logga token o segreti.
-
-### Da provare **fisicamente** con Quest Pro (non dichiarare verificati da test desktop)
-
-| Test | Azione | Esito richiesto |
-|---|---|---|
-| MR | Aprire URL pubblicato, cliccare Entra in MR | Stanza reale visibile, avatar 3D renderizzato |
-| Floor | Posizionare avatar | Piedi sul pavimento (eventuale correzione manuale) |
-| Rotazione | Girare la testa a sinistra/destra | Avatar non segue la camera |
-| Parallasse | Camminare 1–2 m e girargli intorno in sicurezza | Avatar resta nella medesima posizione fisica, salvo limitato drift tracking |
-| Anchor | Recenter del visore, quando applicabile | Avatar mantiene allineamento il più possibile |
-| Persistenza | Chiudere e riaprire sito nella stessa stanza | Tentativo di restore; se non riesce, errore chiaro e riposizionamento |
-| Conversazione | Consentire microfono e parlare in italiano | Risposta OpenAI udibile, a turni naturali |
-| Animazione voce | Parlare e attendere la risposta | Stato ascolto/risposta e bocca proxy coerenti con audio |
-| Gestione errori | Negare microfono o staccare rete | UI recuperabile, nessuna pagina bianca |
-| Pulizia | Terminare conversazione | Microfono e peer connection chiusi |
-
-**Definizione di completamento:** il progetto è completo sul piano del codice solo quando tutti i controlli automatizzabili passano; è **validato su Quest Pro** soltanto dopo test fisici confermati; è **pubblicato** soltanto quando Sites restituisce un URL effettivo. Segnalare separatamente le voci ancora da verificare.
-
-## 8. Distribuzione con ChatGPT Sites
-
-1. Aprire **ChatGPT Work** sul web oppure **Work/Codex nell'app desktop** e avviare un progetto **@Sites**; chiedere di **importare/adattare il progetto Codex esistente** e controllare la compatibilità del runtime.
-2. Creare il Site con accesso **solo proprietario / invitati** per il test, evitando l'esposizione pubblica dell'endpoint a chiunque.
-3. Aprire **Sites → [progetto] → More actions → Settings**; aggiungere il segreto runtime `OPENAI_API_KEY` con il valore generato nella piattaforma API OpenAI. **Non** incollarlo nel testo di una chat o allegarlo a file. Configurare eventuale variabile non segreta per modello scelto.
-4. Nella route token implementare controllo dell'accesso server, rate limit e controllo di uso; preferire un'identità autorizzata del Site dove disponibile. Le impostazioni di condivisione da sole non sono un sostituto di limiti sull'API.
-5. Salvare una **versione** prima del deploy; poi distribuire su URL HTTPS Sites. Se si cambia un segreto, ridistribuire la versione appropriata.
-6. Aprire **direttamente l'URL pubblicato** in Meta Quest Browser (non il riquadro preview incorporato in ChatGPT), concedere i permessi di spazio e microfono e completare i test del §7.
-7. Se HTTPS, policy browser, iframe/Permissions-Policy, API server o supporto WebXR impediscono la prova, documentare l'esatto errore e non considerare il progetto validato.
-
-> **Importante:** ChatGPT Plus/Sites e **l'API OpenAI hanno contabilità distinta**. La conversazione Realtime genera consumo API fatturabile; configura budget/limiti nell'account API. Per prove economiche usa `gpt-realtime-2.1-mini`, misura la durata delle sessioni e chiudi la connessione a fine test.
-
-### Prompt finale da impartire a Codex / Sites
-
-```text
-Leggi QUEST_PRO_AR_AVATAR_MVP_CODEX.md e implementa integralmente il progetto.
-Usa un progetto full-stack TypeScript compatibile con ChatGPT Sites,
-Three.js + WebXR immersive-ar, il GLB RobotExpressive CC0 e OpenAI
-Realtime API via WebRTC. Priorità assoluta: piedi sul pavimento,
-world locking dell'avatar, anchor persistente con fallback, audio
-bidirezionale stabile e chiave OpenAI solo lato server.
-
-Implementa codice reale, non soltanto una demo visuale. Scarica l'asset
-in public/models, predisponi route per client secret, test, README,
-.env.example e ASSET_CREDITS.md. Esegui build/typecheck/test e risolvi
-gli errori. Prepara un deploy con Sites, chiedendo esclusivamente la
-configurazione del segreto OPENAI_API_KEY nel pannello sicuro di Sites.
-Non dichiarare verificati i test hardware che non puoi eseguire.
-Per la prova finale usa Meta Quest Pro e l'URL HTTPS effettivamente
-pubblicato. Riporta URL, risultati, limitazioni e passi residui.
-```
-
-## 9. Fonti tecniche (verificate il 10/10/2026)
-
-- Meta — Mixed Reality Support in Browser (Quest Pro, passthrough, piani, anchors): <https://developers.meta.com/vr/documentation/web/webxr-mixed-reality/>
-- Meta — Browser specifications / capability detection: <https://developers.meta.com/vr/documentation/web/browser-specs/>
-- Meta — WebXR overview: <https://developers.meta.com/vr/documentation/web/webxr-overview/>
-- Three.js — RobotExpressive, autori e licenza CC0: <https://github.com/mrdoob/three.js/blob/dev/examples/models/gltf/RobotExpressive/README.md>
-- Three.js — Example animations and facial morph targets: <https://threejs.org/examples/webgl_animation_skinning_morph.html>
-- OpenAI — Realtime via WebRTC: <https://developers.openai.com/api/docs/guides/voice-webrtc>
-- OpenAI — Create Realtime client secret: <https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create>
-- OpenAI — Models and pricing: <https://developers.openai.com/api/docs/models> · <https://developers.openai.com/api/docs/pricing>
-- OpenAI — ChatGPT Sites developer guide (hosting, versions, secrets): <https://learn.chatgpt.com/docs/sites>
-- OpenAI — Creating and using ChatGPT Sites: <https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites>
+L'obiettivo è realizzare un'unica esperienza curata, credibile, fluida, coinvolgente e fortemente interattiva.
 
 ---
 
-**Stato attuale:** specifica di implementazione pronta; **MVP non ancora sviluppato, pubblicato o testato sul dispositivo**. Questo documento è l'input operativo per Codex.
+# 1. VISIONE DEL PROGETTO
 
+## Titolo
 
-## 8. Riferimenti aggiornati (10 ottobre 2026)
+**Future Observatory — The Complexity of Choice**
 
-- OpenAI Codex Cloud: <https://learn.chatgpt.com/docs/cloud>
-- Codex con piano ChatGPT e limiti Sites: <https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan>
-- OpenAI Realtime WebRTC: <https://developers.openai.com/api/docs/guides/voice-webrtc>
-- OpenAI client secrets: <https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create>
-- Modello `gpt-realtime-2.1-mini`: <https://developers.openai.com/api/docs/models/gpt-realtime-2.1-mini>
-- Meta WebXR Mixed Reality: <https://developers.meta.com/vr/documentation/web/webxr-mixed-reality/>
-- Browser support WebXR: <https://caniuse.com/webxr>
+## Concept
 
-## Aggiornamento autorizzato dall’utente — room scale
+L'utente incontra un avatar AI nella propria stanza reale attraverso il passthrough del Meta Quest Pro.
 
-Le istruzioni successive dell’utente aggiornano i punti 4.2 e 4.3: prima posizione automatica a 1–1,5 m (target 1,3 m), sguardo continuo verso il visore anche passando dietro al robot. Il posizionamento manuale rimane un fallback e una correzione. In osservatorio il robot può seguire di lato con collisioni sull’ambiente virtuale noto; nella stanza reale si usa il fallback esplicitamente accettato dall’utente, posizione fissa e sguardo, senza presumere una mappa completa degli ostacoli dai piani XR. I requisiti hardware rimangono da verificare sul dispositivo fisico. Dettagli in docs/ROOM_SCALE.md.
+L'avatar emerge da un portale virtuale, conversa con l'utente e lo invita a visitare il proprio osservatorio nel futuro.
+
+L'osservatorio è una stanza tridimensionale virtuale, con una grande finestra panoramica affacciata su una città del 2050.
+
+La città rappresenta inizialmente un futuro ambientalmente critico, conseguenza plausibile di politiche insufficienti e problemi rimasti irrisolti.
+
+L'avatar invita l'utente a modificarne il destino.
+
+L'utente dispone di **10 ambiti di intervento**, ma può effettuare **un massimo di 5 decisioni**, con la possibilità di concludere dopo la quarta.
+
+Ogni decisione produce trasformazioni concrete e riconoscibili nella città.
+
+Le conseguenze dipendono non soltanto dalla singola decisione, ma anche dagli interventi precedenti.
+
+Una soluzione apparentemente positiva può presentare limiti, introdurre nuovi fabbisogni o entrare in conflitto con altre scelte.
+
+Il robot accompagna il partecipante nella scoperta di queste interdipendenze.
+
+## Messaggio educativo
+
+La sostenibilità non è un elenco di comportamenti giusti o sbagliati.
+
+È un problema sistemico, caratterizzato da risorse limitate, esigenze differenti, conseguenze indirette, incertezze e compromessi.
+
+Non esiste necessariamente un unico futuro corretto.
+
+**Il risultato dell'esperienza è la consapevolezza che prendere decisioni davvero sostenibili richiede una visione complessa e integrata.**
+
+Non creare un quiz.
+
+Non attribuire punteggi morali.
+
+Non introdurre una combinazione prestabilita di risposte vincenti.
+
+---
+
+# 2. AMBIENTAZIONI
+
+Devono esistere esclusivamente due configurazioni ambientali principali della stessa città.
+
+## 2.1 CRITICAL FUTURE
+
+La città del 2050 in una condizione ambientale critica.
+
+Elementi:
+- Atmosfera calda.
+- Cielo opaco.
+- Smog.
+- Traffico congestionato.
+- Pochissima vegetazione.
+- Edifici poco efficienti.
+- Infrastrutture deteriorate.
+- Territorio impermeabilizzato.
+- Corso d'acqua degradato.
+- Presenza limitata di spazi naturali.
+
+La città deve apparire credibile, non necessariamente post-apocalittica.
+
+Evita immagini catastrofiche stereotipate.
+
+Deve sembrare una città contemporanea che ha progressivamente accumulato problemi ambientali.
+
+## 2.2 TRANSFORMED FUTURE
+
+È esattamente la stessa città, modificata dagli interventi dell'utente.
+
+Non deve essere una seconda città indipendente.
+
+Non deve essere necessariamente un paradiso verde.
+
+Alcuni problemi possono migliorare, altri rimanere irrisolti.
+
+Il risultato finale è diverso per ciascun partecipante.
+
+Le trasformazioni devono essere cumulative.
+
+Esempio:
+
+Se l'utente realizza piste ciclabili, poi installa pannelli solari e successivamente pianta alberi, la città deve mostrare contemporaneamente tutti e tre gli interventi.
+
+Non resettare una trasformazione quando ne viene applicata un'altra, salvo conflitti esplicitamente gestiti.
+
+## Vincolo tecnico
+
+Utilizzare un'unica geometria urbana principale.
+
+Le trasformazioni devono avvenire attraverso:
+- Attivazione e disattivazione di asset.
+- Cambiamenti dei materiali.
+- Animazioni.
+- Modifiche dell'illuminazione.
+- Modifiche atmosferiche.
+- Variazioni del traffico e degli elementi ambientali.
+- Combinazioni di oggetti predefiniti.
+
+Non generare nuove ambientazioni 3D tramite AI durante l'esperienza.
+
+---
+
+# 3. ARCHITETTURA TECNOLOGICA
+
+Mantenere preferibilmente lo stack attuale:
+
+- React.
+- TypeScript.
+- Vite.
+- Three.js.
+- WebXR.
+- OpenAI Realtime API tramite WebRTC.
+- Backend Node.js.
+- Database persistente per il messaggio finale e le decisioni.
+- Asset 3D glTF/GLB.
+
+Non utilizzare:
+- Unity.
+- Unreal Engine.
+- Blender.
+- 3ds Max.
+- Altri software di modellazione 3D manuale.
+
+Utilizzare modelli gratuiti già disponibili online, geometrie procedurali e trasformazioni JavaScript/TypeScript.
+
+Privilegiare asset con licenze permissive e documentate.
+
+Possibili fonti:
+- https://polyhaven.com
+- https://kenney.nl/assets
+- https://quaternius.com
+
+Verificare le licenze degli asset realmente scaricati.
+
+Non presupporre che tutti i file di un pacchetto siano gratuiti.
+
+La chiave API OpenAI deve rimanere esclusivamente nel backend.
+
+Per il browser utilizzare credenziali temporanee e il flusso di autenticazione supportato dalla Realtime API.
+
+---
+
+# 4. USER JOURNEY COMPLETA
+
+## 4.1 Start
+
+La webapp presenta una schermata iniziale chiara.
+
+Titolo:
+
+FUTURE OBSERVATORY
+
+Sottotitolo:
+
+"Il futuro non è scritto. Ma ogni scelta ha delle conseguenze."
+
+Pulsante principale:
+
+**INIZIA ESPERIENZA**
+
+L'utente deve iniziare esplicitamente.
+
+Non avviare automaticamente il microfono.
+
+Richiedere i permessi necessari, verificare WebXR e mostrare messaggi comprensibili in caso di incompatibilità.
+
+## 4.2 Portale Mixed Reality
+
+Dopo l'avvio:
+
+1. Attiva il passthrough quando supportato.
+2. Identifica o stima il pavimento.
+3. Posiziona un portale a circa 2 metri davanti al visore.
+4. Il portale deve restare fisso nello spazio.
+5. Il portale si apre.
+6. L'avatar emerge con un'animazione.
+7. Si gira verso l'utente.
+8. Saluta e inizia una breve conversazione.
+9. Il portale si richiude.
+
+Il portale non deve seguire la testa.
+
+L'avatar deve avere i piedi sul pavimento.
+
+Utilizzare riferimenti spaziali WebXR e funzionalità di hit-test dove disponibili.
+
+Prevedere sempre un sistema di posizionamento manuale.
+
+Non presumere che il browser supporti ancoraggi persistenti tra sessioni.
+
+## 4.3 Introduzione narrativa
+
+L'avatar introduce la storia.
+
+Esempio di intenzione narrativa:
+
+"Voglio mostrarti una città del futuro. Una città che ha dovuto affrontare le conseguenze delle decisioni prese molti anni prima. Ma c'è ancora qualcosa che possiamo fare."
+
+La conversazione deve essere breve e naturale.
+
+## 4.4 Ingresso nell'osservatorio
+
+L'utente entra in una stanza virtuale tridimensionale.
+
+Grande finestra panoramica davanti a lui.
+
+All'esterno è visibile la città critica del 2050.
+
+L'avatar rimane presente e continua a parlare.
+
+Preferire una transizione visiva progressiva dall'AR alla scena virtuale, verificando le capacità effettive del browser.
+
+Se è necessaria una nuova sessione immersive-vr, gestire un'interazione esplicita dell'utente e conservare il contesto narrativo.
+
+Non dichiarare possibile un cambio automatico di modalità senza averne verificato il supporto.
+
+## 4.5 Osservazione della città
+
+Il robot descrive sinteticamente alcuni problemi:
+- Inquinamento.
+- Caldo.
+- Traffico.
+- Mancanza di verde.
+- Pressione sulle risorse.
+
+Poi chiede:
+
+"Se potessi cambiare il futuro di questa città, da dove cominceresti?"
+
+Si apre il sistema delle decisioni.
+
+## 4.6 Decisioni dell'utente
+
+L'utente seleziona liberamente gli ambiti su cui intervenire.
+
+Per ogni intervento:
+1. Sceglie un ambito.
+2. Il robot introduce il problema.
+3. Presenta tre possibili soluzioni.
+4. L'utente sceglie.
+5. La città si trasforma.
+6. L'avatar descrive i risultati.
+7. Vengono evidenziati eventuali compromessi.
+8. L'utente decide come continuare.
+
+Dopo quattro decisioni, l'utente può concludere oppure effettuare un quinto intervento.
+
+## 4.7 Revisione finale
+
+L'utente osserva la città risultante.
+
+Il robot propone di ripensare una delle decisioni.
+
+È consentita al massimo una revisione.
+
+La revisione non consuma uno slot aggiuntivo.
+
+## 4.8 Ritorno alla realtà
+
+L'osservatorio scompare.
+
+L'utente torna nell'ambiente reale.
+
+Il robot rimane presente in Mixed Reality, con un posizionamento sicuro e stabile.
+
+## 4.9 Messaggio al futuro
+
+Il robot pone una domanda riflessiva.
+
+La risposta può essere salvata nel backend previo consenso.
+
+L'avatar saluta e l'esperienza termina.
+
+---
+
+# 5. REGOLE DEL DECISION ENGINE
+
+Sono disponibili dieci leve.
+
+Ogni leva offre tre interventi.
+
+L'utente può realizzare fino a cinque interventi complessivi.
+
+## Libertà di scelta
+
+Non imporre un ordine predefinito.
+
+Non obbligare a selezionare ambiti differenti.
+
+L'utente può intervenire più volte sullo stesso tema scegliendo interventi distinti.
+
+Esempio:
+
+Decisione 1: costruire una rete di tram.
+
+Decisione 2: realizzare piste ciclabili.
+
+Entrambe appartengono alla mobilità, ma consumano due slot distinti.
+
+Le due infrastrutture devono poter coesistere.
+
+Se l'utente ripete una scelta identica già applicata, non consumare automaticamente un altro intervento: ricorda che è già stata realizzata e chiedi se vuole modificarla o aggiungere qualcosa.
+
+## Conclusione
+
+Dopo la quarta decisione il robot chiede:
+
+"Vuoi realizzare un ultimo intervento oppure preferisci osservare il futuro che hai costruito?"
+
+Se l'utente continua, può effettuare il quinto.
+
+Dopo il quinto, la fase decisionale termina.
+
+L'utente può comunque interrompere l'esperienza in qualsiasi momento.
+
+---
+
+# 6. LE DIECI LEVE — DEFINIZIONE COMPLETA
+
+Le scelte seguenti costituiscono il catalogo iniziale del simulatore.
+
+Ogni intervento deve avere:
+- Identificatore stabile.
+- Etichetta.
+- Descrizione.
+- Benefici plausibili.
+- Limiti e compromessi.
+- Trasformazioni visive.
+- Variabili di stato coinvolte.
+- Flag per le interdipendenze.
+- Eventuali condizioni narrative.
+
+I benefici e gli svantaggi sono dipendenti dal contesto. Non trasformarli in affermazioni scientifiche assolute.
+
+## LEVA 01 — MOBILITÀ URBANA
+
+Problema iniziale: traffico elevato e dipendenza dalle automobili.
+
+### MOB_BIKE — Piste ciclabili
+
+Intervento:
+Realizzazione di una rete ciclabile protetta.
+
+Benefici:
+- Favorisce spostamenti brevi senza auto.
+- Riduce parte del traffico se utilizzata.
+- Richiede meno spazio per passeggero rispetto all'automobile.
+
+Criticità:
+- Continuità e sicurezza della rete.
+- Accessibilità non universale.
+- Efficacia variabile con distanza, topografia e condizioni locali.
+
+Trasformazione visiva:
+- Compaiono piste ciclabili.
+- Parte della carreggiata cambia.
+- Appaiono biciclette.
+
+### MOB_TRAM — Tram elettrici
+
+Benefici:
+- Elevata capacità di trasporto.
+- Possibile riduzione dell'uso dell'auto.
+- Collegamento efficiente tra quartieri lungo il percorso.
+
+Criticità:
+- Investimenti importanti.
+- Tempi di realizzazione.
+- Maggior fabbisogno di energia elettrica.
+- Necessità di integrazione con altri trasporti.
+
+Trasformazione visiva:
+- Binari.
+- Fermate.
+- Tram animato.
+- Riorganizzazione di parte della strada.
+
+### MOB_SCOOTER — Monopattini condivisi
+
+Benefici:
+- Alternativa per alcuni tragitti brevi.
+- Introduzione relativamente rapida.
+- Potenziale integrazione con il trasporto pubblico.
+
+Criticità:
+- Sicurezza.
+- Gestione dei parcheggi.
+- Accessibilità limitata.
+- Possibile sostituzione di spostamenti già effettuati a piedi.
+
+Trasformazione visiva:
+- Monopattini.
+- Stazioni dedicate.
+- Percorsi di micromobilità.
+
+---
+
+## LEVA 02 — VERDE URBANO
+
+Problema iniziale: poco verde, superfici calde e scarsità di ombra.
+
+### GREEN_TREES — Alberi lungo le strade
+
+Benefici:
+- Ombreggiamento.
+- Miglioramento del microclima.
+- Potenziale beneficio per habitat urbani.
+
+Criticità:
+- Acqua.
+- Manutenzione.
+- Suolo disponibile per radici.
+- Scelta di specie adatte.
+
+Visivo:
+Alberi che compaiono progressivamente lungo i viali, con chiome e ombre.
+
+### GREEN_PARK — Grande parco
+
+Benefici:
+- Spazio verde pubblico.
+- Possibile raffrescamento locale.
+- Opportunità per habitat e attività all'aperto.
+
+Criticità:
+- Occupazione di suolo urbano.
+- Manutenzione.
+- Fabbisogno idrico, soprattutto con specie non adatte.
+- Possibili effetti sui valori immobiliari e sull'accessibilità.
+
+Visivo:
+Un quartiere o terreno degradato diventa un grande parco.
+
+### GREEN_ROOFS — Tetti verdi
+
+Benefici:
+- Vegetazione su superfici già costruite.
+- Contributo all'isolamento e alla gestione delle acque meteoriche, in funzione del progetto.
+- Potenziali microhabitat.
+
+Criticità:
+- Carico strutturale.
+- Costi.
+- Manutenzione.
+- Possibile competizione o integrazione con impianti fotovoltaici.
+
+Visivo:
+Diversi tetti assumono vegetazione.
+
+---
+
+## LEVA 03 — ENERGIA
+
+Problema iniziale: produzione energetica ad alto impatto ambientale.
+
+### ENERGY_ROOFTOP — Fotovoltaico sui tetti
+
+Benefici:
+- Produzione rinnovabile distribuita.
+- Utilizzo di superfici costruite.
+- Minore necessità di nuovo suolo per gli impianti.
+
+Criticità:
+- Superfici idonee limitate.
+- Costi iniziali.
+- Necessità di rete e flessibilità.
+- Produzione variabile.
+
+Visivo:
+Pannelli sui tetti.
+
+### ENERGY_SOLAR_FARM — Grandi impianti solari
+
+Benefici:
+- Produzione rinnovabile su scala maggiore.
+- Possibilità di contribuire significativamente alla domanda elettrica.
+
+Criticità:
+- Localizzazione e uso del suolo.
+- Possibili interferenze con habitat o paesaggio.
+- Necessità di collegamenti alla rete.
+
+Visivo:
+Parco fotovoltaico nella periferia visibile.
+
+### ENERGY_COMMUNITY — Comunità energetiche e accumulo
+
+Benefici:
+- Condivisione dell'energia.
+- Maggiore flessibilità attraverso sistemi di accumulo.
+- Possibile coinvolgimento locale.
+
+Criticità:
+- Coordinamento.
+- Investimenti.
+- Limiti regolatori e infrastrutturali.
+- Necessità di produzione effettiva.
+
+Visivo:
+Piccoli impianti distribuiti, sistemi di accumulo e connessioni energetiche rappresentate in modo discreto.
+
+Non rappresentare le comunità energetiche come produzione elettrica gratuita o illimitata.
+
+---
+
+## LEVA 04 — EDIFICI
+
+### BUILD_RETROFIT — Riqualificazione degli edifici
+
+Benefici:
+- Riduzione del fabbisogno energetico.
+- Possibilità di conservare la struttura esistente.
+- Miglior comfort.
+
+Criticità:
+- Costi.
+- Tempi e disagi dei lavori.
+- Complessità degli interventi.
+
+Visivo:
+Facciate riqualificate, nuovi serramenti, isolamento e ombreggiamento.
+
+### BUILD_NEW — Nuovi edifici efficienti
+
+Benefici:
+- Possibilità di progettazione integrata.
+- Elevata efficienza operativa.
+
+Criticità:
+- Materiali.
+- Emissioni incorporate.
+- Consumo di suolo, quando previsto.
+- Necessità di valutare demolizione e costruzione nel ciclo di vita.
+
+Visivo:
+Alcuni edifici vengono sostituiti o trasformati.
+
+### BUILD_PASSIVE — Architettura passiva
+
+Benefici:
+- Minore domanda di riscaldamento e raffrescamento quando adeguatamente progettata.
+- Migliore protezione dal calore.
+
+Criticità:
+- Dipendenza dal clima e dall'orientamento.
+- Limiti del patrimonio edilizio esistente.
+- Necessità di progettazione specifica.
+
+Visivo:
+Frangisole, facciate ombreggiate, nuove coperture e schermature.
+
+---
+
+## LEVA 05 — ACQUA
+
+### WATER_LEAKS — Riparazione della rete idrica
+
+Benefici:
+- Riduzione delle perdite.
+- Maggiore efficienza delle risorse disponibili.
+
+Criticità:
+- Investimenti.
+- Lavori sulle infrastrutture.
+- Tempi di realizzazione.
+
+Visivo:
+Cantieri leggeri e successiva riqualificazione di alcune infrastrutture idriche.
+
+### WATER_RAIN — Raccolta dell'acqua piovana
+
+Benefici:
+- Risorsa integrativa per alcuni usi non potabili, se correttamente gestita.
+- Possibile riduzione del deflusso durante eventi piovosi.
+
+Criticità:
+- Piogge stagionali.
+- Capacità di accumulo.
+- Necessità di manutenzione.
+- Disponibilità limitata durante siccità prolungate.
+
+Visivo:
+Serbatoi, sistemi di raccolta e infrastrutture sui tetti.
+
+### WATER_REUSE — Riutilizzo di acque reflue trattate
+
+Benefici:
+- Riduzione della pressione sulle risorse potabili per usi appropriati.
+- Possibile supporto all'irrigazione urbana.
+
+Criticità:
+- Trattamento e controlli.
+- Reti dedicate.
+- Investimenti e gestione.
+
+Visivo:
+Piccolo impianto di trattamento, serbatoi e infrastrutture.
+
+---
+
+## LEVA 06 — CALDO ESTREMO
+
+### HEAT_REFLECT — Tetti e superfici riflettenti
+
+Benefici:
+- Riduzione dell'assorbimento di radiazione solare su alcune superfici.
+- Possibile riduzione del fabbisogno di raffrescamento.
+
+Criticità:
+- Efficacia dipendente da clima, geometria e materiali.
+- Possibili effetti di riflessione indesiderata.
+- Manutenzione.
+
+Visivo:
+Coperture e superfici più chiare, aggiornamento delle ombre e dell'aspetto termico percepito.
+
+### HEAT_SHADE — Pensiline e ombreggiamento
+
+Benefici:
+- Migliore comfort per pedoni e utenti del trasporto.
+- Protezione diretta dal sole.
+
+Criticità:
+- Copertura limitata alle aree interessate.
+- Costi e manutenzione.
+- Necessità di integrazione urbanistica.
+
+Visivo:
+Pensiline, pergolati e percorsi ombreggiati.
+
+### HEAT_DISTRICT — Raffrescamento di quartiere
+
+Benefici:
+- Possibili economie di scala in contesti adatti.
+- Gestione coordinata del raffrescamento.
+
+Criticità:
+- Investimenti.
+- Complessità infrastrutturale.
+- Domanda energetica.
+- Risultati dipendenti dalla tecnologia adottata.
+
+Visivo:
+Centrale compatta, infrastruttura di distribuzione e variazioni discrete degli edifici serviti.
+
+---
+
+## LEVA 07 — RIFIUTI E RISORSE
+
+### WASTE_REUSE — Centri di riparazione e riuso
+
+Benefici:
+- Allungamento della vita dei prodotti.
+- Riduzione potenziale della necessità di nuovi materiali.
+- Attività economiche locali.
+
+Criticità:
+- Organizzazione.
+- Adesione della popolazione.
+- Limiti di riparabilità di alcuni prodotti.
+
+Visivo:
+Nuovi centri di riuso, spazi recuperati e attività locali.
+
+### WASTE_RECYCLE — Riciclo avanzato
+
+Benefici:
+- Recupero di parte dei materiali.
+- Minore necessità di alcune materie prime vergini.
+
+Criticità:
+- Consumo energetico.
+- Qualità e selezione dei flussi.
+- Residui non riciclabili.
+
+Visivo:
+Impianti, raccolta differenziata e infrastrutture.
+
+### WASTE_ENERGY — Recupero energetico dal residuo
+
+Benefici:
+- Possibilità di trattare alcune frazioni residue non riciclabili.
+- Recupero di parte dell'energia contenuta nei rifiuti.
+
+Criticità:
+- Emissioni da controllare.
+- Costi.
+- Gestione dei residui.
+- Possibile dipendenza da flussi continui di rifiuti.
+
+Visivo:
+Impianto dedicato, con emissioni rappresentate senza suggerire prestazioni non documentate.
+
+---
+
+## LEVA 08 — LOGISTICA URBANA
+
+### LOG_CARGO — Cargo bike
+
+Benefici:
+- Consegne urbane brevi con minore ingombro.
+- Possibile riduzione di alcuni veicoli commerciali.
+
+Criticità:
+- Capacità di carico.
+- Distanze.
+- Necessità di rete ciclabile sicura.
+
+Visivo:
+Cargo bike sulle strade.
+
+### LOG_EV — Furgoni elettrici
+
+Benefici:
+- Riduzione delle emissioni allo scarico.
+- Potenziale riduzione del rumore urbano.
+
+Criticità:
+- Non eliminano congestione e occupazione della strada.
+- Necessità di ricarica.
+- Domanda di energia e materiali.
+
+Visivo:
+Flotta elettrica e punti di ricarica.
+
+### LOG_HUB — Microhub logistici
+
+Benefici:
+- Consolidamento delle consegne.
+- Possibilità di integrare mezzi più piccoli per l'ultimo tratto.
+
+Criticità:
+- Spazio urbano.
+- Organizzazione.
+- Costi operativi.
+
+Visivo:
+Piccoli hub di distribuzione, zone di carico e nuova organizzazione delle consegne.
+
+---
+
+## LEVA 09 — BIODIVERSITÀ
+
+### BIO_RIVER — Rinaturalizzazione del fiume
+
+Benefici:
+- Possibile miglioramento degli habitat.
+- Maggiore qualità ecologica.
+- Potenziali benefici idrologici se il progetto è adeguato.
+
+Criticità:
+- Spazio.
+- Complessità idraulica.
+- Costi.
+- Necessità di considerare i rischi di piena.
+
+Visivo:
+Un tratto di fiume canalizzato viene trasformato con sponde naturali e vegetazione.
+
+### BIO_CORRIDORS — Corridoi ecologici
+
+Benefici:
+- Collegamento tra habitat.
+- Possibile miglioramento della connettività ecologica.
+
+Criticità:
+- Competizione per il suolo.
+- Interruzioni dovute alle infrastrutture.
+- Necessità di continuità.
+
+Visivo:
+Fasce verdi tra parchi, rive e quartieri.
+
+### BIO_POLLINATORS — Giardini per impollinatori
+
+Benefici:
+- Habitat locali.
+- Maggiore diversità vegetale, se progettati con specie adeguate.
+- Interventi distribuiti.
+
+Criticità:
+- Efficacia dipendente dal contesto.
+- Manutenzione.
+- Connessione con altri habitat.
+
+Visivo:
+Aiuole fiorite, giardini e piccole aree verdi.
+
+---
+
+## LEVA 10 — ALIMENTAZIONE URBANA
+
+### FOOD_GARDENS — Orti urbani
+
+Benefici:
+- Produzione locale limitata.
+- Partecipazione comunitaria.
+- Possibile recupero di aree inutilizzate.
+
+Criticità:
+- Superfici.
+- Acqua.
+- Qualità del suolo.
+- Capacità produttiva limitata.
+
+Visivo:
+Orti condivisi e piccoli spazi coltivati.
+
+### FOOD_VERTICAL — Vertical farming
+
+Benefici:
+- Coltivazione controllata.
+- Possibilità di usare spazi costruiti.
+- Riduzione di alcuni usi del suolo per determinate colture.
+
+Criticità:
+- Consumi energetici potenzialmente elevati.
+- Costi.
+- Convenienza limitata a determinate colture e contesti.
+
+Visivo:
+Edificio con serre verticali illuminate.
+
+### FOOD_RECOVERY — Recupero delle eccedenze alimentari
+
+Benefici:
+- Riduzione degli sprechi quando efficace.
+- Migliore valorizzazione dei prodotti disponibili.
+
+Criticità:
+- Necessità di reti logistiche.
+- Conservazione e distribuzione.
+- Coordinamento operativo.
+
+Visivo:
+Mercato urbano, centro di recupero e attività di distribuzione.
+
+---
+
+# 7. RISORSE CONDIVISE E VINCOLI DELLA CITTÀ
+
+Implementare un sistema interno di risorse e vincoli narrativi.
+
+Non serve una simulazione scientifica numerica.
+
+Per l'MVP utilizzare stati qualitativi e flag.
+
+## Le cinque dimensioni interne
+
+### WATER
+
+Disponibilità e pressione sulle risorse idriche.
+
+### ENERGY
+
+Domanda elettrica, capacità di produzione e necessità di infrastrutture.
+
+### LAND
+
+Disponibilità e utilizzo del suolo e delle superfici urbane.
+
+### INVESTMENT
+
+Costi, tempi, capacità di realizzazione e manutenzione.
+
+### ACCESSIBILITY
+
+Distribuzione dei benefici e accessibilità degli interventi.
+
+A queste possono essere associati risultati ambientali specifici, come qualità dell'aria, ombreggiamento e connettività ecologica.
+
+Non mostrare automaticamente all'utente tutte queste variabili.
+
+La comprensione deve avvenire principalmente attraverso la città e la voce dell'avatar.
+
+Non introdurre un punteggio finale di sostenibilità.
+
+---
+
+# 8. INTERDIPENDENZE — REGOLE FONDAMENTALI
+
+Il Decision Engine deve implementare almeno le seguenti 12 relazioni.
+
+Le condizioni devono essere simmetriche rispetto all'ordine delle scelte, quando logicamente appropriato.
+
+Ad esempio, scegliere acqua dopo verde deve produrre la stessa sinergia che scegliere verde dopo acqua, pur adattando il dialogo all'ordine.
+
+## R01 — Verde + acqua
+
+GREEN_TREES o GREEN_PARK + WATER_REUSE
+
+Effetto:
+La strategia idrica può contribuire a sostenere la vegetazione durante periodi secchi, se correttamente dimensionata.
+
+Visivo:
+Il verde appare meglio mantenuto; si evidenziano le infrastrutture idriche.
+
+Narrazione:
+"Abbiamo collegato due problemi che sembravano separati: il verde urbano e la disponibilità d'acqua."
+
+## R02 — Parco + stress idrico
+
+GREEN_PARK senza adeguata strategia idrica.
+
+Effetto:
+Compare un fabbisogno irrisolto, non un fallimento automatico.
+
+Visivo:
+Una porzione del parco può mostrare manutenzione difficile o vegetazione meno vigorosa, senza rappresentare una previsione inevitabile.
+
+Narrazione:
+"Creare un parco è un'ottima opportunità. Ma quali specie e quali risorse useremo per mantenerlo?"
+
+## R03 — Tram + produzione rinnovabile
+
+MOB_TRAM + ENERGY_ROOFTOP o ENERGY_SOLAR_FARM.
+
+Effetto:
+La produzione rinnovabile può contribuire a soddisfare la nuova domanda elettrica, senza suggerire copertura automatica o totale.
+
+Visivo:
+Tram attivi e impianti energetici visibili.
+
+Narrazione:
+"Stiamo collegando il trasporto pubblico a una strategia di produzione energetica."
+
+## R04 — Tram senza interventi energetici
+
+MOB_TRAM con domanda energetica aggiuntiva non ancora affrontata.
+
+Effetto:
+Viene evidenziata la necessità di valutare approvvigionamento e rete.
+
+Non spegnere i tram arbitrariamente.
+
+Narrazione:
+"Abbiamo cambiato la mobilità, ma non abbiamo ancora deciso come sostenere la maggiore domanda elettrica."
+
+## R05 — Piste ciclabili + cargo bike
+
+MOB_BIKE + LOG_CARGO.
+
+Effetto:
+La stessa rete può essere utile alle persone e a parte della distribuzione urbana.
+
+Visivo:
+Le cargo bike usano la rete ciclabile.
+
+Narrazione:
+"Una singola infrastruttura sta offrendo benefici a due sistemi differenti."
+
+## R06 — Parco + corridoi ecologici
+
+GREEN_PARK + BIO_CORRIDORS.
+
+Effetto:
+Possibile miglioramento della connettività tra aree naturali.
+
+Visivo:
+Connessioni verdi dal parco verso altri habitat.
+
+Narrazione:
+"Un parco isolato è importante. Una rete di spazi verdi può svolgere funzioni ecologiche aggiuntive."
+
+## R07 — Fotovoltaico + tetti verdi
+
+ENERGY_ROOFTOP + GREEN_ROOFS.
+
+Effetto:
+Possibile competizione per superfici, carichi e manutenzione, ma anche integrazione in progetti compatibili.
+
+Visivo:
+Alcuni tetti vengono riconfigurati con installazioni combinate, altri mantengono una singola soluzione.
+
+Non cancellare automaticamente tutti i pannelli.
+
+Narrazione:
+"Queste due soluzioni non sono necessariamente incompatibili. Ma dobbiamo progettarle insieme."
+
+## R08 — Impianti solari + corridoi ecologici
+
+ENERGY_SOLAR_FARM + BIO_CORRIDORS.
+
+Effetto:
+Possibile competizione per il territorio.
+
+Visivo:
+Alcuni tracciati verdi devono aggirare o integrare correttamente l'area degli impianti.
+
+Narrazione:
+"L'energia pulita è fondamentale. Anche il luogo in cui la produciamo può fare la differenza."
+
+## R09 — Vertical farming + energia
+
+FOOD_VERTICAL + qualsiasi intervento energetico pertinente.
+
+Effetto:
+La coltivazione indoor introduce un fabbisogno energetico significativo; una strategia energetica adeguata può contribuire a ridurne alcuni impatti.
+
+Visivo:
+Serra tecnologica con infrastruttura energetica.
+
+Narrazione:
+"Abbiamo ridotto alcuni vincoli agricoli, ma ora dobbiamo considerare l'energia necessaria per gestire l'impianto."
+
+## R10 — Raffrescamento + energia
+
+HEAT_DISTRICT + interventi ENERGY.
+
+Effetto:
+Collegamento tra comfort termico, domanda elettrica e infrastrutture.
+
+Visivo:
+Edifici serviti e centrale di raffrescamento, con eventuale integrazione energetica.
+
+Narrazione:
+"Raffrescare la città richiede anche una strategia per alimentare e gestire gli impianti."
+
+## R11 — Edifici nuovi + riuso delle risorse
+
+BUILD_NEW + WASTE_REUSE o altri interventi pertinenti di recupero dei materiali.
+
+Effetto:
+Possibilità di valorizzare il riuso e la riduzione dei materiali vergini, senza presupporre che un centro di riparazione domestica sia sufficiente a fornire componenti strutturali.
+
+Visivo:
+Elementi edilizi recuperati o piccole infrastrutture di riutilizzo dei materiali, se compatibili con la scena.
+
+Narrazione:
+"Progettare nuovi edifici significa anche domandarci quali risorse utilizziamo e quali possiamo recuperare."
+
+## R12 — Microhub + cargo bike
+
+LOG_HUB + LOG_CARGO.
+
+Effetto:
+Una rete logistica di quartiere può rendere più efficiente l'uso delle cargo bike per alcune consegne.
+
+Visivo:
+Cargo bike che partono da un hub.
+
+Narrazione:
+"Le due soluzioni si completano: una organizza la distribuzione, l'altra gestisce parte dell'ultimo tratto."
+
+---
+
+# 9. REGOLE PER LE CONSEGUENZE
+
+Le conseguenze devono essere:
+
+1. Plausibili.
+2. Dipendenti dal contesto.
+3. Coerenti con le decisioni precedenti.
+4. Visualizzabili, quando possibile.
+5. Comprensibili.
+6. Non punitive.
+
+Non inventare catastrofi improvvise.
+
+Non degradare arbitrariamente la città per obbligare l'utente a scegliere un altro intervento.
+
+Non fare apparire una soluzione sempre vincente.
+
+Distinguere sempre tra:
+
+**Beneficio ottenuto:** un effetto direttamente collegato all'intervento.
+
+**Criticità residua:** un problema non ancora affrontato.
+
+**Trade-off:** un compromesso associato alla scelta.
+
+**Sinergia:** un beneficio derivante dalla combinazione di più interventi.
+
+**Incertezza:** un effetto che dipende da condizioni non rappresentate dal simulatore.
+
+Non trattare l'assenza di una decisione come prova automatica di peggioramento.
+
+Se una combinazione non è prevista nel catalogo, applicare gli effetti individuali senza inventare un'interdipendenza.
+
+---
+
+# 10. CITY TRANSFORMATION ENGINE
+
+Ogni intervento deve modificare concretamente la città.
+
+Non è sufficiente visualizzare una notifica.
+
+Non è sufficiente cambiare un indicatore.
+
+Esempi:
+- Piste ciclabili reali nella scena.
+- Tram in movimento.
+- Monopattini.
+- Alberi.
+- Parchi.
+- Tetti verdi.
+- Pannelli fotovoltaici.
+- Edifici riqualificati.
+- Impianti idrici.
+- Pensiline.
+- Cargo bike.
+- Impianti di trattamento.
+- Corridoi ecologici.
+- Serre.
+- Mercati.
+
+## Organizzazione della città
+
+Suddividere la scena in settori logici:
+
+1. Quartiere residenziale.
+2. Asse principale della mobilità.
+3. Area verde e fiume.
+4. Area produttiva e logistica.
+5. Tetti e infrastrutture energetiche.
+6. Periferia.
+
+Tutti i settori principali devono essere riconoscibili dall'osservatorio, entro i limiti di visibilità della finestra.
+
+L'avatar deve poterli indicare.
+
+Non costruire una città navigabile.
+
+L'utente rimane all'interno dell'osservatorio.
+
+## Regola importante
+
+Le trasformazioni devono essere deterministiche.
+
+A parità di interventi attivi, la città deve essere ricostruibile nello stesso stato.
+
+Non accumulare trasformazioni irreversibili direttamente sulle mesh senza una rappresentazione dello stato.
+
+Utilizzare uno stato strutturato come sorgente di verità.
+
+Il renderer deve derivare da quello stato quali oggetti, materiali e animazioni sono attivi.
+
+Gestire la coesistenza di interventi che interessano le stesse superfici.
+
+---
+
+# 11. INTERAZIONE CON L'AVATAR AI
+
+L'avatar rimane il principale sistema di interazione.
+
+Non trasformare l'esperienza in una dashboard.
+
+## Compiti dell'avatar
+
+- Presentare la città.
+- Ascoltare l'utente.
+- Capire quale problema vuole affrontare.
+- Presentare le tre alternative della leva selezionata.
+- Interpretare risposte naturali.
+- Confermare le scelte ambigue.
+- Commentare i cambiamenti visivi.
+- Ricordare gli interventi precedenti.
+- Spiegare conseguenze e compromessi.
+- Riconoscere interdipendenze.
+- Invitare l'utente a riflettere.
+- Gestire la conclusione.
+
+## Esempio conversazionale
+
+Robot:
+
+"Da dove vorresti iniziare?"
+
+Utente:
+
+"Renderei la città più verde."
+
+Robot:
+
+"Possiamo piantare alberi lungo le strade, creare un grande parco oppure trasformare i tetti degli edifici. Quale preferisci?"
+
+Utente:
+
+"Mi piacciono i parchi."
+
+Il Decision Engine registra GREEN_PARK.
+
+La città si trasforma.
+
+Il robot si volta verso la finestra.
+
+Robot:
+
+"Guarda. Abbiamo creato nuovi spazi verdi e ombreggiati. Ma questa città soffre ancora di siccità. Come garantiamo che il parco possa resistere?"
+
+Utente:
+
+"Potremmo recuperare l'acqua."
+
+Il robot riconosce la leva WATER.
+
+Presenta le alternative appropriate.
+
+L'utente sceglie WATER_REUSE.
+
+La città si trasforma nuovamente.
+
+Il sistema attiva la sinergia R01.
+
+Robot:
+
+"Adesso abbiamo affrontato due problemi insieme. Non bastava creare il verde: dovevamo pensare anche a come mantenerlo."
+
+Questo tipo di conversazione deve rappresentare il cuore del progetto.
+
+## Gestione delle proposte libere
+
+L'utente può proporre soluzioni non previste.
+
+In questi casi l'avatar deve:
+1. Riconoscere il valore della proposta, senza approvarla automaticamente.
+2. Discuterla brevemente.
+3. Identificare eventuali alternative simili disponibili.
+4. Chiedere conferma prima di attivare una scelta che non corrisponde chiaramente alla proposta.
+
+Non dichiarare eseguito un intervento che il sistema non può rappresentare.
+
+L'AI non deve inventare asset, funzioni o trasformazioni inesistenti.
+
+---
+
+# 12. TOOL CALLING E VALIDAZIONE
+
+OpenAI Realtime deve essere integrato con il Decision Engine attraverso tool strutturati.
+
+Tool suggeriti:
+
+- list_available_levers()
+- select_lever(leverId)
+- list_options(leverId)
+- choose_intervention(optionId)
+- confirm_intervention(optionId)
+- get_city_state()
+- get_active_consequences()
+- explain_tradeoff(interventionId)
+- continue_decisions()
+- finish_decisions()
+- request_revision()
+- revise_intervention(slotId, newOptionId)
+- complete_reflection()
+- request_return_to_reality()
+
+L'AI non deve modificare direttamente le mesh.
+
+Non deve inviare codice JavaScript da eseguire.
+
+Non deve creare regole arbitrarie di simulazione.
+
+Ogni tool call deve essere validata attraverso schema tipizzato e stato narrativo corrente.
+
+Non consentire:
+- Più di cinque interventi attivi.
+- Due interventi identici duplicati.
+- Interventi inesistenti.
+- Revisioni multiple.
+- Passaggi narrativi in uno stato non valido.
+- Salvataggi senza consenso.
+
+Prevedere gestione di tool call duplicate, ritardate o ricevute fuori ordine.
+
+L'applicazione deve poter essere controllata anche senza OpenAI attraverso una modalità di debug.
+
+---
+
+# 13. REVISIONE FINALE
+
+Dopo la quarta o quinta decisione, il robot invita a osservare la città.
+
+La riflessione deve essere specifica.
+
+Non limitarti a frasi generiche.
+
+Il robot dovrebbe descrivere:
+- Due o tre miglioramenti osservabili.
+- Una criticità residua.
+- Un compromesso particolarmente significativo.
+- Una sinergia eventualmente creata.
+
+Poi chiede:
+
+"Se potessi ripensare una delle tue decisioni, cambieresti qualcosa?"
+
+## Regole
+
+È ammessa una sola revisione.
+
+La revisione può sostituire un intervento attivo con un altro intervento disponibile, anche appartenente a una leva diversa.
+
+Non è consentito aumentare il numero di interventi.
+
+Dopo la revisione:
+1. Rimuovere l'intervento precedente.
+2. Inserire il nuovo intervento.
+3. Ricalcolare le risorse qualitative.
+4. Ricalcolare tutte le interdipendenze.
+5. Aggiornare coerentemente la città.
+6. Eliminare effetti visivi non più validi.
+7. Commentare il cambiamento.
+
+Il ricalcolo deve derivare dallo stato corrente, non da una catena incontrollata di mutazioni precedenti.
+
+Se l'utente non desidera modificare nulla, procedere alla conclusione.
+
+---
+
+# 14. FEEDBACK VISIVO E NARRATIVO
+
+La scelta approvata per l'MVP è:
+
+**Trasformazione della città + spiegazione dell'avatar.**
+
+Non aggiungere dashboard di punteggi, indicatori permanenti o HUD di sostenibilità nell'esperienza principale.
+
+La comunicazione dei risultati deve essere diegetica, cioè integrata nel mondo narrativo.
+
+Esempio:
+- L'avatar guarda verso il quartiere interessato.
+- L'illuminazione richiama per un momento il settore.
+- Avviene la trasformazione 3D.
+- Il robot spiega il risultato.
+- Può seguire una breve domanda riflessiva.
+
+Eventuali indicatori numerici e informazioni tecniche devono rimanere nel pannello developer.
+
+Non utilizzare valori apparentemente scientifici senza un modello verificato.
+
+---
+
+# 15. COMPORTAMENTO DELL'AVATAR
+
+L'avatar deve sembrare presente nello spazio.
+
+Stati suggeriti:
+- IDLE
+- LISTENING
+- THINKING
+- TALKING
+- POINTING
+- OBSERVING
+- REFLECTING
+- GREETING
+- FAREWELL
+
+Funzionalità:
+- Orientamento naturale verso l'utente.
+- Rotazione verso il settore della città interessato.
+- Piccoli movimenti della testa.
+- Gesti contestuali.
+- Espressività compatibile con il modello.
+- Lip-sync approssimato e stabile.
+- Movimento coerente con l'audio.
+- Pause naturali.
+
+Quando avviene una trasformazione, l'avatar deve guardarla e attirare l'attenzione dell'utente.
+
+Non deve seguire nervosamente ogni piccolo movimento del visore.
+
+Il robot deve ricordare le decisioni e riprenderle verbalmente.
+
+Non deve leggere lunghi monologhi.
+
+Limitare per quanto possibile gli interventi continui a circa 15–25 secondi, lasciando spazio alle domande.
+
+---
+
+# 16. SOUND DESIGN
+
+Mantenere il sound design immersivo.
+
+Gli effetti devono cambiare insieme alla città.
+
+Esempi:
+- Traffico urbano iniziale.
+- Ambiente secco e ventoso.
+- Tram che attraversa la città.
+- Suoni leggeri della vegetazione.
+- Attività nei nuovi parchi.
+- Rumori di mezzi di consegna.
+- Variazioni dell'attività industriale.
+- Suoni d'acqua nelle zone riqualificate.
+
+Evitare effetti eccessivamente drammatici.
+
+Usare audio ottimizzato e spazializzato dove appropriato.
+
+La voce dell'avatar deve rimanere facilmente comprensibile.
+
+Applicare ducking al suono ambientale mentre il robot parla.
+
+Evitare brusche variazioni di volume.
+
+---
+
+# 17. STORIA E MACCHINA A STATI
+
+Aggiornare lo Story Engine.
+
+Stati suggeriti:
+
+WAITING_FOR_START
+
+INITIALIZING_MR
+
+OPENING_PORTAL
+
+AVATAR_GREETING
+
+INVITATION
+
+ENTERING_OBSERVATORY
+
+SHOWING_CRITICAL_FUTURE
+
+WAITING_FOR_LEVER
+
+PRESENTING_OPTIONS
+
+WAITING_FOR_CHOICE
+
+APPLYING_INTERVENTION
+
+REVEALING_CONSEQUENCES
+
+DECISION_RECAP
+
+OPTIONAL_FIFTH_DECISION
+
+FINAL_CITY_REFLECTION
+
+OPTIONAL_REVISION
+
+RETURNING_TO_MR
+
+ASKING_FINAL_QUESTION
+
+WAITING_FOR_CONSENT
+
+SAVING_MESSAGE
+
+FAREWELL
+
+EXPERIENCE_COMPLETED
+
+Gestire anche:
+- PAUSED
+- ERROR
+- USER_EXIT
+
+La transizione tra stati deve essere esplicita.
+
+Il numero di decisioni deve essere gestito dal Decision Engine, non dedotto dal testo della conversazione.
+
+Gli eventi del modello devono essere validati prima di modificare lo stato.
+
+---
+
+# 18. OSSERVATORIO E CAMERA
+
+La stanza osservatorio rimane una stanza 3D semplice, realistica e curata.
+
+Dimensioni indicative: 5 × 5 metri.
+
+Grande finestra panoramica.
+
+Città esterna a profondità stratificata.
+
+Utilizzare:
+- Edifici 3D in primo piano.
+- Geometrie semplificate sullo sfondo.
+- Skyline.
+- Illuminazione.
+- Atmosfera.
+- Texture PBR.
+
+La finestra deve restituire parallasse quando l'utente si sposta.
+
+Non usare una semplice immagine piatta come unico elemento della città.
+
+L'utente può guardare e fare piccoli spostamenti fisici, compatibilmente con lo spazio reale.
+
+Non obbligare l'utente a camminare fisicamente per completare l'esperienza.
+
+Non implementare locomozione artificiale continua nell'MVP.
+
+La sicurezza del movimento fisico ha priorità sull'effetto scenografico.
+
+---
+
+# 19. BACKEND E MEMORIA DELLE DECISIONI
+
+Mantenere il salvataggio della riflessione finale nel backend, con consenso esplicito.
+
+Aggiungere la possibilità di registrare la sequenza delle decisioni associate alla sessione.
+
+Schema suggerito:
+
+future_sessions
+- id
+- experience_version
+- decision_sequence
+- active_interventions
+- triggered_interdependencies
+- revised_decision
+- final_reflection
+- generated_future_message
+- consent_to_store
+- created_at
+
+Le decisioni devono mantenere l'ordine originale.
+
+La revisione deve essere tracciabile.
+
+La persistenza dei dati relativi al partecipante deve avvenire soltanto secondo il flusso di consenso approvato.
+
+Prima del consenso, mantenere i dati di sessione necessari alla simulazione in memoria temporanea, evitando la raccolta persistente di risposte personali.
+
+Non salvare:
+- Audio originale.
+- Trascrizione completa.
+- Nome.
+- Email.
+- Altri identificativi non necessari.
+
+Utilizzare identificativi anonimi per la sessione.
+
+Riutilizzare il database esistente se compatibile.
+
+In caso di nuovo database, scegliere una soluzione persistente appropriata all'hosting.
+
+Prevedere validazione, gestione errori, protezione dagli abusi, retention configurabile e cancellazione dei dati.
+
+Non confermare il salvataggio prima dell'esito positivo del backend.
+
+---
+
+# 20. MESSAGGIO FINALE
+
+L'utente torna nella propria stanza reale.
+
+L'avatar lo guarda.
+
+Domanda suggerita:
+
+"Dopo aver visto quanto possono essere complesse le nostre decisioni, cosa pensi sia davvero necessario per costruire un futuro sostenibile?"
+
+L'utente risponde liberamente.
+
+Il robot produce una riflessione breve e personale, collegata alla risposta e alle scelte effettuate.
+
+Non deve trasformare necessariamente la risposta in uno slogan.
+
+Dopo l'eventuale salvataggio, conclude:
+
+"Il futuro non dipende soltanto dalle decisioni che prendiamo, ma anche dalla nostra capacità di comprenderne le conseguenze. Grazie per aver esplorato con me questa possibilità."
+
+Il messaggio può essere personalizzato dal modello.
+
+L'avatar saluta e scompare.
+
+Chiudere microfono, connessione Realtime e risorse XR.
+
+Mostrare una schermata conclusiva con possibilità di ricominciare.
+
+---
+
+# 21. TIMELINE INDICATIVA
+
+Durata obiettivo: circa 7–10 minuti, variabile in base alla conversazione.
+
+00:00–00:30
+Start e inizializzazione.
+
+00:30–01:00
+Portale e apparizione dell'avatar.
+
+01:00–01:40
+Invito e ingresso nell'osservatorio.
+
+01:40–02:20
+Presentazione della città critica.
+
+02:20–03:10
+Prima decisione.
+
+03:10–04:00
+Seconda decisione.
+
+04:00–04:50
+Terza decisione.
+
+04:50–05:40
+Quarta decisione.
+
+05:40–06:30
+Quinta decisione opzionale.
+
+06:30–07:30
+Riflessione e revisione opzionale.
+
+07:30–08:10
+Ritorno in Mixed Reality.
+
+08:10–09:30
+Messaggio personale, consenso, eventuale salvataggio e saluto.
+
+La timeline serve a mantenere un ritmo narrativo.
+
+Non deve interrompere l'utente tramite timer rigidi.
+
+La durata può aumentare in presenza di conversazioni spontanee.
+
+---
+
+# 22. COMPATIBILITÀ DISPOSITIVI
+
+## Meta Quest Pro
+
+Esperienza principale:
+- Passthrough.
+- Portale MR.
+- Avatar ancorato.
+- Conversazione vocale.
+- Osservatorio.
+- Città interattiva.
+- Ritorno MR.
+
+## Android
+
+- AR dove supportata.
+- Fallback 3D.
+- Conversazione vocale.
+- Città trasformabile.
+
+## iPhone
+
+- Modalità 3D nel browser.
+- Navigazione touch.
+- Conversazione vocale.
+- Osservatorio.
+- Decisioni e trasformazioni.
+
+Non presumere il supporto WebXR immersive-ar su Safari iOS.
+
+## Desktop
+
+- Modalità 3D.
+- Mouse e tastiera.
+- Controlli per sviluppatore.
+- Possibilità di testare tutte le decisioni.
+
+La logica del Decision Engine deve essere indipendente dal dispositivo.
+
+---
+
+# 23. PERFORMANCE E REALISMO
+
+Priorità:
+1. Fluidità sul Quest Pro.
+2. Chiarezza delle trasformazioni.
+3. Qualità visiva dell'osservatorio.
+4. Credibilità della città.
+5. Stabilità del sistema vocale.
+
+Obiettivo indicativo: 72 FPS stabili, da verificare sul dispositivo fisico.
+
+Utilizzare:
+- InstancedMesh.
+- Frustum culling.
+- LOD.
+- Texture compresse.
+- Geometrie condivise.
+- Materiali PBR ottimizzati.
+- Precaricamento degli asset.
+- Cache delle risorse.
+- Rendering adattivo dove opportuno.
+
+Evitare:
+- Geometrie pesantissime.
+- Shader costosi.
+- Post-processing non necessario.
+- Ricaricamento completo della scena dopo ogni scelta.
+- Duplicazione degli asset per ogni combinazione.
+- Luci dinamiche e ombre eccessive.
+
+Se una trasformazione risulta costosa, utilizzare una soluzione visiva più semplice.
+
+Ogni intervento deve rimanere riconoscibile.
+
+---
+
+# 24. PANNELLO DEVELOPER
+
+Mantenere un sistema di debug separato dall'esperienza.
+
+Funzioni:
+- Avvio manuale dell'osservatorio.
+- Selezione delle leve.
+- Attivazione dei 30 interventi.
+- Visualizzazione dello stato della città.
+- Visualizzazione delle interdipendenze attive.
+- Numero di interventi utilizzati.
+- Test della revisione.
+- Reset della simulazione.
+- Diagnostica della connessione OpenAI.
+- FPS e draw call.
+- Stato del salvataggio backend.
+
+Deve essere possibile testare tutte le decisioni senza indossare il Quest Pro.
+
+Il pannello non deve essere visibile ai partecipanti nella modalità normale.
+
+---
+
+# 25. TEST AUTOMATICI
+
+Implementare test per il Decision Engine senza richiedere OpenAI o WebXR.
+
+Casi minimi:
+
+1. Selezione di una leva valida.
+2. Rifiuto di una leva inesistente.
+3. Attivazione di un intervento.
+4. Applicazione di quattro interventi.
+5. Possibilità di concludere dopo quattro.
+6. Attivazione del quinto.
+7. Blocco del sesto.
+8. Selezione di due interventi diversi nella stessa leva.
+9. Prevenzione di duplicati.
+10. Attivazione di ciascuna delle 12 interdipendenze.
+11. Indipendenza dall'ordine delle scelte, dove appropriato.
+12. Gestione di combinazioni non previste.
+13. Revisione di un intervento.
+14. Ricalcolo delle conseguenze dopo revisione.
+15. Eliminazione degli effetti visivi obsoleti.
+16. Reset della simulazione.
+17. Validazione delle tool call.
+18. Gestione delle risposte ambigue.
+19. Salvataggio con consenso.
+20. Mancato salvataggio senza consenso.
+21. Gestione degli errori di backend.
+22. Ricostruzione deterministica dello stato cittadino.
+
+Aggiungere test di integrazione per la macchina narrativa e il renderer dove possibile.
+
+Eseguire build, typecheck e test.
+
+Le funzioni dipendenti dal visore devono essere segnalate come non verificate finché non vengono realmente provate sul dispositivo.
+
+---
+
+# 26. CRITERI DI ACCETTAZIONE
+
+L'MVP è pronto per la validazione quando:
+
+- È presente uno Start esplicito.
+- Il portale appare davanti al visore.
+- L'avatar emerge dal portale.
+- L'avatar conversa tramite OpenAI.
+- L'utente entra nell'osservatorio.
+- Vede una città ambientalmente critica.
+- Può scegliere liberamente tra 10 ambiti.
+- Ogni ambito offre tre interventi.
+- Può realizzare quattro o cinque interventi.
+- Può scegliere interventi differenti nello stesso ambito.
+- Ogni intervento provoca una trasformazione visiva coerente.
+- Le modifiche della città sono cumulative.
+- Le interdipendenze previste vengono riconosciute.
+- L'avatar spiega benefici e compromessi.
+- L'avatar mantiene memoria delle decisioni.
+- Non vengono mostrati punteggi morali.
+- La città finale può risultare migliorata ma imperfetta.
+- È consentita una revisione finale.
+- La revisione aggiorna coerentemente lo stato.
+- L'utente torna nella Mixed Reality.
+- Il robot pone una domanda riflessiva.
+- La risposta viene salvata soltanto con consenso.
+- Il robot saluta.
+- La sessione termina correttamente.
+- L'esperienza funziona nei fallback supportati.
+- Build e test disponibili passano.
+
+Non dichiarare testati i requisiti WebXR hardware senza prove effettive.
+
+---
+
+# 27. IMPLEMENTAZIONE — ORDINE DI LAVORO
+
+Procedi in questo ordine.
+
+## Fase 1 — Analisi
+
+- Analizza il repository.
+- Identifica le funzioni esistenti.
+- Aggiorna la specifica.
+- Rimuovi la vecchia selezione ambientale/sociale/economica.
+- Conserva l'esperienza tecnica già funzionante.
+
+## Fase 2 — Decision Engine
+
+- Definisci i 10 ambiti.
+- Definisci i 30 interventi.
+- Implementa la struttura dati.
+- Implementa cinque risorse qualitative.
+- Implementa le regole di conseguenza.
+- Implementa le 12 interdipendenze.
+- Aggiungi test.
+
+## Fase 3 — City Transformation Engine
+
+- Identifica i settori della città.
+- Associa gli interventi alle trasformazioni.
+- Gestisci effetti cumulativi.
+- Implementa le sinergie visive.
+- Gestisci conflitti e superfici condivise.
+- Implementa reset e ricostruzione deterministica.
+
+## Fase 4 — Conversazione
+
+- Integra il Decision Engine con OpenAI Realtime.
+- Implementa i tool strutturati.
+- Gestisci selezione di leve e opzioni.
+- Aggiungi memoria di sessione.
+- Implementa narrazione delle conseguenze.
+
+## Fase 5 — Comportamento avatar
+
+- Gaze tracking.
+- Indicazione degli interventi.
+- Gesti.
+- Stati conversazionali.
+- Lip-sync.
+- Espressività.
+
+## Fase 6 — User experience
+
+- Scelta libera.
+- Quattro interventi minimi.
+- Quinto opzionale.
+- Revisione finale.
+- Riflessione.
+- Ritorno MR.
+- Messaggio conclusivo.
+
+## Fase 7 — Backend
+
+- Memorizzazione delle decisioni previo consenso.
+- Persistenza della riflessione.
+- Validazione.
+- Gestione errori.
+- Retention e cancellazione.
+
+## Fase 8 — Ottimizzazione e verifica
+
+- Verifica delle prestazioni.
+- Test desktop.
+- Verifica fallback mobile.
+- Build.
+- Typecheck.
+- Test automatici.
+- Documentazione.
+- Pull request.
+
+---
+
+# 28. CONSEGNA RICHIESTA
+
+Non limitarti a descrivere una soluzione.
+
+Implementa direttamente il codice necessario nel repository.
+
+Aggiorna:
+- SPEC.md.
+- AGENTS.md.
+- README.md.
+- Documentazione del Decision Engine.
+- Catalogo degli interventi.
+- Documentazione delle interdipendenze.
+- Asset credits.
+- Documentazione delle API e del database.
+- Istruzioni di test e deploy.
+
+Prepara una branch o una pull request coerente con il lavoro già in corso, evitando di sovrascrivere modifiche esistenti.
+
+Al termine fornisci:
+
+1. Funzionalità implementate.
+2. Eventuali funzionalità incomplete.
+3. I 30 interventi disponibili.
+4. Le interdipendenze realmente funzionanti.
+5. Gli asset effettivamente integrati.
+6. I risultati di build e test.
+7. I limiti WebXR rilevati.
+8. Le istruzioni di test sul Quest Pro.
+9. Lo stato del deploy, senza inventare URL.
+10. Il link alla pull request.
+
+Se una funzionalità non è realizzabile nel browser o richiede verifiche hardware, documenta precisamente il limite e implementa il fallback più semplice, senza compromettere il funzionamento del resto.
+
+---
+
+# 29. PRINCIPI DI GAME DESIGN NON NEGOZIABILI
+
+**1. Nessuna risposta universalmente corretta.**
+
+Ogni scelta deve essere interpretata nel suo contesto.
+
+**2. L'utente guida la storia.**
+
+L'AI non sceglie al posto suo.
+
+**3. La città è la principale interfaccia di feedback.**
+
+L'utente deve vedere le conseguenze delle proprie azioni.
+
+**4. Le decisioni hanno memoria.**
+
+Le trasformazioni e i compromessi si accumulano.
+
+**5. Le interdipendenze sono il centro dell'esperienza.**
+
+Un intervento può modificare il significato di uno precedente.
+
+**6. Il robot non giudica.**
+
+Aiuta a comprendere, non assegna voti.
+
+**7. Le conseguenze devono essere credibili.**
+
+Niente effetti catastrofici inventati per sorprendere.
+
+**8. Il risultato finale può essere imperfetto.**
+
+La sostenibilità è un processo, non un premio.
+
+**9. Fluidità e comfort hanno priorità sul fotorealismo.**
+
+Soprattutto sul Meta Quest Pro.
+
+**10. Una sola città, molte possibilità.**
+
+Non costruire decine di scenari 3D differenti.
+
+---
+
+# 30. LA MORALE FINALE
+
+Il partecipante deve terminare l'esperienza con questa consapevolezza:
+
+"Pensavo che rendere una città sostenibile significasse semplicemente aggiungere alberi, pannelli solari e trasporti puliti. Ora capisco che ogni scelta influenza altre scelte e che costruire un futuro migliore richiede di affrontare la complessità."
+
+L'esperienza non deve limitarsi a raccontare la sostenibilità.
+
+Deve farla sperimentare.
+
+Il robot non deve necessariamente pronunciare questa morale in forma letterale: deve aiutare l'utente a scoprirla attraverso le proprie decisioni.
+
+**Il futuro non è semplicemente ciò che scegliamo. È anche l'insieme delle conseguenze che siamo disposti a comprendere.**
+
+Procedi con lo sviluppo completo, senza fermarti alla sola pianificazione.

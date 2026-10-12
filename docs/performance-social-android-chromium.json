@@ -1,7 +1,0 @@
-{
-  "theme": "social",
-  "profile": "android-chromium",
-  "transformationMs": 8071,
-  "diagnostics": "HTTPS\nsì\nWebXR AR\nnon disponibile\nMicrofono\ndisponibile, spento\nAsset\nloaded\nClip\nDance, Death, Idle, Jump, No, Punch, Running, Sitting, Standing, ThumbsUp, Walking, WalkJump, Wave, Yes\nRiferimento\npreview\nPiani\n0\nPavimento\nsimulato\nQuota piedi\n0.00 m\nNEO e movimento\nsguardo 360°\nCalibrato\nsì\nAnchors\nda verificare\nAnchor\nnone\nPersistenza\nda verificare\nTracking\npreview\nHit test\nnon attivo\nPeer\nclosed\nLivello microfono\n0.000\nLivello uscita\n0.000\nFPS\n7\nDraw call\n64\nTriangoli\n20685\nGeometrie GPU\n65\nTexture GPU\n16\nQualità adattiva\nlow\nAsset osservatorio\nPoly Haven · PBR + glTF + HDRI\nAsset quartieri\nKenney CC0 · 4/4 GLB\nCompositing XR\n3D browser\nStato storia\nSUSTAINABLE_FUTURE\nTema\nsocial\nTrasformazione\n100%",
-  "hardware": "headless browser; not Quest Pro"
-}

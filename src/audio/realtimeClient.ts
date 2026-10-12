@@ -84,7 +84,6 @@ export class RealtimeClient {
   private abort?: AbortController;
   private generation = 0;
   private connectTimer?: ReturnType<typeof setTimeout>;
-  private durationTimer?: ReturnType<typeof setTimeout>;
   private disconnectTimer?: ReturnType<typeof setTimeout>;
   private processedCalls = new Set<string>();
   private pendingToolResponse = false;
@@ -494,13 +493,6 @@ export class RealtimeClient {
             message: "Puoi parlare. Il microfono è acceso.",
           });
           this.livenessTimer ??= setInterval(this.watchPlayback, 200);
-          this.durationTimer ??= setTimeout(
-            () =>
-              this.stop(
-                "Sessione terminata dopo 10 minuti. Puoi avviarne una nuova.",
-              ),
-            600_000,
-          );
         }
         if (pc.connectionState === "failed" || pc.connectionState === "closed")
           this.fail("Connessione voce interrotta. Verifica la rete e riprova.");
@@ -969,9 +961,8 @@ export class RealtimeClient {
     this.abort?.abort();
     this.abort = undefined;
     clearTimeout(this.connectTimer);
-    clearTimeout(this.durationTimer);
     clearTimeout(this.disconnectTimer);
-    this.connectTimer = this.durationTimer = this.disconnectTimer = undefined;
+    this.connectTimer = this.disconnectTimer = undefined;
     this.channel?.close();
     this.channel = undefined;
     if (this.pc) {

@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 import type { Quality } from "./performance";
-import { CivicDistrict } from "./CivicDistrict";
-import { scenario, type Theme } from "../story/scenarios";
+import { CityTransformationEngine } from "./CityTransformationEngine";
+import { deriveCity, type CityState } from "../decision/DecisionEngine";
+import { scenario } from "../story/scenarios";
 import { CityTransit } from "./CityTransit";
 import { EnvironmentalDistrict } from "./EnvironmentalDistrict";
 import { EnvironmentalStreetscape } from "./EnvironmentalStreetscape";
@@ -69,9 +70,7 @@ export class FutureObservatory {
   readonly streetscape = new EnvironmentalStreetscape(cityLayout());
   private legacyTrees = new THREE.Group();
   private legacyArchitecture = new THREE.Group();
-  readonly economic = new CivicDistrict("economic");
-  readonly social = new CivicDistrict("social");
-  private theme: Theme = "environmental";
+  readonly transformations = new CityTransformationEngine(cityLayout());
   readonly directional = new THREE.DirectionalLight(0xffd9ad, 2.2);
   readonly hemisphere = new THREE.HemisphereLight(0xabc8d8, 0x766956, 1.3);
   private materials = new Set<THREE.Material>();
@@ -99,7 +98,7 @@ export class FutureObservatory {
   private solarMatrix: THREE.Matrix4[] = [];
   private dummy = new THREE.Object3D();
   private caster = new THREE.Raycaster();
-  private profile: Quality = "high";
+
   private cachedState = -1;
   private cachedOpacity = -1;
   private immersionOpacity = 0;
@@ -111,19 +110,20 @@ export class FutureObservatory {
     this.hemisphere.groundColor.set(0x777870);
     this.root.visible = false;
     this.root.add(this.room, this.city, this.directional, this.hemisphere);
-    this.city.add(this.district.root, this.planting.root, this.streetscape.root, this.economic.root, this.social.root, this.transit.root, this.legacyTrees, this.legacyArchitecture);
+    this.city.add(this.district.root, this.planting.root, this.streetscape.root, this.transformations.root, this.transit.root, this.legacyTrees, this.legacyArchitecture);
     this.legacyTrees.visible = this.legacyArchitecture.visible = false;
     this.transit.setSmoothMotion(true);
     this.transit.setEnvironmentalLayout(true);
+    this.district.critical.getObjectByName("Rubble and abandoned infrastructure")!.visible=false;
+    this.district.critical.getObjectByName("Collapsed roadside barriers")!.visible=false;
     this.streetscape.textures.forEach(t => this.textures.add(t));
-    this.economic.root.visible = this.social.root.visible = false;
+
     [
       ...this.transit.materials,
       ...this.planting.materials,
       ...this.streetscape.materials,
       ...this.district.materials,
-      ...this.economic.materials,
-      ...this.social.materials,
+      ...this.transformations.materials,
     ].forEach((m) => {
       this.materials.add(m);
       if (m instanceof THREE.MeshStandardMaterial) this.solids.push(m);
@@ -404,7 +404,7 @@ export class FutureObservatory {
     );
     (accent.material as THREE.MeshStandardMaterial).emissive.set(0x856f42);
     this.setOpacity(0);
-    this.setFuture(0);
+    this.applyCityState(deriveCity([]));
   }
   async preload(renderer: THREE.WebGLRenderer) {
     if (this.loadPromise) return this.loadPromise;
@@ -513,20 +513,6 @@ export class FutureObservatory {
       } catch {
         /* The static sun/hemisphere lighting does not depend on HDRI. */
       }
-      await Promise.all([this.economic.preload(), this.social.preload()]);
-      if (this.disposed) return;
-      for (const district of [this.economic, this.social])
-        for (const m of district.materials) {
-          if (!this.materials.has(m)) {
-            this.materials.add(m);
-            this.solids.push(m);
-          }
-          if (m.map) this.textures.add(m.map);
-          m.envMap = this.environment?.texture ?? null;
-        }
-      this.cachedOpacity = -1;
-      this.setQuality(this.profile);
-      this.setOpacity(Math.max(0, this.immersionOpacity));
       this.assetStatus =
         loaded === 4
           ? "Poly Haven · PBR + glTF + HDRI"
@@ -562,91 +548,26 @@ export class FutureObservatory {
     this.directional.intensity =
       (1.7 + Math.max(0, this.cachedState) * 1.1) * value;
   }
-  setTheme(theme: Theme) {
-    if (theme === this.theme) return;
-    this.theme = theme;
-    this.district.root.visible = theme === "environmental";
-    this.planting.root.visible = this.streetscape.root.visible = theme === "environmental";
-    this.legacyTrees.visible = this.legacyArchitecture.visible = theme !== "environmental";
-    this.transit.setSmoothMotion(theme === "environmental");
-    this.transit.setEnvironmentalLayout(theme === "environmental");
-    this.economic.root.visible = theme === "economic";
-    this.social.root.visible = theme === "social";
-    this.directional.position.set(-8, 12, theme === "environmental" ? 8 : -12);
-    this.hemisphere.groundColor.set(theme === "environmental" ? 0x777870 : 0x766956);
-    this.sky.uniforms.badSky.value.set(theme === "environmental" ? 0x9b8568 : scenario(theme).badSky);
-    const current = Math.max(0, this.cachedState);
-    this.cachedState = -1;
-    this.setFuture(current);
-  }
-  get districtAssetStatus() {
-    return `Kenney CC0 · ${this.economic.assetCount + this.social.assetCount}/4 GLB`;
-  }
-  setFuture(amount: number) {
-    if (Math.abs(amount - this.cachedState) < 0.001) return;
-    this.cachedState = THREE.MathUtils.clamp(amount, 0, 1);
-    amount = this.cachedState;
-    this.transit.setFuture(amount);
-    this.district.setFuture(amount);
-    this.planting.setFuture(amount);
-    this.streetscape.setFuture(amount);
-    this.economic.setFuture(amount);
-    this.social.setFuture(amount);
-    this.crowns.visible = amount > 0.01;
-    this.leaves.visible = amount > 0.001;
-    const opacity = this.cachedOpacity;
-    this.cachedOpacity = -1;
-    this.setOpacity(Math.max(0, opacity));
-    const bad = [0x625746, 0x706352, 0x61574c, 0x655039, 0x897044, 0x8c7356],
-      good = [0xc1c5bc, 0xaabdb3, 0x7d939e, 0x467b3f, 0x617d50, 0x55858d];
-    this.facades.forEach((m, i) =>
-      m.color.set(bad[i]).lerp(new THREE.Color(good[i]), amount),
-    );
-    this.hemisphere.color.set(0x9a8d7e).lerp(new THREE.Color(0xb7d8eb), amount);
-    this.hemisphere.intensity =
-      (1.05 + amount * 0.8) * Math.max(0, this.cachedOpacity);
-    this.directional.color
-      .set(this.theme === "environmental" ? 0xf0d4af : 0xffc294)
-      .lerp(new THREE.Color(0xfff4dd), amount);
-    this.directional.intensity =
-      (1.7 + amount * 1.1) * Math.max(0, this.cachedOpacity);
-    this.sky.uniforms.amount.value = amount;
-    this.energyObjects.visible =
-      this.theme === "environmental" && amount > 0.01;
-    for (let i = 0; i < this.leaves.count; i++) {
-      this.dummy.matrix.copy(this.leavesMatrix[i]);
-      this.dummy.matrix.scale(
-        new THREE.Vector3(
-          0.025 + amount * 0.975,
-          0.04 + amount * 0.96,
-          0.025 + amount * 0.975,
-        ),
-      );
-      this.leaves.setMatrixAt(i, this.dummy.matrix);
-    }
-    this.leaves.instanceMatrix.needsUpdate = true;
-    for (let i = 0; i < this.crowns.count; i++) {
-      this.dummy.matrix.copy(this.crownsMatrix[i]);
-      this.dummy.matrix.scale(
-        new THREE.Vector3().setScalar(Math.max(0.001, amount)),
-      );
-      this.crowns.setMatrixAt(i, this.dummy.matrix);
-    }
-    this.crowns.instanceMatrix.needsUpdate = true;
-    for (let i = 0; i < this.solar.count; i++) {
-      const matrix = this.solarMatrix[i]
-        .clone()
-        .scale(
-          new THREE.Vector3(
-            1,
-            Math.max(0.001, amount),
-            Math.max(0.001, amount),
-          ),
-        );
-      this.solar.setMatrixAt(i, matrix);
-    }
-    this.solar.instanceMatrix.needsUpdate = true;
-
+  get districtAssetStatus() { return "30 interventi procedurali · geometrie condivise"; }
+  private appliedCityKey="";
+  applyCityState(state: CityState, channels=state.channels) {
+    const key=state.active.join(",")+"|"+state.flags.join(",")+"|"+Object.values(channels).map(v=>v.toFixed(4)).join(",");if(key===this.appliedCityKey)return;this.appliedCityKey=key;
+    const air=channels.air;
+    this.cachedState=air;
+    this.sky.uniforms.amount.value=air;
+    this.sky.uniforms.badSky.value.set(0x9b8568);
+    this.district.setTraffic(air);
+    this.district.sustainable.visible=false;
+    this.planting.setFuture(0);
+    this.streetscape.setCityEfficiency(channels.efficiency);
+    this.transit.root.visible=state.active.includes("MOB_TRAM");
+    this.transit.setFuture(state.flags.includes("R03") ? .75 : .4);
+    this.energyObjects.visible=false;
+    this.facades.forEach(m=>m.color.set(0x999183).lerp(new THREE.Color(0xb9c1b8),channels.efficiency));
+    this.directional.color.set(0xf0d4af).lerp(new THREE.Color(0xfff4dd),air);
+    this.hemisphere.color.set(0x9a8d7e).lerp(new THREE.Color(0xb7d8eb),air);
+    this.cachedOpacity=-1;
+    this.setOpacity(this.immersionOpacity);
   }
   update(time: number) {
     if (!this.root.visible) return;
@@ -655,18 +576,16 @@ export class FutureObservatory {
       this.district.update(time);
       this.planting.update(time);
     }
-    if (this.economic.root.visible) this.economic.update(time);
-    if (this.social.root.visible) this.social.update(time);
+    this.transformations.update(time);
     this.transit.update(time);
   }
   setQuality(quality: Quality) {
     this.far.visible = quality !== "low";
-    this.profile = quality;
+
     this.district.setQuality(quality === "low");
     this.planting.setQuality(quality === "low");
     this.streetscape.setQuality(quality === "low");
-    this.economic.setQuality(quality === "low");
-    this.social.setQuality(quality === "low");
+
     this.leaves.count = this.trunks.count = quality === "low" ? 15 : 30;
     this.crowns.count = quality === "low" ? 30 : 60;
     (
@@ -688,7 +607,7 @@ export class FutureObservatory {
     this.root.updateMatrixWorld(true);
     const hit = this.caster.intersectObjects(this.targets, false)[0];
     return hit
-      ? scenario(this.theme).questions[
+      ? scenario().questions[
           this.targets.indexOf(hit.object as THREE.Mesh)
         ]
       : undefined;
@@ -698,14 +617,14 @@ export class FutureObservatory {
     return this.narrativeRay(this.caster.ray);
   }
   get fogColor() {
-    return new THREE.Color(this.theme === "environmental" ? 0x9b8568 : scenario(this.theme).badSky).lerp(
+    return new THREE.Color(0x9b8568).lerp(
       new THREE.Color(0xb5cfda),
       Math.max(0, this.cachedState),
     );
   }
   get fogDensity() {
-    const [bad, good] = scenario(this.theme).fog;
-    return THREE.MathUtils.lerp(this.theme === "environmental" ? 0.027 : bad, good, Math.max(0, this.cachedState));
+    const [bad, good] = scenario().fog;
+    return THREE.MathUtils.lerp(bad, good, Math.max(0, this.cachedState));
   }
   private disposeObject(root: THREE.Object3D) {
     root.traverse((obj) => {
@@ -731,8 +650,7 @@ export class FutureObservatory {
     this.disposed = true;
     this.transit.dispose();
     this.streetscape.dispose();
-    this.economic.dispose();
-    this.social.dispose();
+    this.transformations.dispose();
     this.disposeObject(this.root);
     this.textures.forEach((t) => t.dispose());
     this.environment?.dispose();

@@ -50,16 +50,8 @@ describe("token endpoint", () => {
     const body = JSON.parse(options!.body as string);
     expect(body.session.type).toBe("realtime");
     expect(body.session.model).toBe("gpt-realtime-2.1-mini");
-    expect(body.session.tools.map((t: { name: string }) => t.name)).toEqual([
-      "remember_name",
-      "forget_name",
-      "select_theme",
-      "enter_observatory",
-      "show_future",
-      "reflect",
-      "transform_future",
-      "return_to_reality",
-    ]);
+    expect(body.session.tools.map((t: {name:string})=>t.name)).toEqual(expect.arrayContaining(["select_lever","choose_intervention","revise_intervention","set_storage_consent"]));
+    expect(body.session.tools.map((t:{name:string})=>t.name)).not.toContain("select_theme");
     expect(body.session.tool_choice).toBe("auto");
     expect(
       body.session.tools.find(
@@ -67,9 +59,8 @@ describe("token endpoint", () => {
       ).parameters.required,
     ).toContain("consent");
     expect(body.session.instructions).toMatch(/ipotetic/);
-    expect(body.session.instructions).toContain("10–25 parole");
-    expect(body.session.instructions).toContain("Non chiudere ogni risposta con una domanda");
-    expect(body.session.tools.find((t: { name: string }) => t.name === "transform_future").parameters.properties.future.enum).toEqual(["critical", "sustainable"]);
+    expect(body.session.instructions).toContain("15–35 parole");
+    expect(body.session.tools.find((t: { name: string }) => t.name === "choose_intervention").parameters.properties.optionId.enum).toHaveLength(30);
     expect(body.session.audio.output.voice).toBe("marin");
     expect(body.session.audio.input.turn_detection.interrupt_response).toBe(
       false,

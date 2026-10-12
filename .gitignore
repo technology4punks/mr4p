@@ -8,3 +8,8 @@ playwright-report/
 test-results/
 coverage/
 *.log
+
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

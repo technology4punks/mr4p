@@ -1,163 +1,45 @@
-# Verifiche Future Observatory — 10 ottobre 2026
+# Future Observatory V4 · verifiche del 12 ottobre 2026
 
-## Controlli eseguiti
+Le verifiche sono software, svolte in container; nessun visore fisico è disponibile. I dati storici nelle altre sottocartelle non rappresentano la V4 attuale.
 
-| Controllo | Esito |
+| Verifica | Esito |
 |---|---|
-| Lint | PASS |
-| Typecheck frontend/backend | PASS |
-| Build Vite + backend Node | PASS |
-| Test unitari/API | PASS: 113 test, 10 file |
-| Scanner bundle client | PASS: nessuna chiave/configurazione server nel client, asset avatar locale valido |
-| Playwright produzione | PASS: 12 test, Chromium desktop / Pixel 7 emulato / WebKit iPhone 13 emulato |
-| Sites typecheck / test / build | PASS: 104 test, 9 file; build Vinext/Worker |
-| Sites browser locale | PASS: tre profili, avatar, layout, permesso microfono negato, asset CC0, ingresso, trasformazione, ritorno, API privata (prova iniziale) |
+| Lint, typecheck e build Node/Vite | Passati |
+| Unit test Node/shared | 178 passati, 15 file |
+| Typecheck/build Sites vinext | Passati |
+| Unit test Sites/shared/D1 route | 169 passati, 15 file |
+| Browser Chromium desktop/Android, WebKit iPhone | 15 passati |
+| Verifica bundle client | Nessuna chiave/configurazione server nel client |
+| Migration D1 locale | 2 comandi eseguiti correttamente |
+| Worker Sites + D1 locale | POST 201, token errato DELETE 403, token valido DELETE 200 |
+| Smoke browser sul worker Sites | Hydration, portale, ingresso, GREEN_PARK; zero errori console |
 
-La suite mantiene i test dell’MVP e aggiunge consenso, temi non disponibili, strumenti sconosciuti/argomenti errati, ritorno in ogni fase, completamenti tardivi, eventi Realtime completi/deduplicati, risposta differita e mantenimento del peer. I test XR usano un runtime **mock**: richiesta AR/VR distinta, posa narrativa separata dagli anchor, handle MR conservato entrando in VR e nuovo posizionamento dopo recenter senza anchor. I test della scena verificano fasce di profondità, parallasse, riuso della geometria, oggetti selezionabili, checksum/licenze e riferimenti glTF. Il fallback procedurale resta utilizzabile quando tutti gli asset falliscono.
+## Cosa coprono le prove
 
-I browser caricano effettivamente i materiali PBR, il glTF del tavolino, l’HDRI e l’avatar. Il flusso completo 3D viene provato con trascinamento/touch, trasformazione e ritorno, anche prima della fine dell’ingresso. Il microfono non viene richiesto caricando o visitando la scena. WebRTC e API OpenAI sono mock nei test: **nessuna conversazione live è certificata**.
+Catalogo di 10 leve/30 opzioni; slot e duplicati; scelte nella stessa leva; conclusione dopo 4/5; revisione unica anche fra leve; originale immutabile; 12 regole indipendenti dall’ordine; rimozione di conseguenze superate; città/room/parallasse e qualità adattiva; 30 strati applicabili e animazione cumulativa di sette secondi; connessioni fisiche delle regole e traffico critico attivo.
 
-Ambiente Linux Debian 13, Node 24.19. Chromium usa SwiftShader software; WebKit usa le librerie locali di Playwright descritte nelle prove MVP. Si tratta di browser headless con viewport emulati, non di telefoni o Quest reali. I risultati precedenti dell’MVP rimangono coperti dai test conservati.
+Story Engine: avvio esplicito, argomenti non autorizzati, eventi superati, proposta ambigua senza consumo slot, transizioni e pausa, riflessione/consenso, fallimento di salvataggio e rifiuto. Persistenza: validazione, campi identificanti, SQLite riaperto, hashing della cancellazione, retry idempotente e scadenza; SQL della migration D1 eseguito sia dai test sia nel worker locale.
 
-## Misure grafiche software
+Browser: percorso completo di quattro interventi, revisione, ritorno, consenso, vera API Node di salvataggio/cancellazione, ritorno anticipato, rifiuto senza scritture, restart, mouse/touch/layout. Il test voce verifica tre turni, ASR riconoscibile, ascolto/risposta, mute, recupero della traccia e stop con RAF fermo. Audio/WebRTC sono simulati, senza chiamate OpenAI live.
 
-Snapshot della diagnostica dopo SUSTAINABLE_FUTURE durante il test locale dell’adattamento Sites (viewport portato a 390 × 844 in tutti i profili). Questi sono campioni di un secondo, **non medie stabili né benchmark comparabili al visore**; il costo del renderer software e dell’emulazione cambia fra browser.
+## Misure software
 
-| Browser / profilo | FPS campionato | Draw call | Triangoli | Geometrie GPU | Texture GPU | Qualità |
-|---|---:|---:|---:|---:|---:|---|
-| Chromium desktop, viewport mobile | 40 | 55 | 16.233 | 58 | 13 | low |
-| Chromium Pixel 7 emulato | 8 | 55 | 16.233 | 58 | 13 | low |
-| WebKit iPhone 13 emulato | 61 | 55 | 16.233 | 58 | 13 | low |
+Campione finale: quattro decisioni con sostituzione del parco con corridoi, R03 attiva. Le misure provengono dal pannello developer; non sono medie di sessione né un benchmark del Quest.
 
-Lo screenshot finale del backend Node a viewport desktop 1280 × 720 mostrava 12 FPS, 57 draw call e 16.161 triangoli nella vista ruotata. La scena usa istanze e materiali riutilizzati; il percorso low rimuove normal/roughness/reflection sampling e skyline lontano, conservando le finestre vicine. Non sono attive ombre o post-processing. La lentezza dei renderer software non permette di stabilire il collo di bottiglia CPU/GPU del Quest: misurarlo sul visore resta necessario prima di dichiarare 72 FPS. La diagnostica mostra conteggi, non byte GPU non esposti affidabilmente da WebGL.
+| Profilo | FPS campionati | Draw call | Geometrie | Texture |
+|---|---:|---:|---:|---:|
+| Desktop Chromium / SwiftShader | 6 | 94 | 76 | 20 |
+| Android emulato / SwiftShader | 15 | 94 | 76 | 20 |
+| iPhone emulato / WebKit software | 19 | 94 | 74 | 16 |
 
-Artefatti automatici: screenshot `test-results/critical-*.png`, `sustainable-*.png`, `preview-*.png`, allegato diagnostico browser e `performance-*.json` nelle esecuzioni successive; la CI conserva `test-results/`. I campioni riportati sopra provengono dall’output effettivo del test Sites locale.
+La prima misura desktop, prima dell’instancing degli strati nuovi, aveva 125 draw call e 5 FPS. Gli strati statici condivisi hanno portato il campione a 94 draw call (−24,8%). Questi FPS software sono inferiori al target hardware; non dimostrano raggiungimento di 72 FPS. La qualità riduce skyline lontano e risoluzione, senza nascondere interventi attivi. I conteggi di geometrie/texture non sono byte di memoria GPU.
 
-Asset nuovi: 6.308.432 byte dei 12 file Poly Haven CC0; tavolino 4.504 triangoli. Bundle Vite finale circa 919 kB / 253 kB gzip, con warning non bloccante sulla dimensione. Il caricamento 3D dell’MVP resta un singolo bundle; gli asset osservatorio sono caricati progressivamente e hanno fallback.
+Dati e screenshot: [validation/v4](validation/v4). Le differenze di conteggio fra browser dipendono anche dal caricamento progressivo degli asset al momento del campione. Build frontend Node: circa 1,07 MB JS, 298 KB gzip; la build segnala il bundle principale grande. Nessun post-processing pesante o nuovo download di asset a runtime.
 
-## Hosting e limiti aperti
+## Limiti e prova fisica
 
-Il Site esistente è **pubblico** su richiesta dell’utente: **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. L’adattamento riusa il frontend e abilita esplicitamente l’avvio voce anonimo, con controllo origine e limiti per isolate (5 avvii/minuto nel bucket anonimo condiviso, 30 globali). Il backend Node separato conserva la protezione del proxy. Il runtime conserva OPENAI_API_KEY come segreto backend (revisione 5); nessun valore è copiato nel checkout o nel browser. Presenza del segreto non dimostra autorizzazione/quota OpenAI. L’accesso pubblico già autorizzato viene mantenuto.
+Non verificati: compositing/passthrough Quest Pro, hand tracking/pinch reali, controller/joystick reali, floor/anchor e camera room scale, microfono/echo/rumori e servizio Realtime live, comfort/stabilità e 72 FPS. I fallback additive/VR e ritorno AR richiedono gesto esplicito; non sono presentati come supporto hardware certificato.
 
-Restano **NON VERIFICATI sul dispositivo fisico**: Quest Pro passthrough completamente coperto in AR, floor/anchor/drift, Guardian, recenter reale, continuità audio durante cambio sessione, refresh e 72 FPS; ARCore Android, Safari iPhone e voce OpenAI live. AR e VR richiedono rilevamento distinto: il compositor additive è rifiutato; session switching richiede chiusura e un nuovo gesto, mantenendo il peer dove il browser conserva la pagina attiva. Social/economic sono stati aggiunti nella revisione descritta in SIX_SCENARIOS.md. La città è un compromesso procedurale, non una ricostruzione fotorealistica di una metropoli.
+La città usa geometrie procedurali e dettagli semplificati, con PBR realistici nella stanza. Non è fotorealistica e le conseguenze sono qualitative, non previsioni scientifiche. Purge D1 senza traffico può avvenire dopo la scadenza nominale, alla prima richiesta successiva. Il filtro testuale non garantisce l’assenza di ogni informazione identificante arbitraria.
 
-La checklist hardware rimane in [DEVICE_TESTS.md](DEVICE_TESTS.md), le scelte e i limiti WebXR in [FUTURE_OBSERVATORY.md](FUTURE_OBSERVATORY.md), gli asset e le licenze in [ASSET_CREDITS.md](../ASSET_CREDITS.md).
-
-## Revisione dopo il feedback Quest
-
-La prova iniziale dell’utente conferma la base sul visore e segnala menu non interattivo/sempre visibile e interruzioni eccessive del microfono. La revisione aggiunge menu chiudibile e fisso nello spazio quando aperto, raggi/controller/pinch, voce protetta e distretto ambientale più marcato. Il nuovo comportamento fisico resta da riprovare: non è certificato dai mock XR.
-
-Controlli della revisione: npm run check PASS (lint, typecheck, build, 96 test, scanner client); Sites typecheck e 74 test PASS. Playwright: 12/12 PASS eseguendo un worker, con Chromium desktop/Android e WebKit iPhone emulati. La prima esecuzione con tre worker ha avuto un timeout Android sull’apparizione del progressbar; il contesto mostrava REFLECTION e trasformazione al 2%, con renderer software a 1 FPS. Si è ridotta la concorrenza dell’ambiente di prova, mantenendo gli stessi test e assert. Non è stato nascosto il fallimento con retry automatici.
-
-Campioni finali dopo l’ottimizzazione, nello scenario sostenibile:
-
-| Profilo headless | FPS campionato | Draw call | Triangoli | Geometrie GPU | Texture GPU | Trasformazione osservata |
-|---|---:|---:|---:|---:|---:|---:|
-| Chromium desktop | 6 | 73 | 22.277 | 71 | 13 | 8,611 s |
-| Chromium Android | 41 | 73 | 22.277 | 71 | 13 | 8,686 s |
-| WebKit iPhone | 56 | 73 | 22.277 | 71 | 13 | 8,607 s |
-
-Tutti erano in qualità low. Sono snapshot del renderer software, con viewport e carichi diversi, non prestazioni medie del Quest né confronti validi fra device. Prima dell’ottimizzazione dei dettagli lontani e del numero di veicoli lo stesso scenario aveva 34.797 triangoli; ora 22.277. L’obiettivo 72 FPS sul Quest resta da misurare. Il nuovo bundle Vite è circa 966 kB / 267 kB gzip, con il warning dimensione non bloccante.
-
-I nuovi test coprono anche timer/mute del microfono, fine generazione prima della fine audio, interruzione esplicita senza chiusura peer, opt-in delle interruzioni vocali, pulsanti nascosti, pannello fermo quando gira la testa, comandi duplicati, joystick/pinch e bounds dei veicoli animati. Gli screenshot aggiornati sono in docs/screenshots. [Funzioni e limiti](QUEST_INTERACTION.md).
-
-
-## Revisione room scale
-
-Richiesta dell’utente: orientamento verso il visore anche passando dietro, prima posizione automatica a 1–1,5 m e, dove possibile, vicinanza con collisioni. Implementati sguardo continuo testa/corpo senza alterare il root dell’anchor, avvio a 1,3 m dopo ricerca pavimento, fallback manuale per quota incerta o superfici rilevate, restore di un anchor vicino oppure sostituzione di un anchor lontano. Seguito laterale a 0,45 m/s nella sola stanza virtuale con pareti/arredi noti, raggio 35 cm, controllo dell’intero segmento e distanza personale; stop se non esiste un percorso diretto libero. In MR la posizione resta ancorata: non si assume che plane detection rilevi tutti gli ostacoli fisici.
-
-Quality gate finale: npm run check PASS (lint, typecheck, build, **113 test**, scanner client); Sites typecheck e **104 test** PASS. Build Vinext/Worker eseguita anche dal commit sorgente pubblicato. Playwright **12/12 PASS**, un worker, Chromium desktop/Android e WebKit iPhone emulati. I test nuovi comprendono GLB reale, arco di rotazione corto, parent ruotato, stabilità della posa anchor, velocità/limiti del seguito, ostacoli, spazio personale, calibrazione, anchor restaurato vicino/lontano e chiusura XR durante eliminazione asincrona.
-
-Campioni diagnostici browser software dopo il futuro sostenibile: desktop 9 FPS, Android emulato 10 FPS, WebKit iPhone emulato 55 FPS; ciascuno 73 draw call, 22.277 triangoli, 71 geometrie e 13 texture in qualità low. Trasformazione osservata 8,186 / 8,694 / 8,267 s. Non sono benchmark confrontabili fra device, non misurano il seguito immersivo e non attestano 72 FPS. Nessun nuovo asset, texture o draw call è introdotto dal seguito. Bundle Vite circa 972 kB / 269 kB gzip, warning dimensione non bloccante.
-
-Passthrough, posizione iniziale, tracking, gaze e seguito immersivo restano **da verificare fisicamente sul Quest Pro**. La precedente prova dell’utente non certifica questa revisione. [Dettagli e limiti](ROOM_SCALE.md), checklist in DEVICE_TESTS.md.
-
-La prima CI di questa revisione (run 38060366210) ha passato tutti i quality gate e 11/12 browser test, ma il test Android ha superato i 5 s aspettando il progressbar della trasformazione, con due worker in parallelo. Il download della traccia CI ha restituito 403; i log e i risultati locali rimangono disponibili. Playwright ora usa un solo worker quando CI è attivo, come nella prova locale 12/12; assert, timeout e retry restano invariati. Il risultato finale della nuova esecuzione è nei Checks della PR.
-
-
-## Sei scenari, nome e interruzioni intelligenti — 10 ottobre 2026
-
-- `npm run check`: lint, typecheck frontend/backend, build, **129 test unitari** e controllo bundle senza chiavi/endpoints server: PASS.
-- Adapter Sites: typecheck, **120 test**, build Worker Vinext: PASS. Nessun cambio del segreto runtime.
-- Playwright: **21 casi** su desktop Chromium, profilo Android Chromium e iPhone WebKit, un worker, nessun retry. Tre casi aggiuntivi fermano deliberatamente requestAnimationFrame e verificano il feedback immediato del controllo narrativo. Tutti i temi: ingresso, asset Poly Haven/Kenney, cambio prospettiva, trasformazione >= 6,5 s, ritorno e assenza di richieste microfono non autorizzate/errori JS. Controlli XR, nomi e interruzioni sono coperti da unit test; voce live e hardware non sono certificati.
-- Quattro nuovi GLB CC0, texture e licenze: **241.590 byte**, checksum e riferimenti validati. Solo il quartiere selezionato viene renderizzato; le scene possono funzionare con fallback offline.
-
-Campioni **software headless**, qualità low e voce spenta; FPS istantanei in diagnostica, non medie hardware o stima delle prestazioni Quest. Conteggi GPU non esprimono memoria in byte. La riduzione automatica di qualità è entrata in funzione.
-
-| Tema | Desktop FPS / draw / triangoli | Android FPS / draw / triangoli | WebKit FPS / draw / triangoli |
-|---|---|---|---|
-| Ambiente | 5 / 73 / 22.277 | 10 / 73 / 22.277 | 48 / 73 / 22.277 |
-| Economia | 9 / 67 / 18.379 | 14 / 66 / 18.377 | 55 / 66 / 18.377 |
-| Società | 9 / 65 / 20.687 | 7 / 64 / 20.685 | 51 / 64 / 20.685 |
-
-Trasformazioni misurate **8,07–8,73 s**. Conteggi al campione sostenibile: 65–71 geometrie GPU, 13–17 texture. Questi risultati mostrano il percorso di test e il budget della scena, senza dimostrare 72 FPS sul visore. Browser software e carico del container influenzano molto gli FPS.
-
-Da riprovare sul Quest Pro: tutte le sei scene a 72 Hz, visibilità dal punto sicuro, passthrough occultato in AR, ritorno MR/sessione VR separata, menu controller/mani, sguardo e seguito room scale con ostacoli virtuali, voce durante trasformazioni, rumori/eco e parole d’interruzione. Il filtro ASR attende il riconoscimento dopo una breve pausa e può sbagliare; non è un classificatore acustico garantito. Il nome è memoria della pagina e non persiste dopo reload. I modelli Kenney sono leggeri e stilizzati; la città non è fotorealistica.
-
-I run GitHub hanno evidenziato un difetto di feedback Android con il canvas fuori viewport: il DOM riceveva lo stato narrativo solo dal frame loop. La subscription ora pubblica immediatamente lo snapshot al clic, anche se il rendering è rallentato. Il test arma un MutationObserver prima dell’azione, osserva il progresso e riporta il canvas nel viewport per guardare la città cambiare. Restano la misura minima di 6,5 s, il controllo finale e nessun retry/aumento dei timeout. I campioni software sopra provengono dal run locale iniziale.
-
-
-## Correzione microfono e UX — 10 ottobre 2026
-
-Il feedback successivo dell’utente descrive un blocco dopo il primo scambio, controlli chiusi ancora legati alla testa e stato di ascolto ambiguo. Il codice distingue ora pausa XR e mute manuale, recupera la coda Realtime e ignora i completamenti tardivi di un altro turno. Pannello e scorciatoie sono entrambi fissi nello spazio. Uno stato con testo/colore/barra si trova presso NEO e nella pagina; **Riprendi ascolto** restituisce il turno nella connessione corrente. [Dettagli e prova fisica](VOICE_UX.md).
-
-- Node: lint, typecheck, build, **142 test** e scanner segreti del bundle superati.
-- Sites: typecheck, **133 test** e build Worker superati; backend, chiave e accesso pubblico conservati.
-- Browser locale: **24/24 superati**, un worker, nessun retry, tre profili. Include tre scambi consecutivi, mute/recupero/stop anche con i frame grafici fermati; audio e WebRTC sono esplicitamente simulati. La simulazione del MediaDevices è fissata sull’oggetto navigator per avere lo stesso comportamento anche su WebKit headless; non richiede permessi o hardware.
-- Nuovi test unitari riproducono cancellazione già conclusa o senza conferma, creazione rifiutata senza perdere il turno, pause XR/device, ritardi di trascrizione e riapertura protetta senza fine-buffer ricevuta. Test 3D verificano anche i controlli chiusi e l’indicatore indipendente dalla testa.
-
-Nessun nuovo asset esterno. L’indicatore aggiunge tre piani e una texture; il testo si aggiorna solo al cambio di stato. Campioni software locali, voce spenta: 66–75 draw call e circa 18–22k triangoli, trasformazioni misurate di **8,01–9,88 s**. Campioni FPS **7–36**, non medie stabili. I nove JSON sono in [validation/voice-ux](validation/voice-ux). Questi sono snapshot headless, non misure Quest, né una verifica di 72 FPS. Vedere gli artefatti Playwright e la checklist aggiornata.
-
-Restano da verificare fisicamente: almeno cinque scambi vocali sul visore, perdita/ritorno del focus, interruzione di una risposta, rumori/eco, pannello fermo aperto e chiuso, controller/pinch, passthrough e continuità audio durante le transizioni. Nessuna nuova verifica hardware è dichiarata completata.
-
-## Revisione futuri dinamici, cambio tema e dock discreto — 10 ottobre 2026
-
-Build, lint, typecheck, 150 test unit/API e verifica bundle passano nel repository Node. L’adattatore Sites supera typecheck, 141 test e build Worker/client; il bundle client non contiene chiavi o la route OpenAI server. Nessuna variabile d’ambiente o chiave modificata.
-
-La suite browser comprende 30 casi su Chromium desktop, Android emulato e WebKit iPhone emulato: sei futuri, trasformazione, ritorno anticipato, controlli con RAF sospeso, cambio tema dentro la visita e durante le transizioni, confronto inverso, viewport/touch, voce simulata su tre turni e mantenimento del microfono durante i cambi di tema. I test di geometria verificano movimento in entrambi gli stati fin dal primo aggiornamento, culling bounds anche in low, riuso delle mesh e mancato aggiornamento dei distretti nascosti. La revisione del menu è stata controllata visivamente con renderer Three.js; questi screenshot non provano leggibilità o interazione sul Quest.
-
-Campioni dopo il futuro sostenibile (voce spenta; renderer headless software). I JSON grezzi sono in `docs/validation/dynamic-futures/`.
-
-| Tema | Profilo emulato | FPS istantanei | Draw call | Triangoli | Transizione s |
-|---|---|---:|---:|---:|---:|
-| economic | android-chromium | 16 | 75 | 19503 | 8.07 |
-| economic | desktop-chromium | 8 | 76 | 19505 | 8.08 |
-| economic | iphone-webkit | 39 | 75 | 19503 | 8.02 |
-| environmental | android-chromium | 13 | 76 | 22283 | 8.03 |
-| environmental | desktop-chromium | 9 | 76 | 22283 | 8.08 |
-| environmental | iphone-webkit | 31 | 76 | 22283 | 8.07 |
-| social | android-chromium | 17 | 75 | 21831 | 8.09 |
-| social | desktop-chromium | 11 | 72 | 21637 | 8.06 |
-| social | iphone-webkit | 35 | 71 | 21635 | 8.05 |
-
-Sono misure software puntuali, con carichi e viewport differenti e qualità adattiva low; non una media comparabile fra device né una misura del Quest. Il target 72 FPS resta da misurare sul visore con voce attiva. Le sagome e i veicoli civici sono procedurali leggeri; il dettaglio visivo mantiene i limiti dichiarati degli asset Kenney. Il bundle Vite finale è 1.001 kB / 278 kB gzip: warning dimensione non bloccante. Non si usano post-processing, nuove texture o decoder.
-
-Da verificare fisicamente: leggibilità periferica e comfort del dock world-locked in alto a destra, controller/pinch, occlusione del passthrough, room scale, latenza e falsi positivi del filtro vocale, 72 FPS. La procedura è aggiornata in DEVICE_TESTS.md.
-
-### Regressione del timer durante frame lenti
-
-Nella prima esecuzione, una scena sociale Android ha impiegato 21,70 s sotto forte carico software (1 FPS): il delta della grafica era limitato a un secondo e quel limite veniva applicato anche alla narrazione. Il campione è conservato in `docs/validation/timing-regression/pre-fix-android-social.json`. Ingresso, confronto e ritorno ora usano tempo monotono assoluto; avatar/seguito mantengono il delta limitato. Il cambio tema non riavvia il timer. Un nuovo test browser simula frame ogni 2,2 s e verifica il completamento del confronto senza perdere tempo; i test di trasformazione ordinari controllano anche il limite superiore di 12 s per il renderer software. Questo corregge la durata, non rende fluido un renderer a 1 FPS. Il requisito di comfort rimane una verifica hardware.
-
-
-## Città vive e trasporti visibili — 10 ottobre 2026
-
-Revisione concentrata sulle scene 3D. Nessuna modifica nuova a menu, prompt, backend o voce. Traffico critico con avanzamento reale, tram e treno comuni ai tre temi, persone ambientali, ciclisti, riparazioni e incontri. Geometry/material instancing, animazioni decorative a 30 Hz e profilo low restano attivi. Il candidato umanoide è separato e non viene caricato dall’app.
-
-- `npm run check`: **PASS**, lint, typecheck, build, **156 test unitari/API**, scanner client. La suite aggiunge cinque controlli della città (spaziatura auto durante entrambe le trasformazioni, trasporti visibili/culling per ogni tema, residenti e ciclisti) e un controllo di integrità/skin/budget del candidato umanoide.
-- Adapter Sites: typecheck, **147 test unitari**, build Vinext/Worker **PASS**. Asset e codice della scena condivisi con il repository Node; segreto OpenAI invariato.
-- Playwright scene: **9/9 PASS**, tre temi × Chromium desktop, Android Chromium emulato e iPhone WebKit emulato. Ingresso, due futuri, asset, cambio prospettiva/touch, durata trasformazione, ritorno, nessun errore JS o richiesta microfono.
-- Record diagnostici integrali in `docs/validation/living-city/`: rendering software headless, qualità low, voce spenta; FPS istantanei, non benchmark del visore.
-
-| Tema | Profilo | FPS software | Draw call | Triangoli | Trasformazione |
-|---|---|---:|---:|---:|---:|
-| economic | android-chromium | 12 | 82 | 22075 | 8.025 s |
-| economic | desktop-chromium | 7 | 83 | 22077 | 8.019 s |
-| economic | iphone-webkit | 38 | 82 | 22075 | 8.017 s |
-| environmental | android-chromium | 12 | 88 | 28439 | 8.040 s |
-| environmental | desktop-chromium | 9 | 88 | 28439 | 8.046 s |
-| environmental | iphone-webkit | 35 | 88 | 28439 | 8.031 s |
-| social | android-chromium | 13 | 83 | 24559 | 8.010 s |
-| social | desktop-chromium | 7 | 80 | 24365 | 8.074 s |
-| social | iphone-webkit | 36 | 79 | 24363 | 8.023 s |
-
-Questi campioni contengono la scena completa, NEO e gli indicatori. L’ambiente positivo rimane sotto 29 mila triangoli e 90 draw call nei campioni; le nuove geometrie della città non aggiungono texture scaricate. La maggiore ricchezza non certifica 72 FPS: frame rate, leggibilità, compositing AR, comfort e room scale devono essere misurati fisicamente sul Quest Pro. L’ASR e la voce live non sono oggetto di questa revisione.
+Checklist operativa: [DEVICE_TESTS.md](DEVICE_TESTS.md). Gli scenari precedenti sono sostituiti dal solo percorso ambientale cumulativo V4 richiesto dalla specifica.

@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import type { StorySnapshot } from "../story/StoryEngine";
+import { levers, optionsFor, interventions } from "../decision/catalog";
 import type { VoiceActivity } from "../audio/voicePresentation";
 import { canvasSurface, glass } from "./canvasSurface";
 export type XRAction =
@@ -13,7 +15,16 @@ export type XRAction =
   | "exit"
   | "calibrate"
   | "observatory"
-  | "future"
+  | "decision"
+  | "continue"
+  | "finish"
+  | "revision"
+  | "consent-yes"
+  | "consent-no"
+  | `lever:${string}`
+  | `option:${string}`
+  | `revision-slot:${string}`
+  | "revision-page"
   | "reality"
   | "prepare-vr"
   | "menu"
@@ -22,8 +33,7 @@ export type XRAction =
   | "voice-mode"
   | "suspend-voice"
   | "resume-voice"
-  | "ambience"
-  | "theme";
+  | "ambience";
 type Context = "placement" | "reality" | "observatory";
 type Button = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -48,8 +58,9 @@ export class UI3D {
   private caster = new THREE.Raycaster();
   private forward = new THREE.Vector3(0, 0, -1);
   private right = new THREE.Vector3();
-  private theme = "Ambiente";
-  private future: "critical" | "sustainable" = "critical";
+  private story?: StorySnapshot;
+  private choices = false;
+  private storyKey = "";
   constructor() {
     this.canvas.width = 1024;
     this.canvas.height = 160;
@@ -96,15 +107,15 @@ export class UI3D {
     this.shortcuts.position.set(0, 0, 0);
     this.root.add(this.panel, this.shortcuts);
     this.makeButton(this.shortcuts, "menu", "Menu · A / X", 0, 0.07, 0.32);
+    this.makeButton(this.shortcuts, "talk", "Avvia voce", 0, -0.014, 0.32);
     this.makeButton(
       this.shortcuts,
-      "talk",
-      "Avvia voce",
+      "decision",
+      "Le mie scelte",
       0,
-      -0.014,
+      -0.098,
       0.32,
     );
-    this.makeButton(this.shortcuts, "theme", "Ambiente →", 0, -0.098, 0.32);
     this.rebuild();
     this.root.visible = false;
   }
@@ -140,7 +151,14 @@ export class UI3D {
   }
   private draw(button: Button, selected: boolean) {
     const ctx = button.canvas.getContext("2d")!;
-    canvasSurface(ctx, 640, 112, selected ? glass.selected : glass.button, selected ? glass.accent : glass.border, 42);
+    canvasSurface(
+      ctx,
+      640,
+      112,
+      selected ? glass.selected : glass.button,
+      selected ? glass.accent : glass.border,
+      42,
+    );
     ctx.fillStyle = selected ? "#e5fff6" : "#d7e6e8";
     ctx.font = "500 37px sans-serif";
     ctx.textAlign = "center";
@@ -157,42 +175,83 @@ export class UI3D {
       button.mesh.material.dispose();
     }
     this.buttons = this.buttons.filter((b) => b.mesh.parent === this.shortcuts);
-    const actions: [XRAction, string][] =
-      this.context === "placement"
-        ? [
-            ["confirm", "Conferma posizione"],
-            ["reposition", "Nuovo punto"],
-            ["lower", "Quota −5 cm"],
-            ["raise", "Quota +5 cm"],
-            ["calibrate", "Quota corretta"],
-            ["voice", "Avvia / stop voce"],
-            ["exit", "Esci da XR"],
-            ["menu", "Chiudi menu"],
-          ]
-        : [
-            ["voice", "Avvia / stop voce"],
-            ["talk", "Riprendi ascolto"],
-            ["mute", "Mic on / off"],
-            ["voice-mode", "Interruzioni on / off"],
-            [
-              this.context === "observatory" ? "future" : "observatory",
-              this.context === "observatory"
-                ? "Futuro sostenibile"
-                : "Visita il 2050",
-            ],
-            [
-              this.context === "observatory" ? "reality" : "prepare-vr",
-              this.context === "observatory"
-                ? "Torna alla realtà"
-                : "Prepara VR",
-            ],
-            ["ambience", "Suoni on / off"],
-            ["theme", `${this.theme} →`],
-            ["unlock", "Riattiva audio"],
-            ["placement-menu", "Posizionamento"],
-            ["exit", "Esci da XR"],
-            ["menu", "Chiudi menu"],
-          ];
+    const story = this.story;
+    let actions: [XRAction, string][];
+    if (this.choices && story) {
+      if (story.state === "OPTIONAL_REVISION") {
+        actions = this.revisionSlot
+          ? interventions
+              .slice(this.revisionPage * 8, this.revisionPage * 8 + 8)
+              .map((o) => [`option:${o.id}`, o.label] as [XRAction, string])
+          : story.decisions.active.map(
+              (d) =>
+                [
+                  `revision-slot:${d.slotId}`,
+                  interventions.find((o) => o.id === d.optionId)!.label,
+                ] as [XRAction, string],
+            );
+        if (this.revisionSlot)
+          actions.push(["revision-page", "Altre alternative →"]);
+      } else if (story.state === "WAITING_FOR_CHOICE" && story.lever)
+        actions = optionsFor(story.lever).map(
+          (o) => [`option:${o.id}`, o.label] as [XRAction, string],
+        );
+      else
+        actions = levers.map(
+          (l) => [`lever:${l.id}`, l.label] as [XRAction, string],
+        );
+      actions.push(["menu", "Chiudi scelte"], ["reality", "Torna alla realtà"]);
+    } else
+      actions =
+        this.context === "placement"
+          ? [
+              ["confirm", "Conferma posizione"],
+              ["reposition", "Nuovo punto"],
+              ["lower", "Quota −5 cm"],
+              ["raise", "Quota +5 cm"],
+              ["calibrate", "Quota corretta"],
+              ["voice", "Avvia / stop voce"],
+              ["exit", "Esci da XR"],
+              ["menu", "Chiudi menu"],
+            ]
+          : [
+              ["voice", "Avvia / stop voce"],
+              ["talk", "Riprendi ascolto"],
+              ["mute", "Mic on / off"],
+              ["voice-mode", "Interruzioni vocali"],
+              [
+                this.context === "observatory" ? "decision" : "observatory",
+                this.context === "observatory"
+                  ? "Scegli intervento"
+                  : "Visita il 2050",
+              ],
+              [
+                this.context === "observatory" ? "reality" : "prepare-vr",
+                this.context === "observatory"
+                  ? "Torna alla realtà"
+                  : "Prepara VR",
+              ],
+              ["continue", "Continua"],
+              [
+                story?.state === "FINAL_CITY_REFLECTION"
+                  ? "revision"
+                  : "finish",
+                story?.state === "FINAL_CITY_REFLECTION"
+                  ? "Ripensa una scelta"
+                  : "Concludi decisioni",
+              ],
+              ["ambience", "Suoni on / off"],
+              ["placement-menu", "Posizionamento"],
+              ["unlock", "Riattiva audio"],
+              ["menu", "Chiudi menu"],
+            ];
+    if (story?.state === "WAITING_FOR_CONSENT")
+      actions = [
+        ["consent-yes", "Salva anonimamente"],
+        ["consent-no", "Continua senza salvare"],
+        ["talk", "Rispondi a voce"],
+        ["menu", "Chiudi menu"],
+      ];
     actions.forEach(([action, label], i) =>
       this.makeButton(
         this.panel,
@@ -205,22 +264,36 @@ export class UI3D {
     this.focus = -1;
     this.keyboardFocus = false;
     this.updateTargets();
-    this.setTheme(this.theme);
-    this.setFuture(this.future);
   }
-  setTheme(title: string) {
-    this.theme = title;
-    for (const button of this.buttons.filter((b) => b.mesh.userData.action === "theme")) {
-      if (button.label === `${title} →`) continue;
-      button.label = `${title} →`;
-      this.draw(button, this.targets[this.focus] === button);
-    }
+  private revisionPage = 0;
+  revisionSlot = "";
+  selectRevisionSlot(slot: string) {
+    this.revisionSlot = slot;
+    this.revisionPage = 0;
+    this.rebuild();
   }
-  setFuture(future: "critical" | "sustainable") {
-    this.future = future;
-    const button = this.buttons.find((b) => b.mesh.userData.action === "future");
-    const label = future === "critical" ? "Futuro sostenibile" : "Futuro critico";
-    if (button && button.label !== label) { button.label = label; this.draw(button, this.targets[this.focus] === button); }
+  nextRevisionPage() {
+    this.revisionPage = (this.revisionPage + 1) % 4;
+    this.rebuild();
+  }
+  setDecisionState(story: StorySnapshot) {
+    this.story = story;
+    const key = `${story.state}:${story.lever}:${story.proposal}`;
+    if (key === this.storyKey) return;
+    this.storyKey = key;
+    if (this.choices)
+      this.choices = [
+        "WAITING_FOR_LEVER",
+        "WAITING_FOR_CHOICE",
+        "OPTIONAL_REVISION",
+      ].includes(story.state);
+    this.rebuild();
+  }
+  showChoices(story: StorySnapshot) {
+    this.story = story;
+    this.choices = true;
+    this.setOpen(true);
+    this.rebuild();
   }
   setContext(context: Context) {
     if (context === this.context) return;
@@ -228,6 +301,10 @@ export class UI3D {
     this.rebuild();
   }
   setOpen(open: boolean) {
+    if (!open && this.choices) {
+      this.choices = false;
+      this.rebuild();
+    }
     if (open && !this.open) this.align = true;
     this.open = open;
     this.focus = -1;
@@ -292,7 +369,12 @@ export class UI3D {
       );
     this.texture.needsUpdate = true;
   }
-  setVoiceControls(connected: boolean, muted: boolean, interruptions: boolean, activity: VoiceActivity = "off") {
+  setVoiceControls(
+    connected: boolean,
+    muted: boolean,
+    interruptions: boolean,
+    activity: VoiceActivity = "off",
+  ) {
     for (const button of this.buttons) {
       const action = button.mesh.userData.action;
       const label =
@@ -301,14 +383,19 @@ export class UI3D {
             ? "Termina voce"
             : "Avvia voce"
           : action === "talk"
-            ? !connected ? "Avvia voce" : activity === "speaking" || activity === "processing" ? "Interrompi NEO" : "Riprendi ascolto"
-          : action === "mute"
-            ? muted
-              ? "Riattiva microfono"
-              : "Spegni microfono"
-            : action === "voice-mode"
-              ? "Interruzioni: " + (interruptions ? "Filtro voce" : "Protette")
-              : button.label;
+            ? !connected
+              ? "Avvia voce"
+              : activity === "speaking" || activity === "processing"
+                ? "Interrompi NEO"
+                : "Riprendi ascolto"
+            : action === "mute"
+              ? muted
+                ? "Riattiva microfono"
+                : "Spegni microfono"
+              : action === "voice-mode"
+                ? "Interruzioni: " +
+                  (interruptions ? "Filtro voce" : "Protette")
+                : button.label;
       if (label !== button.label) {
         button.label = label;
         this.draw(button, this.targets[this.focus] === button);

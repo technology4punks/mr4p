@@ -1,23 +1,17 @@
-# Istruzioni per Codex — NEO MR Avatar MVP
+# Istruzioni per Codex — Future Observatory V4
 
-## Missione
-Implementa l'MVP completo descritto in `SPEC.md`. Quest Pro è il device primario, Android e iPhone sono fallback secondo capabilities.
+## Missione e specifica
+`SPEC.md` contiene la specifica V4 integrale, che sostituisce il precedente percorso per temi e il confronto binario. Estendere il progetto esistente: React, TypeScript, Three.js/WebXR, RobotExpressive, Realtime/WebRTC e backend. Una sola città ambientale, trenta interventi predefiniti, quattro o cinque scelte e una revisione.
 
-## Avvio immediato
-1. Leggi tutto `SPEC.md` prima di cambiare codice.
-2. Nel repository/branch corrente sviluppa una applicazione funzionante con frontend e backend.
-3. Usa React, TypeScript, Vite, Three.js/WebXR, OpenAI Realtime tramite WebRTC, un backend Node sicuro.
-4. Avatar RobotExpressive (Three.js) come placeholder con animazioni coerenti; fallback se asset unavailable.
-5. Visualizzazione MR del passthrough Quest Pro, posizionamento manuale a livello pavimento e anchoring locale stabile, hit-test/anchors opzionali se supportati. Non promettere persistenza cross-session senza prova hardware.
-6. Modalità WebXR AR su Android solo se supportata. Modalità 3D con conversazione vocale su iPhone o browser senza immersive-ar.
-7. OpenAI API key sempre e solo server-side; token/session ephemeral al client. Non scrivere credenziali nel repo.
-8. Configura hosting HTTPS con supporto WebSockets/WebRTC se necessario, documenta test reali su device.
-9. Esegui test, build, typecheck e risolvi gli errori. Produci una pull request con checklist e limiti di piattaforma.
+## Vincoli
+- Separare DecisionEngine puro, StoryEngine, CityTransformationEngine e conversazione. Il modello chiama solo tool validati; non esegue codice grafico.
+- Ricostruire tutte le conseguenze dalle scelte attive. Conservare la sequenza originale e registrare una sola revisione. Duplicati identici non consumano slot.
+- Niente punteggi morali, soluzioni assolute o previsioni quantitative; risorse interne visibili solo nel developer panel.
+- Start esplicito prima del microfono. Conservare interruzioni ASR, recupero tracce, eventi correlati, mute manuale e continuità voce durante le transizioni.
+- Portale e menu world-locked. Nessuna locomozione continua XR; rispettare i confini reali del visore. Feature detection e gesto separato per una nuova sessione VR.
+- Chiave OpenAI solo nel backend. Persistenza anonima soltanto dopo consenso separato. Non salvare nome, email, audio o dialogo completo. Non dichiarare salvato prima della risposta backend.
+- Conservare fallback Android/iPhone/desktop. Non introdurre Unity, Unreal o modellazione manuale. Asset gratuiti con licenze documentate, caricati localmente.
+- Non dichiarare testati passthrough, mani, controller, audio hardware o 72 FPS senza prova sul Quest Pro fisico.
 
-## Priorità
-P0: render avatar 3D + pagina 3D non-XR + backend sessione OpenAI + audio.
-P1: entering immersive-ar su Quest Pro + world-lock con local-floor + placement calibrabile.
-P2: UX mobile + animazioni/listening/talking + supporto opzionale hit-test.
-P3: spatial anchors persistent e floor detection, soltanto se supportati/verificati.
-
-Non fermarti per domande non bloccanti: scegli la soluzione più pragmatica. Non fare affermazioni non verificate sui supporti WebXR o Sites.
+## Consegna e verifiche
+Branch dedicata, nessuna sovrascrittura della branch precedente. Eseguire `npm run check` e `npm run test:e2e`; documentare misure software separatamente dai test hardware. Aggiornare README, catalogo, interdipendenze, API/persistenza, crediti e checklist dispositivo. Per Sites usare il progetto pubblico esistente e preservare i segreti runtime. Non richiedere conferme per decisioni tecniche ordinarie già autorizzate.

@@ -2,7 +2,7 @@
 
 Il feedback dell’utente segnala microfono fermo dopo il primo scambio, controlli che seguono la testa e assenza di un segnale di ascolto affidabile. Il codice precedente trasformava la perdita di focus XR in un mute permanente e ignorava `response_cancel_not_active`, lasciando bloccata la coda. I controlli rapidi chiusi erano ancora riallineati alla testa a ogni frame.
 
-Questa revisione conserva avatar, sei scenari, Story Engine e backend. Corregge pausa XR, coda Realtime e timer; mantiene pannello e comandi rapidi nello spazio; presenta un indicatore accanto a NEO e nella pagina con testo, colore e livello del microfono. **Riprendi ascolto** riattiva il microfono e restituisce il turno nella connessione corrente; **Termina conversazione** rilascia le tracce.
+Questa revisione conserva avatar, città ambientale cumulativa V4, Story Engine e backend. Corregge pausa XR, coda Realtime e timer; mantiene pannello e comandi rapidi nello spazio; presenta un indicatore accanto a NEO e nella pagina con testo, colore e livello del microfono. **Riprendi ascolto** riattiva il microfono e restituisce il turno nella connessione corrente; **Termina conversazione** rilascia le tracce.
 
 I dettagli e i limiti del recupero sono in [QUEST_INTERACTION.md](QUEST_INTERACTION.md). Il segreto backend e l’accesso pubblico non vengono modificati. Non vengono aggiunti asset esterni: l’indicatore usa tre piani, una texture canvas aggiornata al cambio di testo e una barra mesh, senza post-processing.
 
@@ -44,7 +44,7 @@ Anteprime in [validation/voice-glass-ui](validation/voice-glass-ui): desktop e i
 - Repository: lint, typecheck, build, scansione del bundle e **182 test** superati.
 - Sites: typecheck, build e **173 test** superati.
 - Suite browser completa: **30/30** superati dopo la correzione dei casi Android. La CI su `0322553` ha completato con successo entrambi i run (push e PR).
-- Dialogo browser: **3/3 profili**, anche dopo la correzione di “OK”, con verifica che ogni turno generi una richiesta di risposta; tre scambi consecutivi, traccia sospesa e riacquisita, mute, cambio tema e stop con render loop fermato. Audio/WebRTC/OpenAI simulati.
+- Dialogo browser: **3/3 profili**, anche dopo la correzione di “OK”, con verifica che ogni turno generi una richiesta di risposta; tre scambi consecutivi, traccia sospesa e riacquisita, mute, scelte cumulative e stop con render loop fermato. Audio/WebRTC/OpenAI simulati.
 - Tredici nuove regressioni coprono invio bloccato con traccia live, silenzio/DTX, recupero fallito, stop durante acquisizione, visibilità XR, eventi risposta persi, delta di interruzione e VAD non chiuso. Una trascrizione tardiva precedente a un reset esplicito non genera una risposta inattesa.
 
 Sul Quest: riprovare almeno cinque scambi, interruzione con parola, rumore, menu di sistema, cambi scenario e ritorno MR. Se NEO non sente, controllare la barra locale e **Invio microfono** nella diagnostica; usare **Riprendi ascolto** e annotare se compare **Microfono da ripristinare**. Permessi hardware, voce, eco, latenza e 72 FPS restano da verificare fisicamente.

@@ -2,7 +2,9 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { AvatarController } from "./avatar/AvatarController";
 import { CompanionFollow } from "./avatar/CompanionFollow";
-import { scenario, type Theme } from "./story/scenarios";
+import { Portal } from "./avatar/Portal";
+import { sectorPositions } from "./observatory/CityTransformationEngine";
+import { optionById } from "./decision/catalog";
 import type { AvatarState } from "./avatar/animations";
 import { RealtimeClient, type VoiceSnapshot } from "./audio/realtimeClient";
 import { XRExperience, type XRDiagnostic } from "./xr/xrSession";
@@ -51,6 +53,14 @@ export class Experience {
   private voiceIndicator = new VoiceIndicator();
   readonly xr: XRExperience;
   private floor = new THREE.Group();
+  private portal = new Portal();
+  private portalInitialized = false;
+  private gazeTarget = new THREE.Vector3();
+  private saving = false;
+  private saveGeneration = 0;
+  private savedRecord?: { id: string; deleteToken: string };
+  private sessionId = crypto.randomUUID();
+  private deleteToken = crypto.randomUUID() + crypto.randomUUID();
   private previewAmbient = new THREE.HemisphereLight(0xe3fff7, 0x304451, 2.8);
   private previewSun = new THREE.DirectionalLight(0xffffff, 3);
   private clock = new THREE.Clock();
@@ -64,6 +74,8 @@ export class Experience {
   private fps = 0;
   private fpsStart = 0;
   private debug = false;
+  private discoveryStarted = false;
+  private pausedAt: number | null = null;
   private viewerPosition = new THREE.Vector3();
   readonly story = new StoryEngine();
   readonly observatory = new FutureObservatory();
@@ -135,7 +147,14 @@ export class Experience {
     const grid = new THREE.GridHelper(4.4, 22, 0x407166, 0x2b4848);
     grid.position.y = -0.008;
     this.floor.add(surface, grid);
-    this.scene.add(this.floor, this.avatar.root, this.observatory.root, this.voiceIndicator.root);
+    this.avatar.root.visible = false;
+    this.scene.add(
+      this.floor,
+      this.avatar.root,
+      this.observatory.root,
+      this.voiceIndicator.root,
+      this.portal.root,
+    );
     this.voice = new RealtimeClient(
       (snapshot) => {
         this.avatar.setState(snapshot.state);
@@ -150,7 +169,7 @@ export class Experience {
       },
       (name, args) => this.storyTool(name, args),
       () => {
-        if (this.story.snapshot.state === "INTRODUCTION") this.startDiscovery();
+        if (this.story.snapshot.state === "INVITATION") this.startDiscovery();
       },
     );
     this.xr = new XRExperience(
@@ -285,13 +304,22 @@ export class Experience {
     if (this.needsAlignment && (!this.xr.session || frame))
       this.alignObservatory();
     this.updateStoryVisuals();
-    this.observatory.update(time);
+    this.observatory.update(this.pausedAt ?? time);
+    if (
+      this.story.snapshot.environment === "observatory" &&
+      this.pausedAt === null
+    )
+      this.observatory.applyCityState(
+        this.story.snapshot.decisions.city,
+        this.observatory.transformations.visualChannels,
+      );
     this.ambience.update(
-      this.transformation,
+      this.observatory.transformations.visualChannels.air,
       this.immersion,
       levels.output > 0.02 || levels.input > 0.02,
       time,
     );
+    this.ambience.setCity(this.story.snapshot.decisions.city);
     const camera = frame ? this.renderer.xr.getCamera() : this.camera;
     camera.getWorldPosition(this.viewerPosition);
     this.companionMoving = false;
@@ -300,7 +328,8 @@ export class Experience {
       this.xr.isViewerTracked &&
       this.immersion > 0.99 &&
       this.story.snapshot.environment === "observatory" &&
-      this.story.snapshot.state !== "RETURN_TO_REALITY"
+      this.story.snapshot.state !== "RETURNING_TO_MR" &&
+      this.story.snapshot.state !== "PAUSED"
     ) {
       this.companionViewer.copy(this.viewerPosition);
       this.observatory.root.worldToLocal(this.companionViewer);
@@ -315,15 +344,26 @@ export class Experience {
       );
     } else this.companion.reset();
     this.avatar.setMoving(this.companionMoving);
+    let gaze = this.viewerPosition;
+    if (this.story.snapshot.state === "APPLYING_INTERVENTION") {
+      const id =
+        this.story.decisions.snapshot.revision?.newOptionId ??
+        this.story.decisions.snapshot.active.at(-1)?.optionId;
+      const option = optionById.get(id ?? "");
+      if (option) {
+        this.gazeTarget.fromArray(sectorPositions[option.sector]);
+        this.observatory.root.localToWorld(this.gazeTarget);
+        gaze = this.gazeTarget;
+      }
+    }
     this.avatar.update(
       delta,
       levels.output,
       levels.audible,
-      !frame || this.xr.isViewerTracked ? this.viewerPosition : undefined,
+      !frame || this.xr.isViewerTracked ? gaze : undefined,
     );
     const voice = this.voice.snapshot;
-    this.xr.ui.setTheme(scenario(this.story.snapshot.theme).title);
-    this.xr.ui.setFuture(this.story.snapshot.future);
+    this.xr.ui.setDecisionState(this.story.snapshot);
     this.xr.ui.setVoiceControls(
       ["connected", "connecting"].includes(voice.status),
       voice.muted,
@@ -331,11 +371,18 @@ export class Experience {
       voice.activity,
     );
     const voiceInfo = voicePresentation(voice);
-    const placing = !this.xr.diagnostic.placed && this.story.snapshot.environment !== "observatory";
+    const placing =
+      !this.xr.diagnostic.placed &&
+      this.story.snapshot.environment !== "observatory";
     this.xr.ui.setStatus(
       `${placing ? "Posizionamento · " : ""}${voiceInfo.label}\n${voice.status === "error" || voice.playbackBlocked ? voice.message : placing ? this.message : voiceInfo.detail}`,
     );
-    this.voiceIndicator.update(voice, levels.input, this.avatar.root, this.viewerPosition);
+    this.voiceIndicator.update(
+      voice,
+      levels.input,
+      this.avatar.root,
+      this.viewerPosition,
+    );
     this.renderer.render(this.scene, this.camera);
     this.frames++;
     if (time - this.fpsStart > 1000) {
@@ -367,7 +414,9 @@ export class Experience {
       await this.xr.enter(mode);
       if (this.xr.session) {
         this.voice.setImmersive(true);
-        this.voice.setInputSuspended(this.xr.session.visibilityState !== "visible");
+        this.voice.setInputSuspended(
+          this.xr.session.visibilityState !== "visible",
+        );
         this.floor.visible = false;
         this.controls.enabled = false;
         if (this.story.snapshot.environment === "observatory") {
@@ -390,11 +439,34 @@ export class Experience {
     }
   }
   action(action: XRAction) {
+    if (action.startsWith("lever:")) {
+      this.applyTool("select_lever", { leverId: action.slice(6) });
+      return;
+    }
+    if (action.startsWith("revision-slot:")) {
+      this.xr.ui.selectRevisionSlot(action.slice(14));
+      return;
+    }
+    if (action === "revision-page") {
+      this.xr.ui.nextRevisionPage();
+      return;
+    }
+    if (action.startsWith("option:")) {
+      this.choose(action.slice(7));
+      return;
+    }
     switch (action) {
       case "talk":
+        if (
+          ["WAITING_FOR_START", "EXPERIENCE_COMPLETED", "USER_EXIT"].includes(
+            this.story.snapshot.state,
+          )
+        )
+          break;
         if (this.voice.snapshot.status === "connected") {
           void this.voice.resumeListening();
-        } else if (this.voice.snapshot.status !== "connecting") void this.voice.start();
+        } else if (this.voice.snapshot.status !== "connecting")
+          void this.voice.start();
         break;
       case "suspend-voice":
         this.voice.setInputSuspended(true);
@@ -411,26 +483,52 @@ export class Experience {
       case "prepare-vr":
         void this.prepareVR();
         break;
-      case "theme": {
-        const themes: Theme[] = ["environmental", "economic", "social"];
-        this.selectTheme(
-          themes[
-            (themes.indexOf(this.story.snapshot.theme ?? "environmental") + 1) %
-              3
-          ],
+      case "decision":
+        if (
+          [
+            "SHOWING_CRITICAL_FUTURE",
+            "REVEALING_CONSEQUENCES",
+            "OPTIONAL_FIFTH_DECISION",
+          ].includes(this.story.snapshot.state)
+        )
+          this.applyTool("continue_decisions", {});
+        this.xr.ui.showChoices(this.story.snapshot);
+        break;
+      case "continue":
+        this.applyTool(
+          this.story.snapshot.state === "FINAL_CITY_REFLECTION"
+            ? "complete_reflection"
+            : "continue_decisions",
+          {},
         );
         break;
-      }
+      case "finish":
+        this.applyTool("finish_decisions", {});
+        break;
+      case "revision":
+        if (this.applyTool("request_revision", {}).accepted)
+          this.xr.ui.showChoices(this.story.snapshot);
+        break;
+      case "consent-yes":
+        this.applyTool("set_storage_consent", { consent: true });
+        break;
+      case "consent-no":
+        this.applyTool("set_storage_consent", { consent: false });
+        break;
       case "observatory":
         this.visit();
         break;
-      case "future":
-        this.alternative();
-        break;
+
       case "reality":
         this.returnToReality();
         break;
       case "voice":
+        if (
+          ["WAITING_FOR_START", "EXPERIENCE_COMPLETED", "USER_EXIT"].includes(
+            this.story.snapshot.state,
+          )
+        )
+          break;
         if (["connected", "connecting"].includes(this.voice.snapshot.status))
           this.voice.stop();
         else void this.voice.start();
@@ -525,43 +623,85 @@ export class Experience {
   private storyChanged(snapshot: StorySnapshot) {
     this.voice.synchronizeStory(snapshot);
     this.message = snapshot.message;
-    this.xr.ui.setTheme(scenario(snapshot.theme).title);
-    this.xr.ui.setFuture(snapshot.future);
-    // Theme changes preserve pose, voice and transition timing. Updating the
-    // district must precede the state guard; theme is not an entry animation.
-    this.observatory.setTheme(snapshot.theme ?? "environmental");
-    this.ambience.setTheme(snapshot.theme ?? "environmental");
+    this.xr.ui.setDecisionState(snapshot);
+    if (snapshot.state === "PAUSED") {
+      this.pausedAt = performance.now();
+      return;
+    }
+    if (this.pausedAt !== null) {
+      const pausedDuration = performance.now() - this.pausedAt;
+      this.transitionStartedAt += pausedDuration;
+      this.portal.shiftTime(pausedDuration);
+      this.observatory.transformations.shiftTime(pausedDuration);
+      this.pausedAt = null;
+    }
     const key = `${snapshot.state}:${snapshot.transitioning}`;
     if (key === this.visualStoryKey) return;
-    const justEntered = this.visualStoryKey.startsWith("ENTER_OBSERVATORY:");
     this.visualStoryKey = key;
-    if (snapshot.state === "ENTER_OBSERVATORY") {
+    if (snapshot.state === "ENTERING_OBSERVATORY") {
       this.savedRealityPose.position.copy(this.avatar.root.position);
       this.savedRealityPose.orientation.copy(this.avatar.root.quaternion);
       this.observatory.root.add(this.avatar.root);
-      this.avatar.root.position.set(0.75, 0, -1.0);
+      this.avatar.root.position.set(0.75, 0, -1);
       this.avatar.root.quaternion.identity();
       this.avatar.root.visible = true;
       this.xr.setNarrativeMode(true);
       this.needsAlignment = true;
       this.transformation = 0;
-      this.observatory.setFuture(0);
+      this.observatory.applyCityState(snapshot.decisions.city);
+      this.observatory.transformations.apply(
+        snapshot.decisions.city,
+        performance.now(),
+        false,
+      );
       this.transitionStartedAt = performance.now();
       this.transitionStart = this.immersion;
       if (!this.xr.session) this.configurePreview(true);
       void this.observatory.preload(this.renderer);
     }
-    if (snapshot.state === "REFLECTION" && snapshot.transitioning) {
+    if (snapshot.state === "APPLYING_INTERVENTION") {
       this.transitionStartedAt = performance.now();
-      this.transitionStart = this.transformation;
+      this.observatory.transformations.apply(
+        snapshot.decisions.city,
+        performance.now(),
+      );
+      this.avatar.setState("positive");
     }
-    if (snapshot.state === "RETURN_TO_REALITY") {
+    if (snapshot.state === "RETURNING_TO_MR") {
       this.transitionStartedAt = performance.now();
       this.transitionStart = this.immersion;
     }
-    if (snapshot.state === "CRITICAL_FUTURE" && justEntered)
+    if (snapshot.state === "SAVING_MESSAGE") void this.saveReflection();
+    if (snapshot.state === "USER_EXIT") {
+      this.avatar.root.visible = false;
+      this.voice.stop();
+      void this.xr.exit();
+      this.portal.root.visible = false;
+    }
+    if (snapshot.state === "FAREWELL") {
+      this.transitionStartedAt = performance.now();
+      this.avatar.setState("greeting");
       this.voice.requestNarration(
-        `Ingresso completo. ${scenario(snapshot.theme).critical} Una frase concreta su un dettaglio visibile, poi una breve domanda. Massimo 25 parole.`,
+        "Saluta brevemente. Non dire che il messaggio è salvato se saved è false.",
+      );
+    }
+    if (snapshot.state === "EXPERIENCE_COMPLETED") {
+      this.avatar.root.visible = false;
+      this.voice.stop();
+      void this.xr.exit();
+    }
+    if (
+      [
+        "SHOWING_CRITICAL_FUTURE",
+        "REVEALING_CONSEQUENCES",
+        "FINAL_CITY_REFLECTION",
+        "ASKING_FINAL_QUESTION",
+      ].includes(snapshot.state)
+    )
+      this.voice.requestNarration(
+        "Nuovo stato autorevole: " +
+          snapshot.message +
+          " Descrivi solo trasformazioni attive. Una o due frasi, poi lascia spazio all’utente.",
       );
   }
   private alignObservatory() {
@@ -589,21 +729,56 @@ export class Experience {
     // Head/companion animation still clamps delta for comfort. Narrative fades
     // use monotonic wall time so a slow frame cannot stretch eight seconds.
     // Only a phase change resets the clock, never a theme change.
-    const transitionTime = Math.max(0, performance.now() - this.transitionStartedAt) / 1000;
-    if (s.state === "ENTER_OBSERVATORY") {
+    const transitionTime =
+      Math.max(0, performance.now() - this.transitionStartedAt) / 1000;
+    if (
+      s.state === "OPENING_PORTAL" &&
+      (!this.xr.session || this.xr.diagnostic.placed)
+    ) {
+      if (!this.portalInitialized) {
+        this.portalInitialized = true;
+        const avatarPosition = this.avatar.root.getWorldPosition(
+          new THREE.Vector3(),
+        );
+        const viewer = this.xr.session
+          ? this.xr.viewerPose.position
+          : new THREE.Vector3(0, 1.6, 2);
+        const direction = avatarPosition.clone().sub(viewer);
+        direction.y = 0;
+        direction.normalize();
+        const at = this.xr.session
+          ? avatarPosition.clone().addScaledVector(direction, 0.7)
+          : new THREE.Vector3(0, 0, -0.7);
+        this.portal.open(at, viewer, performance.now());
+        this.avatar.root.visible = true;
+        this.avatar.visual.scale.setScalar(0.001);
+      }
+      this.portal.update(performance.now());
+      if (this.portal.active) this.story.dispatch({ type: "portal_open" });
+    }
+    if (s.state === "AVATAR_GREETING") {
+      const fraction = this.portal.update(performance.now());
+      this.avatar.visual.scale.setScalar(Math.max(0.001, fraction));
+      this.avatar.visual.position.z = -0.7 * (1 - fraction);
+      if (!this.portal.active) {
+        this.avatar.visual.scale.setScalar(1);
+        this.avatar.visual.position.z = 0;
+        this.story.dispatch({ type: "portal_complete" });
+        if (this.voice.snapshot.status === "connected") this.startDiscovery();
+      }
+    }
+    if (s.state === "ENTERING_OBSERVATORY") {
       this.immersion =
         this.transitionStart +
         (1 - this.transitionStart) * smoothTransition(transitionTime, 3);
-      if (transitionTime >= 3)
-        this.story.dispatch({ type: "entry_complete" });
-    } else if (s.state === "REFLECTION" && s.transitioning) {
-      this.transformation =
-        this.transitionStart +
-        ((s.future === "sustainable" ? 1 : 0) - this.transitionStart) * smoothTransition(transitionTime, 8);
-      this.observatory.setFuture(this.transformation);
-      if (transitionTime >= 8)
+      if (transitionTime >= 3) this.story.dispatch({ type: "entry_complete" });
+    }
+    if (s.state === "APPLYING_INTERVENTION") {
+      this.transformation = smoothTransition(transitionTime, 7);
+      if (transitionTime >= 7)
         this.story.dispatch({ type: "transformation_complete" });
-    } else if (s.state === "RETURN_TO_REALITY") {
+    }
+    if (s.state === "RETURNING_TO_MR") {
       this.immersion =
         this.transitionStart * (1 - smoothTransition(transitionTime, 2.5));
       if (transitionTime >= 2.5) {
@@ -616,10 +791,17 @@ export class Experience {
         if (this.xr.diagnostic.mode === "immersive-vr" && this.xr.session) {
           void this.xr.exit();
           this.message =
-            "Visita conclusa. Premi Entra in realtà mista per riaprire il passthrough.";
+            "Premi Entra in realtà mista per riaprire il passthrough.";
         } else if (!this.xr.session) this.configurePreview(false);
       }
     }
+    if (
+      s.state === "FAREWELL" &&
+      transitionTime > 4 &&
+      this.voice.snapshot.activity !== "speaking" &&
+      this.voice.snapshot.activity !== "processing"
+    )
+      this.story.dispatch({ type: "farewell_complete" });
     this.observatory.setOpacity(this.immersion);
     this.previewAmbient.intensity = 2.8 * (1 - this.immersion);
     this.previewSun.intensity = 3 * (1 - this.immersion);
@@ -633,40 +815,192 @@ export class Experience {
     } else this.scene.fog = null;
     if (this.xr.session) this.renderer.setClearColor(0x000000, 0);
   }
-  selectTheme(theme: Theme) {
-    this.story.dispatch({ type: "select_theme", theme });
+  async startExperience(useMR = true) {
+    if (
+      this.story.snapshot.state === "EXPERIENCE_COMPLETED" ||
+      this.story.snapshot.state === "USER_EXIT"
+    )
+      this.restart();
+    if (!this.story.dispatch({ type: "start" }).accepted) return;
+    // Explicit Start is also the microphone gesture; voice is never automatic on load.
+    void this.voice.start();
+    if (useMR && navigator.xr) await this.enter();
+    this.story.dispatch({ type: "initialized" });
   }
-  visit(theme: Theme = this.story.snapshot.theme ?? "environmental") {
-    if (this.story.snapshot.environment === "observatory") return;
-    this.story.dispatch({ type: "select_theme", theme });
-    const result = this.storyTool("enter_observatory", '{"consent":true}');
-    if (!result.accepted) this.message = result.reason;
-    else
-      this.voice.requestNarration(
-        `Ho scelto ${scenario(theme).title.toLowerCase()}. Attendi il completamento dell’ingresso prima di descrivere il futuro.`,
+  applyTool(name: string, args: Record<string, unknown>) {
+    const result = this.storyTool(name, JSON.stringify(args));
+    if (!result.accepted) {
+      this.message = result.reason;
+      this.changed(
+        this.snapshot(this.voice.levels().input, this.voice.levels().output),
       );
+    } else
+      this.voice.requestNarration(
+        "Richiesta esplicita dell’utente applicata: " +
+          name +
+          ". Rispetta lo stato restituito e non anticipare altre scelte.",
+      );
+    return result;
   }
-  alternative() {
-    const future = this.story.snapshot.future === "critical" ? "sustainable" : "critical";
-    const result = this.story.tool(
-      "transform_future",
-      JSON.stringify({ future, consent: true }),
-    );
-    if (!result.accepted) this.message = result.reason;
-    else
-      this.voice.requestNarration(
-        `Ho scelto il futuro ${future === "sustainable" ? "sostenibile" : "critico"}. Una sola frase concreta, poi lascia spazio alla mia osservazione.`,
-      );
+  choose(optionId: string) {
+    return this.story.snapshot.state === "OPTIONAL_REVISION"
+      ? this.applyTool("revise_intervention", {
+          slotId: this.xr.ui.revisionSlot,
+          newOptionId: optionId,
+          consent: true,
+        })
+      : this.applyTool("choose_intervention", { optionId, confirmed: true });
+  }
+  visit() {
+    return this.applyTool("enter_observatory", { consent: true });
   }
   returnToReality() {
-    const result = this.story.dispatch({ type: "return_to_reality" });
-    if (!result.accepted) this.message = result.reason;
+    return this.applyTool("request_return_to_reality", {});
   }
   startDiscovery() {
-    this.story.dispatch({ type: "start_discovery" });
-    this.voice.requestNarration(
-      "Presentati in una frase e chiedimi il nome, se non lo conosci già. Aspetta la mia risposta.",
+    if (this.discoveryStarted) return;
+    this.discoveryStarted = this.voice.requestNarration(
+      "Presentati brevemente, chiedi il nome se non lo conosci, e invita nell’osservatorio. Attendi il consenso prima di entrare.",
     );
+  }
+  restart() {
+    this.discoveryStarted = false;
+    this.pausedAt = null;
+    this.saveGeneration++;
+    this.saving = false;
+    this.voice.stop();
+    this.story.reset();
+    this.sessionId = crypto.randomUUID();
+    this.deleteToken = crypto.randomUUID() + crypto.randomUUID();
+    this.portalInitialized = false;
+    this.portal.root.visible = false;
+    this.avatar.visual.scale.setScalar(1);
+    this.avatar.visual.position.z = 0;
+    this.avatar.root.visible = false;
+    this.scene.add(this.avatar.root);
+    this.observatory.setOpacity(0);
+    this.immersion = 0;
+    this.visualStoryKey = "";
+    this.configurePreview(false);
+  }
+  private async saveReflection() {
+    if (this.saving || !this.story.snapshot.consent) return;
+    this.saving = true;
+    const s = this.story.snapshot,
+      generation = this.saveGeneration,
+      deleteToken = this.deleteToken;
+    try {
+      const response = await fetch("/api/future-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: this.sessionId,
+          deleteToken: this.deleteToken,
+          experienceVersion: "V4",
+          sequence: s.decisions.sequence,
+          active: s.decisions.active,
+          revision: s.decisions.revision,
+          reflection: s.reflection,
+          message: s.generatedMessage,
+          consent: true,
+        }),
+      });
+      const data = (await response.json()) as { id?: unknown };
+      if (!response.ok || data.id !== this.sessionId)
+        throw new Error("Salvataggio non riuscito. Puoi riprovare.");
+      if (generation !== this.saveGeneration) return;
+      this.savedRecord = { id: data.id, deleteToken };
+      this.story.dispatch({ type: "saved" });
+    } catch (error) {
+      if (generation === this.saveGeneration)
+        this.story.dispatch({
+          type: "save_failed",
+          message:
+            error instanceof Error ? error.message : "Backend indisponibile.",
+        });
+    } finally {
+      if (generation === this.saveGeneration) this.saving = false;
+    }
+  }
+  editReflection() {
+    this.story.dispatch({ type: "edit_reflection" });
+  }
+  pauseResume() {
+    this.story.dispatch({
+      type: this.story.snapshot.state === "PAUSED" ? "resume" : "pause",
+    });
+  }
+  exitExperience() {
+    this.saveGeneration++;
+    this.saving = false;
+    this.story.dispatch({ type: "exit" });
+    this.observatory.setOpacity(0);
+    this.immersion = 0;
+    this.avatar.root.visible = false;
+  }
+  downloadReceipt() {
+    if (!this.savedRecord) return;
+    const url = URL.createObjectURL(
+      new Blob(
+        [
+          JSON.stringify(
+            {
+              version: "V4",
+              ...this.savedRecord,
+              deleteEndpoint: `${location.origin}/api/future-sessions/${this.savedRecord.id}`,
+              instructions:
+                "DELETE all’endpoint con Authorization: Bearer deleteToken. Conserva questo file privatamente.",
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "future-observatory-ricevuta.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  debugEnter() {
+    if (!this.debug) return;
+    this.restart();
+    for (const type of [
+      "start",
+      "initialized",
+      "portal_open",
+      "portal_complete",
+    ] as const)
+      this.story.dispatch({ type });
+    this.avatar.visual.scale.setScalar(1);
+    this.visit();
+  }
+  debugChoose(id: string) {
+    if (!this.debug) return;
+    const option = optionById.get(id);
+    if (!option) return;
+    if (
+      this.story.snapshot.state === "SHOWING_CRITICAL_FUTURE" ||
+      this.story.snapshot.state === "REVEALING_CONSEQUENCES" ||
+      this.story.snapshot.state === "OPTIONAL_FIFTH_DECISION"
+    )
+      this.story.tool("continue_decisions", "{}");
+    this.story.tool("select_lever", JSON.stringify({ leverId: option.lever }));
+    this.choose(id);
+  }
+  async deleteSaved() {
+    if (!this.savedRecord) return false;
+    const response = await fetch(
+      `/api/future-sessions/${this.savedRecord.id}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${this.savedRecord.deleteToken}` },
+      },
+    );
+    if (response.ok) this.savedRecord = undefined;
+    return response.ok;
   }
   async prepareVR() {
     const supported = await navigator.xr
@@ -761,6 +1095,7 @@ export class Experience {
     this.resize.disconnect();
     this.voice.dispose();
     this.voiceIndicator.dispose();
+    this.portal.dispose();
     this.xr.dispose();
     this.controls.dispose();
     this.avatar.dispose();

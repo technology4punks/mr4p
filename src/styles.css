@@ -597,3 +597,13 @@ select {
   background-size: 5px 5px;
   background-repeat: no-repeat;
 }
+.lever-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:16px 0; }
+.lever-grid button { font-size:12px; padding:12px 8px; }
+.lever-grid button[aria-pressed=true] { border-color:#89dfc8; background:rgba(59,109,98,.65); }
+.option-list { display:grid; gap:10px; margin:16px 0; max-height:420px; overflow:auto; }
+.option-list button { text-align:left; display:grid; gap:8px; font-size:12px; line-height:1.5; }
+.option-list strong { font-size:14px; color:#c7e7dc; }
+.option-list small { color:#b2c4cb; }
+textarea { display:block; width:100%; min-height:110px; margin:12px 0; resize:vertical; color:#eff5f2; background:rgba(25,48,59,.65); border:1px solid var(--glass-border); border-radius:18px; padding:14px; font:inherit; }
+textarea:focus-visible {outline:3px solid #72e6cc;outline-offset:3px;}
+.v4-app .canvas-host { bottom:95px; }

@@ -283,6 +283,12 @@ export class EnvironmentalDistrict {
     });
     this.time = -Infinity;
   }
+  setTraffic(amount: number) {
+    this.future=Math.min(.6,Math.max(0,amount));
+    this.activity.setFuture(Math.min(.45,amount));
+    this.critical.visible=true;
+    this.sustainable.visible=false;
+  }
   update(time: number) {
     // Foreground vehicles track each rendered frame; only distant smoke/rotors
     // are throttled. Head pose and the conversation keep their own clocks.
