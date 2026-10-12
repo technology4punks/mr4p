@@ -1,3 +1,5 @@
+> Correzione del bilanciamento dopo il test della versione 20: NEO deve attendere la risposta dopo ogni domanda. I commenti dell’app, il nome da solo e il silenzio non avviano visite o interventi. Un interesse espresso continua a bastare per mostrare direttamente il catalogo, senza autorizzazioni aggiuntive. Separare commenti applicativi e veri turni vocali, preservando interruzioni e recupero del microfono. Vedi [VOICE_UX.md](docs/VOICE_UX.md).
+
 > Aggiornamento richiesto dall’utente il 12 ottobre 2026: il flusso conversazionale deve essere libero. Ingresso e interventi visivi non richiedono consenso, leva preliminare o conferma; nome e numero di scelte non bloccano la visita. Conservare richieste durante le transizioni e consentire esplorazione oltre le prime cinque scelte del registro didattico. Il consenso **al salvataggio** resta distinto e obbligatorio. Questa integrazione prevale sui precedenti vincoli di conferma/rigidità della specifica sottostante. Implementazione e limiti: [VOICE_UX.md](docs/VOICE_UX.md).
 
 # FUTURE OBSERVATORY — V4

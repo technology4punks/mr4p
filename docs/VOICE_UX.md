@@ -1,3 +1,17 @@
+# Turni bilanciati: ascolto prima dell’avanzamento
+
+Il feedback successivo alla versione 20 segnala avanzamento autonomo. La prima revisione aveva reso l’invito troppo proattivo e inseriva i commenti applicativi come messaggi `user`: il modello poteva trattarli come nuove risposte e concatenare azioni.
+
+Ora il saluto presenta NEO e pone una sola domanda sul nome, poi aspetta. Il nome è facoltativo: se la persona introduce già un tema, si segue quello. Dopo un nome, NEO chiede l’interesse e aspetta quella risposta; un saluto, silenzio o rumore non autorizza un cambio di scena. Un interesse o una richiesta bastano per mostrare direttamente il catalogo, senza nuove conferme.
+
+I commenti dell’app usano istruzioni temporanee su `response.create`, senza aggiungere messaggi utente alla conversazione, e `tool_choice: none`. Il client rifiuta anche eventuali tool inattesi dei commenti o di risposte annullate. I tool delle risposte a veri turni utente conservano la propria origine lungo il seguito dei risultati. Non ci sono messaggi automatici alla fine di ogni trasformazione o riflessione; i commenti arrivati mentre NEO risponde o l’utente parla vengono scartati.
+
+La coda non inizia una risposta mentre ci sono parole in corso o trascrizioni pendenti. Il microfono resta aperto; le interruzioni continuano a richiedere parole riconoscibili. La tolleranza di silenzio VAD è 850 ms (prima 650), condivisa da backend Node, backend Sites e aggiornamenti client, anche cambiando modalità d’interruzione. È una prima taratura da valutare sul Quest, non una misura della latenza reale.
+
+Restano recupero ASR/audio, memoria di nome e scelte, richieste durante le animazioni e consenso separato alla persistenza. Test simulati verificano attesa senza avanzamento, priorità dell’utente, azioni richieste senza conferme e recupero dei turni. Per riconoscimento vocale, rumore, eco e comfort serve una prova fisica sul Quest Pro.
+
+---
+
 # Flusso conversazionale libero — 12 ottobre 2026
 
 Questa revisione sostituisce i vincoli di conferma visiva della V4: non serve autorizzare l’ingresso o scegliere prima una leva. `show_intervention(optionId)` mostra direttamente un elemento del catalogo e apre la visita se necessario. Le richieste durante portale, ingresso o animazione restano in coda, vengono applicate una alla volta e non richiedono una seconda risposta. Il ritorno annulla la coda; le scelte già applicate restano in memoria. Se la visita è terminata si può riaprire parlando di un intervento.

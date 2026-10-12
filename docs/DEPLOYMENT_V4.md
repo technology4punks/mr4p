@@ -1,3 +1,17 @@
+# Turni bilanciati · Sites versione 21
+
+Distribuita con successo il 12 ottobre 2026 alle 12:35 UTC sul Site pubblico **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. Sorgente Sites `df2d22078427f25dd56204f31007052d8aa9d97e`; deploy `appgdep_6accd3f0eec0819193e89af3df1763e8`. Ambiente revision 5, segreto OpenAI e D1 preservati.
+
+Il saluto chiede il nome e aspetta. Il prompt richiede una domanda per turno, poi ascolto; nome, silenzio e commenti dell’app non sostituiscono la risposta o l’interesse. Una richiesta su un intervento continua ad applicarlo senza conferma. I commenti non vengono più aggiunti come messaggi utente e non possono usare i tool narrativi. Niente nuovo monologo al termine di ogni trasformazione. La coda lascia priorità a speech/ASR e scarta i commenti arrivati mentre NEO risponde. Pausa VAD condivisa da 850 ms, con interruzioni riconoscibili e recupero del microfono conservati.
+
+Verifiche locali: `npm run check` passato, 191 test Node/shared, 182 test Sites/shared/route, entrambe le build e tutti i 21 casi browser in una sola esecuzione. Sul Site distribuito, una visita anonima ha passato il test dei tre turni e del recupero: ingresso autonomo simulato del saluto respinto, successiva richiesta reale simulata accettata, nome e parole visibili, mute/recovery funzionanti. Audio e WebRTC di questa prova sono mock: non certificano il microfono o il comportamento linguistico sul Quest. Il backend reale ha emesso un token effimero con status 200, senza esporne il valore.
+
+Ricaricare la pagina per chiudere la vecchia sessione Realtime e ottenere il prompt/configurazione aggiornati. Nel Quest: rispondere al nome, attendere la domanda sull’interesse, poi chiedere alberi o tram; provare una breve pausa dentro la frase e interrompere NEO con una parola. La taratura di silenzio, l’eco, l’ASR e il comfort rimangono da verificare fisicamente.
+
+Dettagli: [VOICE_UX.md](VOICE_UX.md), [VALIDATION.md](VALIDATION.md), [DEVICE_TESTS.md](DEVICE_TESTS.md). [PR #3](https://github.com/technology4punks/mr4p/pull/3) sulla branch dedicata `codex/future-observatory-v4`.
+
+---
+
 # Dialogo libero · aggiornamento pubblico del 12 ottobre 2026
 
 Versione Sites **20**, distribuzione `succeeded` alle 11:55 UTC. URL pubblico invariato: **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. Sorgente Sites: `27614a9c034ff32489c08abd0697d7bd45ac3649`; deploy `appgdep_6acccaaaef808191b18b2cd39df0ae25`. Ambiente revision 5 preservato, chiave OpenAI solo backend e D1 invariato.

@@ -135,6 +135,11 @@ describe("Realtime narrative transport", () => {
     client = new RealtimeClient(vi.fn(), vi.fn(), onTool);
     getUserMedia.mockResolvedValue(mic().stream);
     await client.start();
+    deliver({
+      type: "conversation.item.input_audio_transcription.completed",
+      item_id: "name",
+      transcript: "Mi chiamo Luca",
+    });
     const call = {
       type: "response.function_call_arguments.done",
       call_id: "call1",
@@ -148,10 +153,18 @@ describe("Realtime narrative transport", () => {
     expect(onTool).toHaveBeenCalledTimes(1);
     expect(engine.snapshot.state).toBe("INITIALIZING_MR");
     expect(engine.snapshot.name).toBe("Luca");
-    expect(JSON.parse(sent()[0].item.output).accepted).toBe(true);
-    expect(sent().some((e) => e.type === "response.create")).toBe(false);
-    deliver({ type: "response.done", response: { status: "completed" } });
+    expect(
+      JSON.parse(
+        sent().find(
+          (e) =>
+            e.type === "conversation.item.create" &&
+            e.item.type === "function_call_output",
+        ).item.output,
+      ).accepted,
+    ).toBe(true);
     expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    deliver({ type: "response.done", response: { status: "completed" } });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(2);
     deliver({
       ...call,
       call_id: "call2",
@@ -162,15 +175,15 @@ describe("Realtime narrative transport", () => {
     expect(client.snapshot.status).toBe("connected");
     expect(FakePeer.latest.close).not.toHaveBeenCalled();
   });
-  it("preserves the peer while scene updates queue narration and does not resume cancelled tools", async () => {
+  it("preserves the peer and drops scene comments while busy without resuming unrequested tools", async () => {
     getUserMedia.mockResolvedValue(mic().stream);
     await client.start();
     deliver({ type: "response.created" });
     client.synchronizeStory(new StoryEngine().snapshot);
-    client.requestNarration("La stanza è pronta.");
+    expect(client.requestNarration("La stanza è pronta.")).toBe(false);
     expect(sent().some((e) => e.type === "response.create")).toBe(false);
     deliver({ type: "response.done", response: { status: "completed" } });
-    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(0);
     deliver({
       type: "response.function_call_arguments.done",
       call_id: "cancelled",
@@ -178,7 +191,7 @@ describe("Realtime narrative transport", () => {
       arguments: "{}",
     });
     deliver({ type: "response.done", response: { status: "cancelled" } });
-    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(0);
     expect(FakePeer.latest.close).not.toHaveBeenCalled();
   });
 });
@@ -1156,4 +1169,176 @@ it("preserves a verified spoken interruption when its final transcription fails"
   });
   expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
   expect(client.snapshot.status).toBe("connected");
+});
+
+describe("balanced turn ownership", () => {
+  const deliver = (e: object) =>
+    (FakePeer.latest.channel.onmessage as (e: { data: string }) => void)({
+      data: JSON.stringify(e),
+    });
+  const sent = () =>
+    FakePeer.latest.channel.send.mock.calls.map(([s]) => JSON.parse(s));
+  const speech = (id: string, transcript: string) =>
+    deliver({
+      type: "conversation.item.input_audio_transcription.completed",
+      item_id: id,
+      transcript,
+    });
+  it("keeps greeting separate from user messages, blocks its scene tools and waits in silence", async () => {
+    vi.useFakeTimers();
+    const onTool = vi.fn();
+    client.dispose();
+    client = new RealtimeClient(vi.fn(), vi.fn(), onTool);
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    expect(
+      client.requestNarration("Presentati e chiedi il nome. Attendi."),
+    ).toBe(true);
+    expect(sent().some((e) => e.item?.role === "user")).toBe(false);
+    expect(sent().at(-1).response.tool_choice).toBe("none");
+    deliver({ type: "response.created", response: { id: "welcome" } });
+    deliver({
+      type: "response.function_call_arguments.done",
+      call_id: "unrequested",
+      name: "enter_observatory",
+      arguments: "{}",
+    });
+    expect(onTool).not.toHaveBeenCalled();
+    expect(JSON.parse(sent().at(-1).item.output).accepted).toBe(false);
+    deliver({
+      type: "response.done",
+      response: { id: "welcome", status: "completed" },
+    });
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(client.snapshot.activity).toBe("ready");
+  });
+  it("lets a real user request show the scene directly, then waits after the tool follow-up", async () => {
+    vi.useFakeTimers();
+    const engine = new StoryEngine();
+    for (const type of [
+      "start",
+      "initialized",
+      "portal_open",
+      "portal_complete",
+    ] as const)
+      engine.dispatch({ type });
+    const onTool = vi.fn((name: string, args: string) =>
+      engine.tool(name, args),
+    );
+    client.dispose();
+    client = new RealtimeClient(vi.fn(), vi.fn(), onTool);
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    speech("trees", "Mostrami degli alberi");
+    deliver({ type: "response.created", response: { id: "user" } });
+    deliver({
+      type: "response.function_call_arguments.done",
+      call_id: "show",
+      name: "show_intervention",
+      arguments: '{"optionId":"GREEN_TREES"}',
+    });
+    expect(onTool).toHaveBeenCalledTimes(1);
+    expect(engine.snapshot.state).toBe("ENTERING_OBSERVATORY");
+    deliver({
+      type: "response.done",
+      response: { id: "user", status: "completed" },
+    });
+    deliver({ type: "response.created", response: { id: "comment" } });
+    deliver({
+      type: "response.done",
+      response: { id: "comment", status: "completed" },
+    });
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(2);
+    expect(client.snapshot.activity).toBe("ready");
+    expect(client.requestNarration("Commento informativo.")).toBe(true);
+    deliver({
+      type: "response.function_call_arguments.done",
+      call_id: "next-scene",
+      name: "show_intervention",
+      arguments: '{"optionId":"MOB_TRAM"}',
+    });
+    expect(onTool).toHaveBeenCalledTimes(1);
+  });
+  it("does not start another response while the user continues speaking or while ASR is pending", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    client.requestNarration("Una domanda.");
+    deliver({ type: "response.created", response: { id: "question" } });
+    speech("fragment", "Vorrei capire");
+    deliver({
+      type: "input_audio_buffer.speech_started",
+      item_id: "continued",
+      audio_start_ms: 0,
+    });
+    deliver({
+      type: "response.done",
+      response: { id: "question", status: "completed" },
+    });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    expect(client.requestNarration("La trasformazione è finita.")).toBe(false);
+    deliver({
+      type: "input_audio_buffer.speech_stopped",
+      item_id: "continued",
+      audio_end_ms: 1400,
+    });
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+    speech("continued", "Come funzionerebbero i tram?");
+    expect(sent().filter((e) => e.type === "response.create")).toHaveLength(2);
+    expect(sent().at(-1).response).toBeUndefined();
+  });
+  it("does not let tools from a cancelled response change the scene during a new turn", async () => {
+    const onTool = vi.fn();
+    client.dispose();
+    client = new RealtimeClient(vi.fn(), vi.fn(), onTool);
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    speech("one", "Mostrami gli alberi");
+    deliver({ type: "response.created", response: { id: "old" } });
+    client.interrupt();
+    deliver({
+      type: "response.done",
+      response: { id: "old", status: "cancelled" },
+    });
+    speech("two", "Parliamo del tram");
+    deliver({ type: "response.created", response: { id: "new" } });
+    deliver({
+      type: "response.function_call_arguments.done",
+      response_id: "old",
+      call_id: "stale",
+      name: "show_intervention",
+      arguments: '{"optionId":"GREEN_TREES"}',
+    });
+    expect(onTool).not.toHaveBeenCalled();
+  });
+  it("keeps the same pause tolerance when the interruption mode is changed", async () => {
+    getUserMedia.mockResolvedValue(mic().stream);
+    await client.start();
+    client.toggleInterruptions();
+    const config = sent().find((e) => e.type === "session.update").session.audio
+      .input.turn_detection;
+    expect(config.silence_duration_ms).toBe(850);
+    expect(config.create_response).toBe(false);
+    expect(config.interrupt_response).toBe(false);
+  });
+});
+
+it("drops an app comment rejected by an active-response conflict instead of narrating later", async () => {
+  getUserMedia.mockResolvedValue(mic().stream);
+  await client.start();
+  const deliver = (e: object) =>
+    (FakePeer.latest.channel.onmessage as (e: { data: string }) => void)({
+      data: JSON.stringify(e),
+    });
+  const sent = () =>
+    FakePeer.latest.channel.send.mock.calls.map(([s]) => JSON.parse(s));
+  client.requestNarration("Presentati.");
+  deliver({
+    type: "error",
+    error: { code: "conversation_already_has_active_response" },
+  });
+  deliver({ type: "response.done", response: { status: "completed" } });
+  expect(sent().filter((e) => e.type === "response.create")).toHaveLength(1);
+  expect(client.snapshot.activity).toBe("ready");
 });

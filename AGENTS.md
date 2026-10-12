@@ -6,6 +6,8 @@
 ## Flusso aggiornato (richiesta utente 12 ottobre 2026)
 L’esplorazione è libera: mostrare direttamente gli interventi pertinenti, senza conferma o leva preliminare. Nome e numero di risposte non bloccano la visita. Ricordare le richieste durante le transizioni. Le prime cinque decisioni conservano il registro originale; ulteriori visualizzazioni in memoria non vengono salvate. Il consenso separato riguarda solo la persistenza.
 
+Una domanda per turno, poi ascolto: il saluto non avvia visite da solo. I commenti applicativi non sono risposte dell’utente e non possono usare tool narrativi. L’assenza di conferme non autorizza iniziativa senza interesse espresso. Preservare la provenienza dei turni e la priorità dell’utente durante ASR/animazioni.
+
 ## Vincoli
 - Separare DecisionEngine puro, StoryEngine, CityTransformationEngine e conversazione. Il modello chiama solo tool validati; non esegue codice grafico.
 - Ricostruire tutte le conseguenze dalle scelte attive. Conservare la sequenza originale e registrare una sola revisione. Duplicati identici non consumano slot.

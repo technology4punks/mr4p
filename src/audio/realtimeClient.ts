@@ -1,3 +1,4 @@
+import { turnDetection } from "./turnDetection";
 import { recognizableSpeech } from "./speechGate";
 import { AudioLevel } from "./audioLevel";
 import type { StoryResult, StorySnapshot } from "../story/StoryEngine";
@@ -105,6 +106,9 @@ export class RealtimeClient {
   >();
   private micResumeTimer?: ReturnType<typeof setTimeout>;
   private pendingNarration = false;
+  private narrationText = "";
+  private responseAllowsTools = false;
+  private pendingToolAllowsActions = false;
   private pendingUserResponse = false;
   private inflightRequest?: {
     user: boolean;
@@ -729,24 +733,25 @@ export class RealtimeClient {
             text:
               "Stato narrativo autorevole: " +
               JSON.stringify(snapshot) +
-              ". Mostra gli interventi senza conferme; il consenso separato riguarda solo il salvataggio. Ricorda nome e richieste e rispondi alle domande.",
+              ". Questo aggiornamento dell’app non è una risposta dell’utente e non autorizza nuove azioni. Attendi l’utente; quando esprime un interesse mostra gli interventi senza ulteriori conferme. Il consenso separato riguarda solo il salvataggio. Ricorda nome e richieste.",
           },
         ],
       },
     });
   }
   requestNarration(text: string) {
+    // Scene notifications must not become fake user replies, or queue a monologue
+    // behind the answer NEO is already giving. A real turn always takes priority.
     if (
-      !this.send({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text: text.slice(0, 1000) }],
-        },
-      })
+      this.channel?.readyState !== "open" ||
+      this.responseActive ||
+      this.outputPlaying ||
+      this.utterances.size ||
+      this.pendingUserResponse ||
+      this.pendingToolResponse
     )
       return false;
+    this.narrationText = text.slice(0, 1000);
     this.pendingNarration = true;
     this.flushResponse();
     return true;
@@ -755,6 +760,7 @@ export class RealtimeClient {
     if (
       this.responseActive ||
       this.outputPlaying ||
+      this.utterances.size > 0 ||
       !(
         this.pendingUserResponse ||
         this.pendingNarration ||
@@ -767,11 +773,34 @@ export class RealtimeClient {
       narration: this.pendingNarration,
       tool: this.pendingToolResponse,
     };
+    const commentOnly = !this.pendingUserResponse && !this.pendingToolResponse;
+    const mayUseTools =
+      this.pendingUserResponse ||
+      (this.pendingToolResponse && this.pendingToolAllowsActions);
     this.pendingUserResponse =
       this.pendingNarration =
       this.pendingToolResponse =
         false;
-    if (this.send({ type: "response.create" })) {
+    this.pendingToolAllowsActions = false;
+    if (
+      this.send({
+        type: "response.create",
+        ...(commentOnly
+          ? {
+              response: {
+                tool_choice: "none",
+                max_output_tokens: 160,
+                instructions:
+                  "Parla italiano. Questo è un commento dell’app, non una risposta dell’utente. " +
+                  this.narrationText +
+                  " Massimo due frasi. Non aggiungere inviti o rispondere al posto dell’utente. Se fai una domanda, termina il turno e attendi in silenzio la risposta.",
+              },
+            }
+          : {}),
+      })
+    ) {
+      this.responseAllowsTools = mayUseTools;
+      this.narrationText = "";
       this.responseActive = true;
       this.lastResponseEvent = Date.now();
       this.refreshVoice();
@@ -841,9 +870,12 @@ export class RealtimeClient {
     this.answeredItems.add(id);
     if (!valid || (utterance.overlap && !this.snapshot.interruptions)) {
       this.send({ type: "conversation.item.delete", item_id: id });
+      this.flushResponse();
       this.refreshVoice();
       return;
     }
+    this.pendingNarration = false;
+    this.narrationText = "";
     this.patch({ lastHeard: utterance.text });
     this.transcript("Tu", utterance.text);
     this.pendingUserResponse = true;
@@ -869,6 +901,8 @@ export class RealtimeClient {
     this.utterances.delete(id);
     this.remember(this.answeredItems, id);
     this.remember(this.audioFallbackItems, id);
+    this.pendingNarration = false;
+    this.narrationText = "";
     this.pendingUserResponse = true;
     this.flushResponse();
     this.refreshVoice("Audio ricevuto: NEO sta preparando la risposta.");
@@ -896,6 +930,8 @@ export class RealtimeClient {
         this.transcriptionTimers.delete(oldest);
         this.remember(this.answeredItems, oldest);
       }
+      this.pendingNarration = false;
+      this.narrationText = "";
       this.utterances.set(event.item_id, {
         start: event.audio_start_ms ?? 0,
         receivedAt: Date.now(),
@@ -914,6 +950,7 @@ export class RealtimeClient {
           this.transcriptionTimers.delete(id);
           this.remember(this.answeredItems, id);
           this.send({ type: "input_audio_buffer.clear" });
+          this.flushResponse();
           this.refreshVoice("Ascolto ripristinato. Puoi ripetere la domanda?");
         }, 60000),
       );
@@ -935,6 +972,7 @@ export class RealtimeClient {
               this.transcriptionTimers.delete(id);
               this.remember(this.answeredItems, id);
               this.send({ type: "conversation.item.delete", item_id: id });
+              this.flushResponse();
               this.refreshVoice("Non ho distinto le parole. Puoi ripetere?");
             }
           }, 2500),
@@ -957,6 +995,7 @@ export class RealtimeClient {
         this.utterances.delete(event.item_id);
         this.send({ type: "conversation.item.delete", item_id: event.item_id });
       }
+      this.flushResponse();
       this.refreshVoice("Non ho capito. Puoi ripetere?");
       return;
     }
@@ -1000,16 +1039,28 @@ export class RealtimeClient {
         event.call_id.length > 160 ||
         !event.name ||
         typeof event.arguments !== "string" ||
-        this.processedCalls.has(event.call_id)
+        this.processedCalls.has(event.call_id) ||
+        (event.response_id &&
+          (this.settledResponses.has(event.response_id) ||
+            (this.activeResponseId &&
+              event.response_id !== this.activeResponseId)))
       )
         return;
       if (this.processedCalls.size >= 64)
         this.processedCalls.delete(this.processedCalls.values().next().value!);
       this.processedCalls.add(event.call_id);
-      const result = this.onTool?.(event.name, event.arguments) ?? {
-        accepted: false,
-        reason: "Story Engine non disponibile.",
-      };
+      const mayAct =
+        this.responseAllowsTools && this.responseActive && !this.cancelling;
+      const result = mayAct
+        ? (this.onTool?.(event.name, event.arguments) ?? {
+            accepted: false,
+            reason: "Story Engine non disponibile.",
+          })
+        : {
+            accepted: false,
+            reason:
+              "Attendi la risposta o l’interesse dell’utente. Un commento dell’app non autorizza a cambiare scena.",
+          };
       this.send({
         type: "conversation.item.create",
         item: {
@@ -1018,7 +1069,8 @@ export class RealtimeClient {
           output: JSON.stringify(result),
         },
       });
-      this.pendingToolResponse = true;
+      this.pendingToolResponse = mayAct;
+      this.pendingToolAllowsActions = mayAct;
       return;
     }
     if (event.type === "response.done") {
@@ -1033,6 +1085,7 @@ export class RealtimeClient {
       clearTimeout(this.cancelTimer);
       this.cancelling = false;
       this.responseActive = false;
+      this.responseAllowsTools = false;
       this.inflightRequest = undefined;
       this.responseFinishedAt = Date.now();
       this.activeResponseId = undefined;
@@ -1053,7 +1106,11 @@ export class RealtimeClient {
     ) {
       // A rejected create must not consume the validated user's turn.
       this.pendingUserResponse ||= this.inflightRequest?.user ?? false;
-      this.pendingNarration ||= this.inflightRequest?.narration ?? false;
+      // App comments are disposable; retrying one later would fill the user's pause.
+      this.pendingNarration = false;
+      this.narrationText = "";
+      this.pendingToolAllowsActions ||=
+        (this.inflightRequest?.tool ?? false) && this.responseAllowsTools;
       this.pendingToolResponse ||= this.inflightRequest?.tool ?? false;
       this.inflightRequest = undefined;
       this.refreshVoice(
@@ -1132,14 +1189,7 @@ export class RealtimeClient {
         audio: {
           input: {
             noise_reduction: { type: "near_field" },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 350,
-              silence_duration_ms: 650,
-              create_response: false,
-              interrupt_response: false,
-            },
+            turn_detection: turnDetection,
           },
         },
       },
@@ -1214,6 +1264,9 @@ export class RealtimeClient {
     this.inflightRequest = undefined;
     this.pendingToolResponse = false;
     this.responseActive = false;
+    this.responseAllowsTools = false;
+    this.pendingToolAllowsActions = false;
+    this.narrationText = "";
     this.outputPlaying = false;
     this.activeResponseId = this.outputResponseId = undefined;
     this.settledResponses.clear();

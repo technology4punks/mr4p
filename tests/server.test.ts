@@ -90,7 +90,7 @@ describe("token endpoint", () => {
     );
     expect(body.session.audio.input.turn_detection.threshold).toBe(0.5);
     expect(body.session.audio.input.turn_detection.silence_duration_ms).toBe(
-      650,
+      850,
     );
     expect(body.session.audio.input.noise_reduction.type).toBe("near_field");
     expect(response.text).not.toContain(config.apiKey);

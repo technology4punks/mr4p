@@ -140,6 +140,13 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
   await page.evaluate(() => {
     const t = (window as unknown as VoiceTestWindow).neoVoiceTest;
     t.deliver({ type: "response.created", response: { id: "welcome" } });
+    // A welcome cannot treat its own invitation as permission to enter.
+    t.deliver({
+      type: "response.function_call_arguments.done",
+      call_id: "autonomous-welcome",
+      name: "enter_observatory",
+      arguments: "{}",
+    });
     t.deliver({
       type: "response.done",
       response: { id: "welcome", status: "completed" },
@@ -147,6 +154,22 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     window.requestAnimationFrame = () => 0;
   });
   await expect(status).toHaveText("Puoi parlare");
+  await expect(
+    page.getByRole("button", { name: "Entra nell’osservatorio", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(
+        (window as unknown as VoiceTestWindow).neoVoiceTest.commands
+          .filter(
+            (e) => (e as { type: string }).type === "conversation.item.create",
+          )
+          .map((e) => (e as { item: { output?: string } }).item.output)
+          .filter(Boolean)
+          .at(-1)!,
+      ),
+    ),
+  ).toMatchObject({ accepted: false });
   for (let i = 0; i < 3; i++) {
     await page.evaluate((turn) => {
       (window as unknown as VoiceTestWindow).neoVoiceTest.deliver({

@@ -8,18 +8,16 @@ const request = () =>
     headers: { Origin: origin },
   });
 const fetcher = () =>
-  vi
-    .fn<typeof fetch>()
-    .mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            value: "ephemeral-test",
-            expires_at: 2000000000,
-            extra: "never-forward",
-          }),
-        ),
-    );
+  vi.fn<typeof fetch>().mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          value: "ephemeral-test",
+          expires_at: 2000000000,
+          extra: "never-forward",
+        }),
+      ),
+  );
 describe("Sites token route", () => {
   it("requires a platform visitor identity", async () => {
     const upstream = fetcher();
@@ -169,6 +167,10 @@ describe("Sites token route", () => {
     );
     expect(data.session.tool_choice).toBe("auto");
     expect(data.session.audio.output.voice).toBe("marin");
+    expect(data.session.audio.input.turn_detection.silence_duration_ms).toBe(
+      850,
+    );
+    expect(data.session.audio.input.turn_detection.create_response).toBe(false);
     expect(data.session.audio.input.turn_detection.interrupt_response).toBe(
       false,
     );

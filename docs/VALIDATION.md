@@ -1,3 +1,11 @@
+## Bilanciamento dei turni dopo la versione 20
+
+Passati lint, typecheck, build, controllo bundle e 191 test Node/shared; 182 test Sites/shared/route e build Vinext passati. Le nuove regressioni coprono saluto separato da messaggi utente, tool bloccati nei commenti, attesa in silenzio, richiesta reale che mostra subito il catalogo, priorità di speech/ASR su nuove risposte, tool tardivi di risposte annullate e commenti scartati dopo un conflitto. Il VAD da 850 ms è condiviso fra creazione sessione Node/Sites e aggiornamenti client. Recupero ASR, mute, connessione e memoria restano coperti.
+
+Tutti i 21 casi browser sono passati in un’unica esecuzione: desktop Chromium, Android emulato e iPhone WebKit. La prova browser voce tenta anche un ingresso autonomo durante il saluto: viene rifiutato, l’invito resta disponibile e il microfono torna pronto. La successiva richiesta dell’utente continua ad aprire direttamente la visita. Audio, modello e WebRTC sono simulati: la taratura di fine frase e le interruzioni vanno provate sul Quest fisico. Nessun nuovo benchmark grafico o asset.
+
+---
+
 ## Revisione del dialogo libero · 12 ottobre 2026
 
 Passati lint, typecheck, build e controllo bundle; 185 test Node/shared e 176 test Sites/shared/D1. Le regressioni coprono ingresso senza autorizzazione, intervento senza leva, richiesta durante portale/ingresso/animazione, duplicati idempotenti, nome esplicito, ulteriori visualizzazioni oltre il registro di cinque scelte, ritorno anticipato e riapertura della visita. Il recupero ASR conserva audio e risponde una sola volta; testo tardivo aggiorna la memoria e un fallimento tardivo non cancella il turno. Mute e rumori sovrapposti restano rispettati.

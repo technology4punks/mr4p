@@ -1,3 +1,9 @@
+## Bilanciamento del dialogo dopo la versione 20
+
+Nel Quest reale, attendere il saluto: NEO deve chiedere il nome e poi restare in ascolto, senza entrare da solo nell’osservatorio. Rispondere con il nome: deve recepirlo e chiedere l’interesse, senza fare un’altra scelta al posto dell’utente. Parlare degli alberi o chiedere il tram: deve mostrare subito l’intervento senza conferma. Provare una breve pausa nella frase e un’interruzione con una parola riconoscibile mentre parla. Verificare che rumori o silenzio non facciano avanzare le scene e che la fine della trasformazione non avvii un nuovo monologo. La taratura VAD di 850 ms e la cancellazione dell’eco richiedono questa prova fisica.
+
+---
+
 # V4 · checklist hardware da completare
 
 Nessuna prova fisica Quest Pro, Android o iPhone è stata eseguita dall’agente. Chromium/WebKit emulati verificano la pagina, non il dispositivo.

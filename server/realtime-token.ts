@@ -1,3 +1,4 @@
+import { turnDetection } from "../src/audio/turnDetection.js";
 import type { RequestHandler } from "express";
 import { storyInstructions, storyTools } from "./story-config.js";
 
@@ -54,14 +55,7 @@ export function tokenHandler(
                     model: "gpt-4o-mini-transcribe",
                     language: "it",
                   },
-                  turn_detection: {
-                    type: "server_vad",
-                    threshold: 0.5,
-                    prefix_padding_ms: 350,
-                    silence_duration_ms: 650,
-                    create_response: false,
-                    interrupt_response: false,
-                  },
+                  turn_detection: turnDetection,
                 },
                 output: { voice: config.voice || "marin" },
               },

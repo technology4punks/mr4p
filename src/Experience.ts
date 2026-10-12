@@ -731,12 +731,9 @@ export class Experience {
       void this.xr.exit();
     }
     if (
-      [
-        "SHOWING_CRITICAL_FUTURE",
-        "REVEALING_CONSEQUENCES",
-        "FINAL_CITY_REFLECTION",
-        "ASKING_FINAL_QUESTION",
-      ].includes(snapshot.state) &&
+      ["SHOWING_CRITICAL_FUTURE", "ASKING_FINAL_QUESTION"].includes(
+        snapshot.state,
+      ) &&
       !this.modelToolActive
     )
       this.voice.requestNarration(
@@ -901,7 +898,7 @@ export class Experience {
   startDiscovery() {
     if (this.discoveryStarted) return;
     this.discoveryStarted = this.voice.requestNarration(
-      "Presentati brevemente e chiedi il nome solo se non lo conosci. Accompagna nell’osservatorio o mostra direttamente ciò di cui parla, senza richieste di autorizzazione e senza aspettare il nome.",
+      "Presentati in una frase e chiedi il nome con una sola domanda. Fermati e aspetta la risposta. Non invitare ancora nell’osservatorio e non aggiungere un esempio o una seconda domanda. Il nome è facoltativo, ma questa domanda non è una risposta dell’utente.",
     );
   }
   restart() {
