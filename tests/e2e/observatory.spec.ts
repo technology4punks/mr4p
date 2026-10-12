@@ -164,3 +164,48 @@ test("returns while entering, declines storage, then restarts cleanly", async ({
   ).toBeVisible({ timeout: 15000 });
   expect(writes).toBe(0);
 });
+
+test("completes entry and a seven-second choice when canvas frame callbacks are suspended", async ({
+  page,
+}) => {
+  test.setTimeout(45000);
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getUserMedia: async () => {
+          throw new Error("No device");
+        },
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
+  const entry = page.getByRole("button", {
+    name: "Entra nell’osservatorio",
+    exact: true,
+  });
+  await expect(entry).toBeVisible({ timeout: 15000 });
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+  });
+  await entry.dispatchEvent("click");
+  const begin = page.getByRole("button", {
+    name: "Da dove cominciamo?",
+    exact: true,
+  });
+  await expect(begin).toBeVisible({ timeout: 8000 });
+  await begin.dispatchEvent("click");
+  await page
+    .getByRole("button", { name: "Verde urbano", exact: true })
+    .dispatchEvent("click");
+  const started = Date.now();
+  await page
+    .locator('[aria-label="Tre interventi disponibili"] button')
+    .filter({ has: page.getByText("Grande parco", { exact: true }) })
+    .dispatchEvent("click");
+  await expect(
+    page.getByRole("button", { name: "Continua", exact: true }),
+  ).toBeVisible({ timeout: 12000 });
+  expect(Date.now() - started).toBeGreaterThan(6000);
+  expect(Date.now() - started).toBeLessThan(11000);
+});

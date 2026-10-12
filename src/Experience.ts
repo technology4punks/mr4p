@@ -103,6 +103,7 @@ export class Experience {
   };
   private unsubscribeStory?: () => void;
   private preloadTimer?: ReturnType<typeof setTimeout>;
+  private storyClock?: ReturnType<typeof setInterval>;
   private pointerStart = { x: 0, y: 0 };
   constructor(
     private host: HTMLElement,
@@ -219,6 +220,24 @@ export class Experience {
     this.resize.observe(host);
     this.onResize();
     this.renderer.setAnimationLoop(this.render);
+    // A mobile browser may suspend canvas RAF while the participant reads the
+    // controls above it. Narrative time must keep advancing independently of
+    // GPU frames; resuming graphics catches up using the same monotonic clock.
+    this.storyClock = setInterval(() => {
+      if (
+        !this.disposed &&
+        !document.hidden &&
+        [
+          "OPENING_PORTAL",
+          "AVATAR_GREETING",
+          "ENTERING_OBSERVATORY",
+          "APPLYING_INTERVENTION",
+          "RETURNING_TO_MR",
+          "FAREWELL",
+        ].includes(this.story.snapshot.state)
+      )
+        this.updateStoryVisuals();
+    }, 100);
     void this.avatar.load().then((result) => {
       if (this.disposed) return;
       this.asset = result.loaded ? "loaded" : "fallback";
@@ -1080,6 +1099,7 @@ export class Experience {
   dispose() {
     this.disposed = true;
     clearTimeout(this.preloadTimer);
+    clearInterval(this.storyClock);
     this.unsubscribeStory?.();
     this.ambience.dispose();
     void this.ambientContext?.close();
