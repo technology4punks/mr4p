@@ -1,3 +1,21 @@
+# Dialogo libero · aggiornamento pubblico del 12 ottobre 2026
+
+Versione Sites **20**, distribuzione `succeeded` alle 11:55 UTC. URL pubblico invariato: **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. Sorgente Sites: `27614a9c034ff32489c08abd0697d7bd45ac3649`; deploy `appgdep_6acccaaaef808191b18b2cd39df0ae25`. Ambiente revision 5 preservato, chiave OpenAI solo backend e D1 invariato.
+
+NEO può mostrare direttamente un intervento del catalogo senza leva preliminare o conferma. Le richieste nelle transizioni vengono ricordate. Nome, scelte e ulteriori interventi esplorati restano in memoria durante la sessione e vengono risincronizzati alla riconnessione della voce. La pagina mostra le ultime parole ricevute. Il percorso di quattro/cinque scelte è facoltativo per l’esplorazione; il consenso separato al salvataggio è conservato.
+
+Il recupero voce usa l’audio già ricevuto quando manca/fallisce la trascrizione, senza duplicare la risposta. Una vera interruzione riconosciuta da un delta mantiene il turno anche se la trascrizione finale fallisce. Non si interrompe il robot sul solo rumore durante il suo parlato. Non sono modificati avatar, asset o geometria degli scenari.
+
+Verifiche: lint/typecheck/build e bundle scan, **185 test Node/shared**, **176 test Sites/shared/D1**; tutti i 21 casi browser passati fra suite e ritest mirati. Audio/WebRTC sono simulati; riconoscimento, eco e dialogo su Quest Pro richiedono prova fisica. Lo smoke pubblico della versione 19 ha verificato ingresso, parco e tram richiesto durante la trasformazione, senza login o errori JavaScript; il backend voce ha restituito 200 e token effimero senza esporlo. La 20 aggiunge il recupero dell’interruzione con ASR finale fallito, verificato nei test. Anche lo smoke browser pubblico della versione 20 è passato: ingresso senza comando preliminare, parco e tram in coda, zero errori JavaScript.
+
+Per il primo test, ricarica il Site nel Quest Browser, premi **INIZIA ESPERIENZA** e autorizza il microfono. Prova “Mi chiamo Luca”, poi “Come funzionerebbe un tram?” e “Mostrami degli alberi”, anche durante la trasformazione. Non occorre rispondere sì per cambiare la città. Controlla le parole ricevute e usa Riprendi ascolto se il dispositivo sospende la traccia. Il nome resta nella pagina, non nel database.
+
+[PR #3 verso main](https://github.com/technology4punks/mr4p/pull/3) sulla branch `codex/future-observatory-v4`. Dettagli e limiti: [VOICE_UX.md](VOICE_UX.md), [VALIDATION.md](VALIDATION.md), [DEVICE_TESTS.md](DEVICE_TESTS.md).
+
+---
+
+## Distribuzione iniziale V4 e correzione del clock (versione 18)
+
 # V4 · distribuzione verificata
 
 12 ottobre 2026, Europe/Rome. Site pubblico: **https://neo-mr-avatar-test.sk1kko.chatgpt.site**.

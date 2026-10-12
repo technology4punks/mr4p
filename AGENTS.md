@@ -3,6 +3,9 @@
 ## Missione e specifica
 `SPEC.md` contiene la specifica V4 integrale, che sostituisce il precedente percorso per temi e il confronto binario. Estendere il progetto esistente: React, TypeScript, Three.js/WebXR, RobotExpressive, Realtime/WebRTC e backend. Una sola città ambientale, trenta interventi predefiniti, quattro o cinque scelte e una revisione.
 
+## Flusso aggiornato (richiesta utente 12 ottobre 2026)
+L’esplorazione è libera: mostrare direttamente gli interventi pertinenti, senza conferma o leva preliminare. Nome e numero di risposte non bloccano la visita. Ricordare le richieste durante le transizioni. Le prime cinque decisioni conservano il registro originale; ulteriori visualizzazioni in memoria non vengono salvate. Il consenso separato riguarda solo la persistenza.
+
 ## Vincoli
 - Separare DecisionEngine puro, StoryEngine, CityTransformationEngine e conversazione. Il modello chiama solo tool validati; non esegue codice grafico.
 - Ricostruire tutte le conseguenze dalle scelte attive. Conservare la sequenza originale e registrare una sola revisione. Duplicati identici non consumano slot.

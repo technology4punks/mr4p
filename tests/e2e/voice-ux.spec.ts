@@ -166,7 +166,12 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
       t.deliver({
         type: "conversation.item.input_audio_transcription.completed",
         item_id: `user${turn}`,
-        transcript: turn === 2 ? "OK" : "Parlami del futuro",
+        transcript:
+          turn === 0
+            ? "Mi chiamo Luca."
+            : turn === 2
+              ? "Tram"
+              : "Parlami del futuro",
       });
       t.deliver({ type: "response.created", response: { id: `reply${turn}` } });
       t.deliver({
@@ -196,6 +201,8 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
       ),
     ).toBe(true);
   }
+  await expect(page.getByLabel("Nome ricordato")).toHaveText("Ciao, Luca.");
+  await expect(page.getByLabel("Ultime parole ricevute")).toContainText("Tram");
   expect(
     await page.evaluate(
       () =>
@@ -204,10 +211,41 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
         ).length,
     ),
   ).toBe(4);
-  // The explicit entry preserves capture even while the renderer is paused.
-  await page
-    .getByRole("button", { name: "Entra nell’osservatorio", exact: true })
-    .dispatchEvent("click");
+  // A spoken topic enters directly through the model tool: no entry button,
+  // lever selection or confirmation, even while rendering is paused.
+  await page.evaluate(() => {
+    const t = (window as unknown as VoiceTestWindow).neoVoiceTest;
+    t.deliver({
+      type: "input_audio_buffer.speech_started",
+      item_id: "trees",
+      audio_start_ms: 0,
+    });
+    t.deliver({
+      type: "input_audio_buffer.speech_stopped",
+      item_id: "trees",
+      audio_end_ms: 1200,
+    });
+    t.deliver({
+      type: "conversation.item.input_audio_transcription.completed",
+      item_id: "trees",
+      transcript: "Mostrami gli alberi",
+    });
+    t.deliver({ type: "response.created", response: { id: "show-trees" } });
+    t.deliver({
+      type: "response.function_call_arguments.done",
+      call_id: "trees-tool",
+      name: "show_intervention",
+      arguments: JSON.stringify({ optionId: "GREEN_TREES" }),
+    });
+    t.deliver({
+      type: "response.done",
+      response: { id: "show-trees", status: "completed" },
+    });
+  });
+  await expect(
+    page.getByRole("button", { name: "Entra nell’osservatorio", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Nome ricordato")).toHaveText("Ciao, Luca.");
   expect(
     await page.evaluate(() =>
       (window as unknown as VoiceTestWindow).neoVoiceTest.live(),
@@ -267,4 +305,54 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     ),
   ).toBe(false);
   expect(errors).toEqual([]);
+});
+
+test("catalog remains available during transformations and queues the next topic without confirmation", async ({
+  page,
+}) => {
+  // Portal + entry + two seven-second transformations, plus software-rendered
+  // interactions. Keep each phase bounded below while allowing the whole visit.
+  test.setTimeout(45000);
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getUserMedia: async () => {
+          throw new Error("No device");
+        },
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
+  await page
+    .getByRole("button", { name: "Entra nell’osservatorio", exact: true })
+    .click({ timeout: 15000 });
+  // Android suspends canvas RAF outside its viewport. Both queued transitions
+  // and catalog controls must keep working independently of those frames.
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+  });
+  // The catalog is already available in the critical city: the begin button is optional.
+  await page
+    .getByRole("button", { name: "Mobilità urbana", exact: true })
+    .click({ timeout: 10000 });
+  await page
+    .locator('[aria-label="Tre interventi disponibili"] button')
+    .filter({ has: page.getByText("Tram elettrici", { exact: true }) })
+    .click();
+  await page.getByRole("button", { name: "Verde urbano", exact: true }).click();
+  await page
+    .locator('[aria-label="Tre interventi disponibili"] button')
+    .filter({ has: page.getByText("Grande parco", { exact: true }) })
+    .click();
+  await expect(page.locator(".story-message")).toContainText(
+    "lo mostro appena",
+  );
+  await expect(page.locator(".story-message")).toContainText(
+    "Grande parco: la città si trasforma",
+    { timeout: 11000 },
+  );
+  await expect(
+    page.getByRole("button", { name: "Continua", exact: true }),
+  ).toBeVisible({ timeout: 11000 });
 });

@@ -166,9 +166,17 @@ export class Experience {
         }
       },
       (role, text) => {
-        if (this.debug) transcript(role, text);
+        if (role === "Tu") this.story.receiveTranscript(text);
+        transcript(role, text);
       },
-      (name, args) => this.storyTool(name, args),
+      (name, args) => {
+        this.modelToolActive = true;
+        try {
+          return this.storyTool(name, args);
+        } finally {
+          this.modelToolActive = false;
+        }
+      },
       () => {
         if (this.story.snapshot.state === "INVITATION") this.startDiscovery();
       },
@@ -615,9 +623,16 @@ export class Experience {
     this.renderer.setClearColor(0x101e27, 1);
     this.onResize();
   }
+  private modelToolActive = false;
   private storyTool(name: string, args: string): StoryResult {
     if (
-      name === "enter_observatory" &&
+      [
+        "enter_observatory",
+        "show_intervention",
+        "choose_intervention",
+        "confirm_intervention",
+      ].includes(name) &&
+      this.story.snapshot.environment === "reality" &&
       this.xr.session &&
       this.xr.diagnostic.mode === "immersive-ar" &&
       !this.xr.diagnostic.placed
@@ -628,7 +643,13 @@ export class Experience {
         snapshot: { ...this.story.snapshot },
       };
     if (
-      name === "enter_observatory" &&
+      [
+        "enter_observatory",
+        "show_intervention",
+        "choose_intervention",
+        "confirm_intervention",
+      ].includes(name) &&
+      this.story.snapshot.environment === "reality" &&
       this.xr.session?.environmentBlendMode === "additive"
     )
       return {
@@ -715,7 +736,8 @@ export class Experience {
         "REVEALING_CONSEQUENCES",
         "FINAL_CITY_REFLECTION",
         "ASKING_FINAL_QUESTION",
-      ].includes(snapshot.state)
+      ].includes(snapshot.state) &&
+      !this.modelToolActive
     )
       this.voice.requestNarration(
         "Nuovo stato autorevole: " +
@@ -879,7 +901,7 @@ export class Experience {
   startDiscovery() {
     if (this.discoveryStarted) return;
     this.discoveryStarted = this.voice.requestNarration(
-      "Presentati brevemente, chiedi il nome se non lo conosci, e invita nell’osservatorio. Attendi il consenso prima di entrare.",
+      "Presentati brevemente e chiedi il nome solo se non lo conosci. Accompagna nell’osservatorio o mostra direttamente ciò di cui parla, senza richieste di autorizzazione e senza aspettare il nome.",
     );
   }
   restart() {

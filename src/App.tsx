@@ -50,6 +50,11 @@ export default function App() {
       "WAITING_FOR_CHOICE",
       "PRESENTING_OPTIONS",
       "DECISION_RECAP",
+      "SHOWING_CRITICAL_FUTURE",
+      "APPLYING_INTERVENTION",
+      "REVEALING_CONSEQUENCES",
+      "OPTIONAL_FIFTH_DECISION",
+      "FINAL_CITY_REFLECTION",
     ].includes(s.state);
   const start = () => {
     setReflection("");
@@ -144,7 +149,8 @@ export default function App() {
               {choices && (
                 <>
                   <p className="story-note">
-                    {active.length} interventi scelti · massimo 5. Nessun ordine
+                    Parla liberamente: NEO mostra gli interventi di cui parli.
+                    Puoi usare anche questi comandi, senza un ordine
                     obbligatorio.
                   </p>
                   <div className="lever-grid" aria-label="Ambiti di intervento">
@@ -166,7 +172,10 @@ export default function App() {
                       {optionsFor(s.lever).map((o) => (
                         <button
                           key={o.id}
-                          disabled={active.some((a) => a.optionId === o.id)}
+                          disabled={
+                            s.decisions.city.active.includes(o.id) ||
+                            s.pendingInterventions.includes(o.id)
+                          }
                           onClick={() => engine.current?.choose(o.id)}
                         >
                           <strong>{o.label}</strong>
@@ -482,6 +491,16 @@ export default function App() {
                 )}
               </div>
               <p className="voice-message">{voice?.message}</p>
+              {voice?.lastHeard && (
+                <p className="story-note" aria-label="Ultime parole ricevute">
+                  Hai detto: “{voice.lastHeard}”
+                </p>
+              )}
+              {s?.name && (
+                <p className="story-note" aria-label="Nome ricordato">
+                  Ciao, {s.name}.
+                </p>
+              )}
             </section>
           )}
         </section>

@@ -38,35 +38,91 @@ describe("V4 narrative state machine", () => {
     expect(s.snapshot.state).toBe("WAITING_FOR_LEVER");
     expect(s.tool("select_lever", '{"leverId":"GREEN"}').accepted).toBe(true);
   });
-  it("holds ambiguous proposals for explicit confirmation and rejects stale revisions", () => {
+  it("shows a relevant option without requiring lever selection or confirmation", () => {
     const s = new StoryEngine();
     enter(s);
-    s.tool("select_lever", '{"leverId":"GREEN"}');
-    s.tool(
-      "choose_intervention",
-      '{"optionId":"GREEN_PARK","confirmed":false}',
-    );
-    expect(s.snapshot.decisions.active).toHaveLength(0);
     expect(
       s.tool(
-        "confirm_intervention",
-        '{"optionId":"GREEN_TREES","consent":true}',
+        "choose_intervention",
+        '{"optionId":"GREEN_PARK","confirmed":false}',
       ).accepted,
-    ).toBe(false);
-    expect(
-      s.tool(
-        "confirm_intervention",
-        JSON.stringify({
-          optionId: "GREEN_PARK",
-          consent: true,
-          expectedRevision: 0,
-        }),
-      ).accepted,
-    ).toBe(false);
-    expect(
-      s.tool("confirm_intervention", '{"optionId":"GREEN_PARK","consent":true}')
-        .accepted,
     ).toBe(true);
+    expect(s.snapshot.decisions.active[0].optionId).toBe("GREEN_PARK");
+    expect(s.snapshot.proposal).toBeNull();
+    expect(
+      s.tool(
+        "show_intervention",
+        '{"optionId":"MOB_TRAM","expectedRevision":0}',
+      ).accepted,
+    ).toBe(false);
+    expect(
+      s.tool("show_intervention", '{"optionId":"not-real"}').accepted,
+    ).toBe(false);
+  });
+  it("remembers requests during arrival and entry, and automatically visits without permission", () => {
+    const s = new StoryEngine();
+    s.dispatch({ type: "start" });
+    s.dispatch({ type: "initialized" });
+    expect(
+      s.tool("show_intervention", '{"optionId":"GREEN_TREES"}').accepted,
+    ).toBe(true);
+    s.dispatch({ type: "portal_open" });
+    s.dispatch({ type: "portal_complete" });
+    expect(s.snapshot.state).toBe("ENTERING_OBSERVATORY");
+    expect(
+      s.tool("show_intervention", '{"optionId":"MOB_TRAM"}').accepted,
+    ).toBe(true);
+    s.dispatch({ type: "entry_complete" });
+    expect(s.snapshot.decisions.city.active).toContain("GREEN_TREES");
+    s.dispatch({ type: "transformation_complete" });
+    expect(s.snapshot.decisions.city.active).toEqual([
+      "GREEN_TREES",
+      "MOB_TRAM",
+    ]);
+    expect(s.snapshot.state).toBe("APPLYING_INTERVENTION");
+  });
+  it("accepts another topic while animating, preserves requests across name changes and makes duplicates idempotent", () => {
+    const s = new StoryEngine();
+    enter(s);
+    s.receiveTranscript("Mi chiamo Luca.");
+    s.tool("show_intervention", '{"optionId":"MOB_TRAM"}');
+    s.tool("show_intervention", '{"optionId":"ENERGY_ROOFTOP"}');
+    expect(
+      s.tool("show_intervention", '{"optionId":"ENERGY_ROOFTOP"}').accepted,
+    ).toBe(true);
+    expect(s.snapshot.pendingInterventions).toEqual(["ENERGY_ROOFTOP"]);
+    expect(s.tool("select_lever", '{"leverId":"WATER"}').accepted).toBe(true);
+    expect(s.snapshot.state).toBe("APPLYING_INTERVENTION");
+    s.dispatch({ type: "transformation_complete" });
+    expect(s.snapshot.name).toBe("Luca");
+    expect(s.snapshot.decisions.city.flags).toContain("R03");
+    s.tool("request_return_to_reality", "{}");
+    expect(s.snapshot.pendingInterventions).toEqual([]);
+  });
+  it("continues visual exploration after five choices while preserving the original anonymous record", () => {
+    const s = new StoryEngine();
+    enter(s);
+    for (const optionId of [
+      "GREEN_PARK",
+      "MOB_TRAM",
+      "ENERGY_ROOFTOP",
+      "WATER_REUSE",
+      "BUILD_RETROFIT",
+      "LOG_EV",
+      "FOOD_GARDENS",
+    ]) {
+      expect(
+        s.tool("show_intervention", JSON.stringify({ optionId })).accepted,
+      ).toBe(true);
+      s.dispatch({ type: "transformation_complete" });
+    }
+    expect(s.snapshot.decisions.sequence).toHaveLength(5);
+    expect(s.snapshot.decisions.active).toHaveLength(5);
+    expect(s.snapshot.decisions.city.active).toHaveLength(7);
+    expect(s.snapshot.explored).toEqual(["LOG_EV", "FOOD_GARDENS"]);
+    expect(s.tool("get_city_state", "{}").data).toEqual(s.snapshot.decisions);
+    s.reset();
+    expect(s.snapshot.explored).toEqual([]);
   });
   it("offers the fifth decision, cumulative effects and a single cross-lever revision", () => {
     const s = new StoryEngine();
@@ -115,7 +171,7 @@ describe("V4 narrative state machine", () => {
     s.dispatch({ type: "farewell_complete" });
     expect(s.snapshot.state).toBe("EXPERIENCE_COMPLETED");
   });
-  it("pauses without losing choices, rejects selection during transition, and permits exit", () => {
+  it("pauses without losing choices, permits topic selection during transition, and permits exit", () => {
     const s = new StoryEngine();
     enter(s);
     s.tool("select_lever", '{"leverId":"GREEN"}');
@@ -123,11 +179,28 @@ describe("V4 narrative state machine", () => {
       "choose_intervention",
       '{"optionId":"GREEN_TREES","confirmed":true}',
     );
-    expect(s.tool("select_lever", '{"leverId":"WATER"}').accepted).toBe(false);
+    expect(s.tool("select_lever", '{"leverId":"WATER"}').accepted).toBe(true);
     s.dispatch({ type: "pause" });
     s.dispatch({ type: "resume" });
     expect(s.snapshot.state).toBe("APPLYING_INTERVENTION");
     s.dispatch({ type: "exit" });
     expect(s.snapshot.state).toBe("USER_EXIT");
   });
+});
+
+it("returns or revisits without a minimum response count and does not consume a duplicate", () => {
+  const s = new StoryEngine();
+  enter(s);
+  s.receiveTranscript("Mi chiamo Luca e vorrei vedere gli alberi.");
+  expect(s.snapshot.name).toBe("Luca");
+  s.tool("show_intervention", '{"optionId":"GREEN_TREES"}');
+  s.dispatch({ type: "transformation_complete" });
+  expect(s.tool("enter_observatory", "{}").accepted).toBe(true);
+  expect(s.tool("finish_decisions", "{}").accepted).toBe(true);
+  s.dispatch({ type: "return_complete" });
+  expect(
+    s.tool("show_intervention", '{"optionId":"GREEN_TREES"}').accepted,
+  ).toBe(true);
+  expect(s.snapshot.state).toBe("ENTERING_OBSERVATORY");
+  expect(s.snapshot.decisions.active).toHaveLength(1);
 });

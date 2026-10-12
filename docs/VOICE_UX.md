@@ -1,3 +1,19 @@
+# Flusso conversazionale libero — 12 ottobre 2026
+
+Questa revisione sostituisce i vincoli di conferma visiva della V4: non serve autorizzare l’ingresso o scegliere prima una leva. `show_intervention(optionId)` mostra direttamente un elemento del catalogo e apre la visita se necessario. Le richieste durante portale, ingresso o animazione restano in coda, vengono applicate una alla volta e non richiedono una seconda risposta. Il ritorno annulla la coda; le scelte già applicate restano in memoria. Se la visita è terminata si può riaprire parlando di un intervento.
+
+Il nome non è un prerequisito. `remember_name` conserva il nome nella pagina, e una presentazione esplicita (“mi chiamo Luca”) viene recepita anche se il modello omette il tool. Nome, scelte, interventi esplorati e richieste in coda vengono risincronizzati alla riconnessione Realtime. Il pulsante Ricomincia azzera tutto. Nessun nome o dialogo completo viene salvato nel backend.
+
+La pagina mostra le ultime parole effettivamente trascritte e il nome ricordato. Non si presume che microfono acceso significhi parole riconosciute. Se l’ASR fallisce, restituisce testo vuoto o manca per 2,5 secondi dopo un turno VAD di almeno 450 ms senza sovrapposizione, viene conservato l’audio già ricevuto e richiesta una risposta al modello audio. Una trascrizione tardiva aggiorna la memoria senza una seconda risposta. Una vera interruzione già riconosciuta da un delta conserva l’audio anche se fallisce la trascrizione finale. Il recupero non parte con mute o input sospeso; rumori durante la risposta continuano a non interrompere NEO senza parole riconoscibili.
+
+Le prime cinque scelte restano il registro didattico originale. La conversazione può mostrare ulteriori interventi in memoria: `explored` è separato dal registro salvabile e `decisions.city` ricostruisce tutti gli effetti realmente visibili. Le leve e i comandi manuali sono facoltativi e disponibili anche durante le trasformazioni; una selezione di leva non cancella un’animazione. La revisione formale originale è conservata. Il consenso separato al salvataggio rimane obbligatorio.
+
+Il prompt chiede una o due frasi, 10–30 parole, senza interrogatorio, monologhi o conferme ripetute. Una domanda su alberi, tram o fotovoltaico è già sufficiente per mostrare l’esempio pertinente. Non vengono introdotti generatori 3D o nuove scene AI.
+
+Queste modifiche sono verificate con eventi audio/WebRTC simulati, stato narrativo e browser. La ricezione vocale, l’ASR effettivo e l’eco sul Quest richiedono una nuova prova fisica: non sono certificati dai test software.
+
+---
+
 # Correzione ascolto e UX Quest — 10 ottobre 2026
 
 Il feedback dell’utente segnala microfono fermo dopo il primo scambio, controlli che seguono la testa e assenza di un segnale di ascolto affidabile. Il codice precedente trasformava la perdita di focus XR in un mute permanente e ignorava `response_cancel_not_active`, lasciando bloccata la coda. I controlli rapidi chiusi erano ancora riallineati alla testa a ogni frame.

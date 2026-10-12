@@ -2,6 +2,8 @@
 
 Prima del consenso tutte le scelte e la riflessione sono in memoria. Il nome transitorio non viene inviato al database e viene rimosso dai testi se conosciuto. Email, numeri di contatto e campi extra sono rifiutati. La riflessione libera non deve contenere altri identificatori: il filtro non può certificare l’anonimato semantico di un testo arbitrario.
 
+Il flusso aggiornato non richiede consenso per ingresso o trasformazioni. Il consenso riguarda solo questo salvataggio. Oltre le prime cinque scelte è possibile continuare l’esplorazione: gli interventi aggiuntivi (`explored`) e la coda sono mantenuti nella pagina e nella conversazione, ma non inclusi nel registro didattico inviato all’API. La città visualizzata considera anche tali interventi; le interdipendenze persistite descrivono soltanto il registro salvato.
+
 ## POST /api/future-sessions
 
 JSON massimo 16 KB: `id` (UUID casuale), `deleteToken` (due UUID concatenati), `experienceVersion: "V4"`, `sequence`, `active`, `revision` oppure null, `reflection` (1–2000 caratteri), `message` (1–1000), `consent: true`.

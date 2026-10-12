@@ -1,6 +1,7 @@
 import {
   DecisionEngine,
   type DecisionSnapshot,
+  deriveCity,
 } from "../decision/DecisionEngine.js";
 import {
   interventions,
@@ -45,6 +46,8 @@ export type StorySnapshot = {
   lever: string | null;
   proposal: string | null;
   decisions: DecisionSnapshot;
+  explored: string[];
+  pendingInterventions: string[];
   reflection: string;
   generatedMessage: string;
   consent: boolean;
@@ -93,6 +96,8 @@ export class StoryEngine {
       lever: null,
       proposal: null,
       decisions: this.decisions.snapshot,
+      explored: [],
+      pendingInterventions: [],
       reflection: "",
       generatedMessage: "",
       consent: false,
@@ -125,6 +130,10 @@ export class StoryEngine {
       decisions: this.decisions.snapshot,
       revision: this.snapshot.revision + 1,
     };
+    this.snapshot.decisions.city = deriveCity([
+      ...this.snapshot.decisions.active.map((d) => d.optionId),
+      ...this.snapshot.explored,
+    ]);
     this.listeners.forEach((fn) => fn(structuredClone(this.snapshot)));
     return this.result(true, "Evento applicato.", data);
   }
@@ -159,23 +168,32 @@ export class StoryEngine {
               message: "Ciao, sono NEO. Ti mostro una città del 2050?",
             })
           : reject("Portale non attivo.");
-      case "portal_complete":
-        return s.state === "AVATAR_GREETING"
-          ? this.patch({
-              state: "INVITATION",
-              message:
-                "Visita l’osservatorio del futuro, senza dover camminare.",
-            })
-          : reject("Saluto non attivo.");
-      case "entry_complete":
-        return s.state === "ENTERING_OBSERVATORY"
-          ? this.patch({
-              state: "SHOWING_CRITICAL_FUTURE",
-              transitioning: false,
-              message:
-                "Caldo, smog, traffico e acqua sotto pressione. Da dove cominceresti?",
-            })
-          : reject("Ingresso non attivo.");
+      case "portal_complete": {
+        const result =
+          s.state === "AVATAR_GREETING"
+            ? this.patch({
+                state: "INVITATION",
+                message:
+                  "Visita l’osservatorio del futuro, senza dover camminare.",
+              })
+            : reject("Saluto non attivo.");
+        if (result.accepted && s.pendingInterventions.length)
+          this.tool("enter_observatory", "{}");
+        return this.result(result.accepted, result.reason);
+      }
+      case "entry_complete": {
+        const result =
+          s.state === "ENTERING_OBSERVATORY"
+            ? this.patch({
+                state: "SHOWING_CRITICAL_FUTURE",
+                transitioning: false,
+                message:
+                  "Caldo, smog, traffico e acqua sotto pressione. Da dove cominceresti?",
+              })
+            : reject("Ingresso non attivo.");
+        if (result.accepted) this.applyPending();
+        return this.result(result.accepted, result.reason);
+      }
       case "begin_decisions":
         return s.state === "SHOWING_CRITICAL_FUTURE"
           ? this.patch({
@@ -186,14 +204,16 @@ export class StoryEngine {
       case "transformation_complete": {
         if (s.state !== "APPLYING_INTERVENTION")
           return reject("Nessun intervento in trasformazione.");
-        const city = this.decisions.snapshot.city,
+        const city = s.decisions.city,
           last = this.decisions.snapshot.revision
             ? this.decisions.snapshot.active.find(
                 (d) => d.slotId === this.decisions.snapshot.revision!.slotId,
               )
             : this.decisions.snapshot.active.at(-1);
-        const option = optionById.get(last?.optionId ?? "");
-        return this.patch({
+        const option = optionById.get(
+          s.explored.at(-1) ?? last?.optionId ?? "",
+        );
+        const result = this.patch({
           state: "REVEALING_CONSEQUENCES",
           transitioning: false,
           message: [
@@ -203,6 +223,8 @@ export class StoryEngine {
             .filter(Boolean)
             .join(" "),
         });
+        this.applyPending();
+        return this.result(result.accepted, result.reason);
       }
       case "return_complete":
         return s.state === "RETURNING_TO_MR"
@@ -294,6 +316,7 @@ export class StoryEngine {
       remember_name: ["name"],
       forget_name: [],
       enter_observatory: ["consent"],
+      show_intervention: ["optionId"],
       list_available_levers: [],
       select_lever: ["leverId"],
       list_options: ["leverId"],
@@ -326,13 +349,9 @@ export class StoryEngine {
     if (name === "list_available_levers")
       return this.result(true, "Dieci ambiti disponibili.", levers);
     if (name === "get_city_state")
-      return this.result(true, "Stato autorevole.", this.decisions.snapshot);
+      return this.result(true, "Stato autorevole.", s.decisions);
     if (name === "get_active_consequences")
-      return this.result(
-        true,
-        "Conseguenze qualitative.",
-        this.decisions.snapshot.city,
-      );
+      return this.result(true, "Conseguenze qualitative.", s.decisions.city);
     if (name === "explain_tradeoff") {
       const option = optionById.get(String(args.interventionId));
       return option
@@ -355,19 +374,34 @@ export class StoryEngine {
         return reject("Nome non valido.");
       return this.patch({ name: name === "forget_name" ? null : value });
     }
+    if (name === "show_intervention")
+      return this.showIntervention(String(args.optionId));
+    if (
+      name === "enter_observatory" &&
+      s.environment === "observatory" &&
+      s.state !== "RETURNING_TO_MR"
+    )
+      return this.result(true, "Osservatorio già attivo.");
     if (name === "enter_observatory")
-      return s.state === "INVITATION" && args.consent === true
+      return [
+        "INVITATION",
+        "ASKING_FINAL_QUESTION",
+        "WAITING_FOR_CONSENT",
+      ].includes(s.state) &&
+        (args.consent === undefined || typeof args.consent === "boolean")
         ? this.patch({
             state: "ENTERING_OBSERVATORY",
             environment: "observatory",
+            consent: false,
             transitioning: true,
             message: "Entriamo nell’osservatorio.",
           })
-        : reject("Ingresso richiede invito e consenso esplicito.");
+        : reject("Attendi che NEO abbia completato l’arrivo.");
     if (name === "request_return_to_reality")
       return s.environment === "observatory" && s.state !== "RETURNING_TO_MR"
         ? this.patch({
             state: "RETURNING_TO_MR",
+            pendingInterventions: [],
             transitioning: true,
             message: "Ritorniamo nella tua stanza.",
           })
@@ -378,15 +412,22 @@ export class StoryEngine {
       "WAITING_FOR_CHOICE",
       "DECISION_RECAP",
       "OPTIONAL_FIFTH_DECISION",
+      "SHOWING_CRITICAL_FUTURE",
+      "REVEALING_CONSEQUENCES",
+      "FINAL_CITY_REFLECTION",
+      "APPLYING_INTERVENTION",
     ].includes(s.state);
     if (name === "select_lever" || name === "list_options") {
-      if (!deciding || s.transitioning || this.decisions.snapshot.finished)
+      if (!deciding)
         return reject("Le scelte non sono disponibili in questo stato.");
       if (!levers.some((l) => l.id === args.leverId))
         return reject("Leva inesistente.");
       return this.patch(
         {
-          state: "WAITING_FOR_CHOICE",
+          state:
+            s.state === "APPLYING_INTERVENTION"
+              ? s.state
+              : "WAITING_FOR_CHOICE",
           lever: String(args.leverId),
           proposal: null,
           message: "Tre possibilità, con benefici e limiti differenti.",
@@ -395,34 +436,11 @@ export class StoryEngine {
       );
     }
     if (name === "choose_intervention" || name === "confirm_intervention") {
-      const id = String(args.optionId),
-        option = optionById.get(id);
-      if (!deciding || s.transitioning || !option || option.lever !== s.lever)
-        return reject("Scegli prima una leva e una sua opzione valida.");
-      if (this.decisions.snapshot.active.some((d) => d.optionId === id))
-        return reject("Scelta già attiva: non consuma uno slot.");
-      if (name === "choose_intervention" && typeof args.confirmed !== "boolean")
-        return reject("Confidenza non valida.");
-      if (name === "choose_intervention" && args.confirmed !== true)
-        return this.patch({
-          proposal: id,
-          state: "WAITING_FOR_CHOICE",
-          message: `Intendi ${option.label.toLowerCase()}? Conferma prima di applicarla.`,
-        });
-      if (
-        name === "confirm_intervention" &&
-        (args.consent !== true || s.proposal !== id)
-      )
-        return reject("Conferma non valida.");
-      const error = this.decisions.choose(id);
-      if (error) return reject(error);
-      return this.patch({
-        state: "APPLYING_INTERVENTION",
-        future: "transformed",
-        transitioning: true,
-        proposal: null,
-        message: `${option.label}: la città si trasforma. Puoi continuare a parlare.`,
-      });
+      if (args.confirmed !== undefined && typeof args.confirmed !== "boolean")
+        return reject("Argomento non valido.");
+      if (args.consent !== undefined && typeof args.consent !== "boolean")
+        return reject("Argomento non valido.");
+      return this.showIntervention(String(args.optionId));
     }
     if (name === "continue_decisions") {
       if (s.state === "SHOWING_CRITICAL_FUTURE")
@@ -456,6 +474,8 @@ export class StoryEngine {
       });
     }
     if (name === "finish_decisions") {
+      if (s.environment === "observatory" && s.decisions.active.length < 4)
+        return this.tool("request_return_to_reality", "{}");
       if (
         ![
           "OPTIONAL_FIFTH_DECISION",
@@ -538,6 +558,109 @@ export class StoryEngine {
       });
     }
     return reject("Evento non autorizzato nello stato corrente.");
+  }
+  /** Visual exploration never depends on a lever, a name or a second confirmation. */
+  private showIntervention(id: string): StoryResult {
+    const option = optionById.get(id),
+      s = this.snapshot;
+    if (!option) return this.result(false, "Intervento inesistente.");
+    const available = [
+      "OPENING_PORTAL",
+      "AVATAR_GREETING",
+      "INVITATION",
+      "ENTERING_OBSERVATORY",
+      "SHOWING_CRITICAL_FUTURE",
+      "WAITING_FOR_LEVER",
+      "PRESENTING_OPTIONS",
+      "WAITING_FOR_CHOICE",
+      "APPLYING_INTERVENTION",
+      "REVEALING_CONSEQUENCES",
+      "DECISION_RECAP",
+      "OPTIONAL_FIFTH_DECISION",
+      "FINAL_CITY_REFLECTION",
+      "OPTIONAL_REVISION",
+      "ASKING_FINAL_QUESTION",
+      "WAITING_FOR_CONSENT",
+    ].includes(s.state);
+    if (!available) return this.result(false, "Visita non attiva.");
+    if (s.decisions.city.active.includes(id) && s.environment === "reality")
+      return this.tool("enter_observatory", "{}");
+    if (
+      s.decisions.city.active.includes(id) ||
+      s.pendingInterventions.includes(id)
+    )
+      return this.result(
+        true,
+        "Intervento già mostrato o in arrivo; nessuna scelta persa.",
+        option,
+      );
+    if (
+      [
+        "OPENING_PORTAL",
+        "AVATAR_GREETING",
+        "INVITATION",
+        "ENTERING_OBSERVATORY",
+        "APPLYING_INTERVENTION",
+        "ASKING_FINAL_QUESTION",
+        "WAITING_FOR_CONSENT",
+      ].includes(s.state)
+    ) {
+      this.patch({
+        pendingInterventions: [...s.pendingInterventions, id],
+        message: `${option.label}: lo mostro appena la transizione termina.`,
+      });
+      if (
+        ["INVITATION", "ASKING_FINAL_QUESTION", "WAITING_FOR_CONSENT"].includes(
+          s.state,
+        )
+      )
+        this.tool("enter_observatory", "{}");
+      return this.result(
+        true,
+        "Richiesta memorizzata. Non serve conferma.",
+        option,
+      );
+    }
+    const explored = [...s.explored];
+    // Keep the original educational record; further discussion remains explorable.
+    if (this.decisions.snapshot.finished) explored.push(id);
+    else {
+      const error = this.decisions.choose(id);
+      if (error) return this.result(false, error);
+    }
+    return this.patch(
+      {
+        state: "APPLYING_INTERVENTION",
+        future: "transformed",
+        transitioning: true,
+        proposal: null,
+        lever: option.lever,
+        explored,
+        message: `${option.label}: la città si trasforma. Puoi continuare a parlare.`,
+      },
+      option,
+    );
+  }
+  private applyPending() {
+    const id = this.snapshot.pendingInterventions[0];
+    if (!id) return;
+    this.patch({
+      pendingInterventions: this.snapshot.pendingInterventions.slice(1),
+    });
+    this.showIntervention(id);
+  }
+  /** A clear introduction is remembered even if the model omits its memory tool. */
+  receiveTranscript(text: string) {
+    const match = text
+      .trim()
+      .match(
+        /^(?:ciao[,!.]?\s*)?(?:mi chiamo|il mio nome è|puoi chiamarmi)\s+([\p{L}][\p{L} ’'-]{0,39}?)(?=\s+(?:e|ma|vorrei|voglio|mi|parliamo)\b|[,.!?]|$)/iu,
+      );
+    if (match)
+      return this.tool(
+        "remember_name",
+        JSON.stringify({ name: match[1].trim() }),
+      );
   }
   private anonymize(text: string) {
     const name = this.snapshot.name;

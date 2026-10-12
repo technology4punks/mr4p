@@ -1,3 +1,15 @@
+## Revisione del dialogo libero · 12 ottobre 2026
+
+Passati lint, typecheck, build e controllo bundle; 185 test Node/shared e 176 test Sites/shared/D1. Le regressioni coprono ingresso senza autorizzazione, intervento senza leva, richiesta durante portale/ingresso/animazione, duplicati idempotenti, nome esplicito, ulteriori visualizzazioni oltre il registro di cinque scelte, ritorno anticipato e riapertura della visita. Il recupero ASR conserva audio e risponde una sola volta; testo tardivo aggiorna la memoria e un fallimento tardivo non cancella il turno. Mute e rumori sovrapposti restano rispettati.
+
+Smoke del worker Sites locale: ingresso senza comando preliminare “Da dove cominciamo?”, GREEN_PARK, richiesta MOB_TRAM durante la trasformazione, entrambe le animazioni completate, nessun errore JavaScript. Il test browser voce usa tre turni, conserva Luca, mostra le ultime parole e invoca show_intervention senza usare il pulsante di ingresso; microfono e recupero rimangono attivi con RAF fermo. Audio/WebRTC sono simulati, non certificano la voce sul Quest.
+
+I 21 casi browser sono passati fra suite e ritest mirati. Il primo errore desktop era un 404 mentre la build veniva rigenerata: ritest con build ferma passato. Il test nuovo della doppia trasformazione usa 45 secondi complessivi e mantiene 11 secondi per fase; viene verificato anche con RAF sospeso su desktop, Android e iPhone. Il budget iniziale di 30 secondi era insufficiente per portale, ingresso, due animazioni e interazioni su renderer software. Il normale percorso completo con grafica attiva resta coperto.
+
+Le misure grafiche sotto restano campioni storici della V4; questa revisione non è un nuovo benchmark hardware. Nessun asset o post-processing aggiunto.
+
+---
+
 # Future Observatory V4 · verifiche del 12 ottobre 2026
 
 Le verifiche sono software, svolte in container; nessun visore fisico è disponibile. I dati storici nelle altre sottocartelle non rappresentano la V4 attuale.

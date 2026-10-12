@@ -50,17 +50,40 @@ describe("token endpoint", () => {
     const body = JSON.parse(options!.body as string);
     expect(body.session.type).toBe("realtime");
     expect(body.session.model).toBe("gpt-realtime-2.1-mini");
-    expect(body.session.tools.map((t: {name:string})=>t.name)).toEqual(expect.arrayContaining(["select_lever","choose_intervention","revise_intervention","set_storage_consent"]));
-    expect(body.session.tools.map((t:{name:string})=>t.name)).not.toContain("select_theme");
+    expect(body.session.tools.map((t: { name: string }) => t.name)).toEqual(
+      expect.arrayContaining([
+        "select_lever",
+        "choose_intervention",
+        "revise_intervention",
+        "set_storage_consent",
+      ]),
+    );
+    expect(
+      body.session.tools.map((t: { name: string }) => t.name),
+    ).not.toContain("select_theme");
     expect(body.session.tool_choice).toBe("auto");
     expect(
       body.session.tools.find(
         (t: { name: string }) => t.name === "enter_observatory",
       ).parameters.required,
+    ).toEqual([]);
+    expect(
+      body.session.tools.find(
+        (t: { name: string }) => t.name === "set_storage_consent",
+      ).parameters.required,
     ).toContain("consent");
+    expect(
+      body.session.tools.find(
+        (t: { name: string }) => t.name === "show_intervention",
+      ).parameters.required,
+    ).toEqual(["optionId"]);
     expect(body.session.instructions).toMatch(/ipotetic/);
-    expect(body.session.instructions).toContain("15–35 parole");
-    expect(body.session.tools.find((t: { name: string }) => t.name === "choose_intervention").parameters.properties.optionId.enum).toHaveLength(30);
+    expect(body.session.instructions).toContain("10–30 parole");
+    expect(
+      body.session.tools.find(
+        (t: { name: string }) => t.name === "choose_intervention",
+      ).parameters.properties.optionId.enum,
+    ).toHaveLength(30);
     expect(body.session.audio.output.voice).toBe("marin");
     expect(body.session.audio.input.turn_detection.interrupt_response).toBe(
       false,

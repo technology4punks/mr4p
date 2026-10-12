@@ -192,7 +192,7 @@ export class UI3D {
             );
         if (this.revisionSlot)
           actions.push(["revision-page", "Altre alternative →"]);
-      } else if (story.state === "WAITING_FOR_CHOICE" && story.lever)
+      } else if (story.lever)
         actions = optionsFor(story.lever).map(
           (o) => [`option:${o.id}`, o.label] as [XRAction, string],
         );
@@ -286,6 +286,11 @@ export class UI3D {
         "WAITING_FOR_LEVER",
         "WAITING_FOR_CHOICE",
         "OPTIONAL_REVISION",
+        "SHOWING_CRITICAL_FUTURE",
+        "APPLYING_INTERVENTION",
+        "REVEALING_CONSEQUENCES",
+        "OPTIONAL_FIFTH_DECISION",
+        "FINAL_CITY_REFLECTION",
       ].includes(story.state);
     this.rebuild();
   }
