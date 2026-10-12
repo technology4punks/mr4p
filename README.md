@@ -1,5 +1,7 @@
 # NEO · Future Observatory V4
 
+[Site pubblico V4](https://neo-mr-avatar-test.sk1kko.chatgpt.site) · [PR #3](https://github.com/technology4punks/mr4p/pull/3) · [Deploy verificato](docs/DEPLOYMENT_V4.md)
+
 **The Complexity of Choice**: una città del 2050 che cambia attraverso le decisioni del partecipante. React/TypeScript, Three.js/WebXR e conversazione OpenAI Realtime. La V4 estende avatar, stanza, controllo room scale e correzioni del microfono esistenti.
 
 ## Esperienza

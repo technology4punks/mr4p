@@ -38,8 +38,10 @@ Dati e screenshot: [validation/v4](validation/v4). Le differenze di conteggio fr
 
 ## Limiti e prova fisica
 
-Non verificati: compositing/passthrough Quest Pro, hand tracking/pinch reali, controller/joystick reali, floor/anchor e camera room scale, microfono/echo/rumori e servizio Realtime live, comfort/stabilità e 72 FPS. I fallback additive/VR e ritorno AR richiedono gesto esplicito; non sono presentati come supporto hardware certificato.
+Non verificati: compositing/passthrough Quest Pro, hand tracking/pinch reali, controller/joystick reali, floor/anchor e camera room scale, microfono/echo/rumori e conversazione audio Realtime live, comfort/stabilità e 72 FPS. I fallback additive/VR e ritorno AR richiedono gesto esplicito; non sono presentati come supporto hardware certificato.
 
 La città usa geometrie procedurali e dettagli semplificati, con PBR realistici nella stanza. Non è fotorealistica e le conseguenze sono qualitative, non previsioni scientifiche. Purge D1 senza traffico può avvenire dopo la scadenza nominale, alla prima richiesta successiva. Il filtro testuale non garantisce l’assenza di ogni informazione identificante arbitraria.
 
 Checklist operativa: [DEVICE_TESTS.md](DEVICE_TESTS.md). Gli scenari precedenti sono sostituiti dal solo percorso ambientale cumulativo V4 richiesto dalla specifica.
+
+Deploy pubblico e prova reale delle API D1/token: [DEPLOYMENT_V4.md](DEPLOYMENT_V4.md).
