@@ -8,7 +8,7 @@ Le verifiche sono software, svolte in container; nessun visore fisico è disponi
 | Unit test Node/shared | 178 passati, 15 file |
 | Typecheck/build Sites vinext | Passati |
 | Unit test Sites/shared/D1 route | 169 passati, 15 file |
-| Browser Chromium desktop/Android, WebKit iPhone | 15 passati |
+| Browser Chromium desktop/Android, WebKit iPhone | 18 casi passati, incluso il ritest Android |
 | Verifica bundle client | Nessuna chiave/configurazione server nel client |
 | Migration D1 locale | 2 comandi eseguiti correttamente |
 | Worker Sites + D1 locale | POST 201, token errato DELETE 403, token valido DELETE 200 |
@@ -45,3 +45,9 @@ La città usa geometrie procedurali e dettagli semplificati, con PBR realistici 
 Checklist operativa: [DEVICE_TESTS.md](DEVICE_TESTS.md). Gli scenari precedenti sono sostituiti dal solo percorso ambientale cumulativo V4 richiesto dalla specifica.
 
 Deploy pubblico e prova reale delle API D1/token: [DEPLOYMENT_V4.md](DEPLOYMENT_V4.md).
+
+## Clock indipendente dal canvas
+
+La CI remota ha rivelato una sospensione del rendering Android fuori viewport durante l’ingresso. L’avanzamento narrativo è ora verificato anche con `requestAnimationFrame` fermo, su tutti e tre i profili. Un controllo periodico delle sole transizioni mantiene i tempi senza effettuare nuovi render e viene cancellato al dispose. Il test del percorso con due portali, ritorno e saluto dispone di 60 secondi complessivi per la macchina con rendering software; le singole fasi mantengono scadenze e il test della trasformazione verifica 6–11 secondi.
+
+Il secondo errore CI Android avveniva dopo un click già eseguito: Playwright restava in attesa di una navigazione, mentre il controllo aggiorna soltanto lo stato locale. Il test ora mantiene le verifiche di visibilità e interazione, evita quell’attesa (`noWaitAfter`) e controlla esplicitamente la comparsa delle leve. Il percorso Android completo è passato al ritest.

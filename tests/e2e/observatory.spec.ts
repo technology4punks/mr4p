@@ -27,8 +27,14 @@ test("V4: four cumulative decisions, one revision, reflection, consent, persiste
     .getByRole("button", { name: "Entra nell’osservatorio", exact: true })
     .click({ timeout: 20000 });
   await page
+    // This button updates local story state, never navigates. Chromium can
+    // stall its navigation epilogue after the click on a software renderer;
+    // assert the application state directly instead.
     .getByRole("button", { name: "Da dove cominciamo?", exact: true })
-    .click({ timeout: 15000 });
+    .click({ timeout: 15000, noWaitAfter: true });
+  await expect(
+    page.getByRole("button", { name: "Verde urbano", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("combobox", { name: "Tema della visita" }),
   ).toHaveCount(0);

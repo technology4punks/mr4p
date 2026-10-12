@@ -17,7 +17,7 @@ flowchart LR
   Consenso --> Saluto
 ```
 
-La revisione mantiene slot e sequenza originale, aggiorna un solo intervento e ricostruisce tutte le conseguenze. La trasformazione dura sette secondi su tempo monotono; pausa e ripresa conservano l’avanzamento. Il portale dura cinque secondi, è ancorato nello spazio e viene chiuso dopo l’arrivo. Il nome resta in memoria locale per la sola visita.
+La revisione mantiene slot e sequenza originale, aggiorna un solo intervento e ricostruisce tutte le conseguenze. La narrazione usa un clock separato dal rendering, così l’ingresso non si blocca se il canvas mobile è fuori viewport. La trasformazione dura sette secondi su tempo monotono; pausa e ripresa conservano l’avanzamento. Il portale dura cinque secondi, è ancorato nello spazio e viene chiuso dopo l’arrivo. Il nome resta in memoria locale per la sola visita.
 
 La stanza misura circa 5×5 m e ha una vera apertura, soffitto, pavimento PBR e tavolino. Vicino: edifici e mobilità 3D. Intermedio: volumi semplificati. Lontano: skyline instanziato e shader del cielo. I piccoli spostamenti reali generano parallasse; il seguace laterale evita gli ostacoli virtuali conosciuti, senza garantire rilevamento di ostacoli reali.
 
