@@ -26,3 +26,7 @@ Nessuna prova fisica Quest Pro, Android o iPhone è stata eseguita dall’agente
 Android: rilevamento AR, gesto/permessi, fallback se non supportato, rotate/zoom touch e voce dopo Start. iPhone: scene 3D e touch, layout senza overflow, autoplay/audio recovery, almeno cinque turni. Non presumere supporto immersive-ar su iPhone.
 
 Annotare modello, browser, versione, timestamp, modalità XR/blend, scelte, FPS minimo/medio, draw call, problemi audio/compositing e pass/fail per ogni punto.
+
+## Riordino urbano · verifica Quest aggiuntiva
+
+Osservare una visita con alberi, ombreggiamento, bici, tram, cargo ed energia sul tetto; poi aggiungere gli altri interventi. Controllare che pedoni e veicoli restino separati, che il panorama centrale sia leggibile e che una revisione non sovrapponga strati. Spostarsi lateralmente entro i confini reali. Registrare FPS/draw call prima e dopo l’accumulo completo, qualità attiva e comfort; queste prove fisiche non sono ancora eseguite.

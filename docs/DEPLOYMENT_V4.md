@@ -1,3 +1,13 @@
+# Riordino della città · Sites versione 22
+
+La pianta condivisa separa persone, alberi, ciclisti, tram e traffico e riserva lotti distinti a tutte le facilities. Tetti e cavi compaiono alla quota corretta; conservati voce, avatar, AR/VR e persistenza. Dettagli: [CITY_LAYOUT.md](CITY_LAYOUT.md).
+
+Lint, typecheck, build e controllo bundle passati; 199 test Node/shared, 190 Sites/shared/route e tutti i 21 casi browser della build finale passati. Le prove visive coprono anche trenta interventi simultanei e vista laterale. Il target hardware Quest Pro rimane da verificare. Distribuita con stato `succeeded` il 13 ottobre 2026 alle 11:44 UTC (13:44 Europe/Rome) su **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. Commit Sites `d635645ee6e58b4933564e91c4deadb241413ce1`; deploy `appgdep_6ace197a754c8191983ad638900b0801`; ambiente revision 5, chiave backend e D1 preservati. Accesso pubblico confermato.
+
+Visita anonima sulla versione distribuita passata: Start, portale, ingresso, parco, tram e fotovoltaico richiesti durante le transizioni; nessun login o errore JavaScript. Screenshot: [public-v22.png](validation/city-layout/public-v22.png). Microfono negato intenzionalmente: questa prova controlla il fallback 3D, non la voce hardware. Ricaricare la pagina sul Quest per caricare la versione 22.
+
+---
+
 # Turni bilanciati · Sites versione 21
 
 Distribuita con successo il 12 ottobre 2026 alle 12:35 UTC sul Site pubblico **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. Sorgente Sites `df2d22078427f25dd56204f31007052d8aa9d97e`; deploy `appgdep_6accd3f0eec0819193e89af3df1763e8`. Ambiente revision 5, segreto OpenAI e D1 preservati.

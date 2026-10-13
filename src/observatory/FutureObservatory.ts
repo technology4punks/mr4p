@@ -1,3 +1,4 @@
+import { cityRoutes, plannedCityBuildings } from "./CityPlan";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
@@ -19,28 +20,7 @@ export type CityBuilding = {
   layer: "near" | "middle" | "far";
 };
 export function cityLayout(): CityBuilding[] {
-  const result: CityBuilding[] = [];
-  let seed = 2050;
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-  for (const [count, zBase, layer] of [
-    [18, 22, "near"],
-    [32, 38, "middle"],
-    [38, 72, "far"],
-  ] as const) {
-    for (let i = 0; i < count; i++)
-      result.push({
-        x: (i - count / 2) * 4.8 + (random() - 0.5) * 2,
-        z: -zBase - random() * (layer === "near" ? 12 : 20),
-        width: 2 + random() * 2,
-        depth: 2.5 + random() * 3,
-        height: 3 + random() * (layer === "far" ? 15 : 10),
-        layer,
-      });
-  }
-  return result;
+  return plannedCityBuildings();
 }
 export class FutureObservatory {
   readonly root = new THREE.Group();
@@ -110,13 +90,25 @@ export class FutureObservatory {
     this.hemisphere.groundColor.set(0x777870);
     this.root.visible = false;
     this.root.add(this.room, this.city, this.directional, this.hemisphere);
-    this.city.add(this.district.root, this.planting.root, this.streetscape.root, this.transformations.root, this.transit.root, this.legacyTrees, this.legacyArchitecture);
+    this.city.add(
+      this.district.root,
+      this.planting.root,
+      this.streetscape.root,
+      this.transformations.root,
+      this.transit.root,
+      this.legacyTrees,
+      this.legacyArchitecture,
+    );
     this.legacyTrees.visible = this.legacyArchitecture.visible = false;
     this.transit.setSmoothMotion(true);
     this.transit.setEnvironmentalLayout(true);
-    this.district.critical.getObjectByName("Rubble and abandoned infrastructure")!.visible=false;
-    this.district.critical.getObjectByName("Collapsed roadside barriers")!.visible=false;
-    this.streetscape.textures.forEach(t => this.textures.add(t));
+    this.district.critical.getObjectByName(
+      "Rubble and abandoned infrastructure",
+    )!.visible = false;
+    this.district.critical.getObjectByName(
+      "Collapsed roadside barriers",
+    )!.visible = false;
+    this.streetscape.textures.forEach((t) => this.textures.add(t));
 
     [
       ...this.transit.materials,
@@ -205,7 +197,7 @@ export class FutureObservatory {
       transparent: true,
     });
     const skyMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(110, 24, 12),
+      new THREE.SphereGeometry(140, 24, 12),
       this.sky,
     );
     skyMesh.renderOrder = -10;
@@ -222,7 +214,7 @@ export class FutureObservatory {
       road = mat(0x3e4346),
       glass = mat(0x52666b, 0.25, 0.55);
     box(this.city, [170, 0.12, 115], [0, -0.16, -60], ground);
-    box(this.city, [150, 0.015, 3.8], [0, -0.085, -10], road);
+    box(this.city, [150, 0.015, 6.0], [0, -0.085, -16.3], road);
     const lane = mat(0xc7bc96);
     const marks = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.2, 0.01, 0.08),
@@ -230,7 +222,11 @@ export class FutureObservatory {
       55,
     );
     for (let i = 0; i < 55; i++) {
-      this.dummy.position.set((i - 27) * 2.5, -0.07, -10);
+      this.dummy.position.set(
+        (i - 27) * 2.5,
+        -0.07,
+        (cityRoutes.cars[0] + cityRoutes.cars[1]) / 2,
+      );
       this.dummy.updateMatrix();
       marks.setMatrixAt(i, this.dummy.matrix);
     }
@@ -254,7 +250,12 @@ export class FutureObservatory {
         mesh.setMatrixAt(i, this.dummy.matrix);
       });
       mesh.computeBoundingSphere();
-      (layer === "far" ? this.far : layer === "near" ? this.legacyArchitecture : this.city).add(mesh);
+      (layer === "far"
+        ? this.far
+        : layer === "near"
+          ? this.legacyArchitecture
+          : this.city
+      ).add(mesh);
     }
     const nearby = layout.filter((b) => b.layer === "near");
     const windowCells = new THREE.InstancedMesh(
@@ -301,10 +302,6 @@ export class FutureObservatory {
     const park = mat(0x7c715d);
     this.facades.push(park);
     box(this.city, [55, 0.015, 1.8], [0, -0.07, -7], park);
-    box(this.city, [2.1, 0.18, 1.2], [-3, 0.02, -6.2], stone);
-    const water = mat(0x8c7356, 0.85);
-    this.facades.push(water);
-    box(this.city, [1.8, 0.025, 0.9], [-3, 0.12, -6.2], water);
     this.trunks = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.09, 0.14, 1.6, 6),
       trunk,
@@ -533,7 +530,9 @@ export class FutureObservatory {
           : m.userData.futureFade === "sustainable"
             ? Math.max(0, this.cachedState)
             : 1;
-      const opacity = value * fade * (m.userData.baseOpacity ?? 1);
+      m.userData.sceneOpacity = value * fade * (m.userData.baseOpacity ?? 1);
+      const opacity =
+        m.userData.sceneOpacity * (m.userData.interventionOpacity ?? 1);
       const transparent = opacity < 0.999;
       if (m.transparent !== transparent) {
         m.transparent = transparent;
@@ -548,25 +547,40 @@ export class FutureObservatory {
     this.directional.intensity =
       (1.7 + Math.max(0, this.cachedState) * 1.1) * value;
   }
-  get districtAssetStatus() { return "30 interventi procedurali · geometrie condivise"; }
-  private appliedCityKey="";
-  applyCityState(state: CityState, channels=state.channels) {
-    const key=state.active.join(",")+"|"+state.flags.join(",")+"|"+Object.values(channels).map(v=>v.toFixed(4)).join(",");if(key===this.appliedCityKey)return;this.appliedCityKey=key;
-    const air=channels.air;
-    this.cachedState=air;
-    this.sky.uniforms.amount.value=air;
+  get districtAssetStatus() {
+    return "30 interventi procedurali · geometrie condivise";
+  }
+  private appliedCityKey = "";
+  applyCityState(state: CityState, channels = state.channels) {
+    const key =
+      state.active.join(",") +
+      "|" +
+      state.flags.join(",") +
+      "|" +
+      Object.values(channels)
+        .map((v) => v.toFixed(4))
+        .join(",");
+    if (key === this.appliedCityKey) return;
+    this.appliedCityKey = key;
+    const air = channels.air;
+    this.cachedState = air;
+    this.sky.uniforms.amount.value = air;
     this.sky.uniforms.badSky.value.set(0x9b8568);
     this.district.setTraffic(air);
-    this.district.sustainable.visible=false;
+    this.district.sustainable.visible = false;
     this.planting.setFuture(0);
     this.streetscape.setCityEfficiency(channels.efficiency);
-    this.transit.root.visible=state.active.includes("MOB_TRAM");
-    this.transit.setFuture(state.flags.includes("R03") ? .75 : .4);
-    this.energyObjects.visible=false;
-    this.facades.forEach(m=>m.color.set(0x999183).lerp(new THREE.Color(0xb9c1b8),channels.efficiency));
-    this.directional.color.set(0xf0d4af).lerp(new THREE.Color(0xfff4dd),air);
-    this.hemisphere.color.set(0x9a8d7e).lerp(new THREE.Color(0xb7d8eb),air);
-    this.cachedOpacity=-1;
+    this.transit.root.visible = state.active.includes("MOB_TRAM");
+    this.transit.setFuture(state.flags.includes("R03") ? 0.75 : 0.4);
+    this.energyObjects.visible = false;
+    this.facades.forEach((m) =>
+      m.color
+        .set(0x999183)
+        .lerp(new THREE.Color(0xb9c1b8), channels.efficiency),
+    );
+    this.directional.color.set(0xf0d4af).lerp(new THREE.Color(0xfff4dd), air);
+    this.hemisphere.color.set(0x9a8d7e).lerp(new THREE.Color(0xb7d8eb), air);
+    this.cachedOpacity = -1;
     this.setOpacity(this.immersionOpacity);
   }
   update(time: number) {
@@ -607,9 +621,7 @@ export class FutureObservatory {
     this.root.updateMatrixWorld(true);
     const hit = this.caster.intersectObjects(this.targets, false)[0];
     return hit
-      ? scenario().questions[
-          this.targets.indexOf(hit.object as THREE.Mesh)
-        ]
+      ? scenario().questions[this.targets.indexOf(hit.object as THREE.Mesh)]
       : undefined;
   }
   narrativePointer(x: number, y: number, camera: THREE.Camera) {

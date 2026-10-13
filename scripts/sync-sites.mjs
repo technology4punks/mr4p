@@ -34,6 +34,7 @@ for (const file of [
   "ui3d",
   "xr-session",
   "decision-engine",
+  "city-plan",
 ])
   await cp(`tests/${file}.test.ts`, resolve(root, `tests/${file}.test.ts`));
 await rm(resolve(root, "tests/environmental-scenery.test.ts"), { force: true });

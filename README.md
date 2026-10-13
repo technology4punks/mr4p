@@ -40,6 +40,7 @@ La modalità 3D è utilizzabile anche se manca una chiave o viene negato il micr
 | `src/decision/catalog.ts` | 10 leve, 30 interventi, benefici, compromessi e metadati |
 | `src/decision/DecisionEngine.ts` | slot, duplicati, revisione e ricostruzione delle 12 regole |
 | `src/story/StoryEngine.ts` | stati, consensi, proposte ambigue e tool autorizzati |
+| `src/observatory/CityPlan.ts` | pianta condivisa, percorsi e lotti riservati senza sovrapposizioni |
 | `src/observatory/CityTransformationEngine.ts` | strati e collegamenti predefiniti sulla stessa città |
 | `src/Experience.ts` | portale, transizioni, avatar, UI e persistenza |
 | `src/audio/realtimeClient.ts` | WebRTC, turni, interruzioni e recupero input |
@@ -74,6 +75,7 @@ Il salvataggio restituisce un identificativo e la scadenza. La cancellazione ric
 
 - [Specifica integrale V4](SPEC.md)
 - [Catalogo dei 30 interventi](docs/V4_CATALOG.md)
+- [Pianta della città e verifica delle distanze](docs/CITY_LAYOUT.md)
 - [Interdipendenze e trasformazioni](docs/V4_INTERDEPENDENCIES.md)
 - [API e privacy](docs/V4_PERSISTENCE.md)
 - [Architettura e journey](docs/FUTURE_OBSERVATORY.md)

@@ -1,3 +1,25 @@
+## Pianta condivisa · 13 ottobre 2026
+
+`npm run check` passato: lint, typecheck, build Node/client, 199 test e controllo segreti nel bundle. Typecheck, 190 test e build Sites passati. Otto regressioni spaziali controllano i volumi Three.js effettivi, lotti, tetti, camminatori, traffico, qualità ridotta e dissolvenze a quota fissa. Il cielo contiene lo skyline e rientra nel far plane della camera in room scale. Percorsi e interventi rimangono separati anche con tutti e trenta attivi. Nessun nuovo asset scaricato, nessuna modifica al dialogo o al backend.
+
+Ispezione browser Chromium/SwiftShader: città critica, cinque interventi, trenta interventi, vista laterale, pianta e qualità ridotta; zero errori JavaScript. [Pianta e istruzioni](CITY_LAYOUT.md), [immagini e contatori](validation/city-layout/render-counts.json). Campioni a 1440×1000 e pixel ratio 1, nella sola stanza/città, senza avatar o precaricamento Poly Haven; i contatori non sono benchmark della visita completa né medie.
+
+| Vista | Draw call | Triangoli |
+|---|---:|---:|
+| Critica | 39 | 21.416 |
+| Cinque interventi | 64 | 28.548 |
+| Trenta interventi | 204 | 35.588 |
+| Trenta, qualità ridotta | 201 | 28.916 |
+| Pianta dall’alto | 237 | 36.532 |
+
+Il caso estremo accumula trenta scelte, oltre il percorso didattico iniziale: il suo numero di draw call resta un carico da misurare sul Quest. Le geometrie di origine sono condivise/instanziate; non è stata introdotta una simulazione fisica. FPS del Quest Pro, vista stereoscopica, voce live, input XR e confini reali non sono stati verificati fisicamente.
+
+Tutti i 21 casi browser della build finale sono passati in una sola esecuzione (7,3 minuti): Chromium desktop, Android emulato e iPhone WebKit. Coprono ingresso, quattro scelte, revisione, ritorno, consenso e persistenza, restart, catalogo disponibile nelle trasformazioni e tre turni voce con mute/recovery. Audio e WebRTC sono simulati: nessuna certificazione del microfono o di Realtime live sul visore.
+
+Sites versione 22 pubblicata con successo; smoke anonimo sul sito live passato con ingresso e parco/tram/fotovoltaico, zero errori JavaScript. Microfono negato per questa prova del fallback. Dettagli in [DEPLOYMENT_V4.md](DEPLOYMENT_V4.md).
+
+---
+
 ## Bilanciamento dei turni dopo la versione 20
 
 Passati lint, typecheck, build, controllo bundle e 191 test Node/shared; 182 test Sites/shared/route e build Vinext passati. Le nuove regressioni coprono saluto separato da messaggi utente, tool bloccati nei commenti, attesa in silenzio, richiesta reale che mostra subito il catalogo, priorità di speech/ASR su nuove risposte, tool tardivi di risposte annullate e commenti scartati dopo un conflitto. Il VAD da 850 ms è condiviso fra creazione sessione Node/Sites e aggiornamenti client. Recupero ASR, mute, connessione e memoria restano coperti.

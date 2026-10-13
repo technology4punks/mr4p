@@ -1,3 +1,10 @@
+import {
+  cityRoutes,
+  cityParcels,
+  boulevardTrees,
+  corridorTrees,
+  interventionPosition,
+} from "./CityPlan.js";
 import * as THREE from "three";
 import { interventions, type Sector } from "../decision/catalog.js";
 import { deriveCity, type CityState } from "../decision/DecisionEngine.js";
@@ -41,6 +48,7 @@ export class CityTransformationEngine {
   readonly visualChannels: CityState["channels"] = {
     ...deriveCity([]).channels,
   };
+  private fades = new Map<THREE.Group, THREE.MeshStandardMaterial[]>();
   private targetMark: THREE.Mesh;
   private markTime = 0;
   constructor(layout: CityBuilding[]) {
@@ -76,9 +84,9 @@ export class CityTransformationEngine {
       g.add(mesh);
       return mesh;
     };
-    const tree = (g: THREE.Group, x: number, z: number) => {
+    const tree = (g: THREE.Group, x: number, z: number, radius = 0.9) => {
       box(g, [x, 1, z], [0.16, 2, 0.16], wood, this.cylinder);
-      box(g, [x, 2.6, z], [0.9, 1.3, 0.9], this.green, this.crown);
+      box(g, [x, 2.6, z], [radius, 1.3, radius], this.green, this.crown);
     };
     const sign = (
       g: THREE.Group,
@@ -142,9 +150,7 @@ export class CityTransformationEngine {
       g.add(v);
       this.movers.push({ mesh: v, id, index, type });
     };
-    const roofs = layout
-      .filter((b) => Math.abs(b.x) < 9 && b.layer === "near")
-      .slice(0, 5);
+    const roofs = layout.filter((b) => b.layer === "near").slice(0, 5);
     for (const option of interventions) {
       const g = new THREE.Group();
       g.name = option.id;
@@ -155,244 +161,233 @@ export class CityTransformationEngine {
       this.amounts.set(option.id, 0);
       g.visible = false;
       const id = option.id;
+      const parcel = cityParcels[id];
+      if (parcel) {
+        g.position.set(parcel.x, 0, parcel.z);
+        g.userData.parcel = { ...parcel };
+        // Each facility has its own lot; the existing street is never rebuilt over it.
+        box(
+          g,
+          [0, -0.035, 0],
+          [parcel.width - 0.15, 0.025, parcel.depth - 0.15],
+          stone,
+        );
+      }
       if (id === "MOB_BIKE") {
-        box(g, [0, 0.03, -7.8], [30, 0.035, 0.9], mat(0x4d877d));
-        for (let i = 0; i < 12; i++)
-          box(g, [-14 + i * 2.4, 0.1, -7.3], [0.12, 0.2, 0.12], white);
+        box(g, [0, -0.03, -9.8], [90, 0.025, 2.1], mat(0x4d877d));
+        for (let i = 0; i < 24; i++)
+          box(g, [-43 + i * 3.7, 0.08, -10.95], [0.1, 0.16, 0.1], white);
         g.add(this.cyclists.root);
         this.cyclists.materials.forEach((m) => this.materials.add(m));
       }
-      if (id === "MOB_TRAM") {
-        for (const z of [-8.9, -9.6])
-          box(g, [0, 0.06, z], [35, 0.05, 0.06], dark);
-        for (const x of [-6, 6]) {
-          box(g, [x, 1.7, -6.9], [3, 0.08, 1.2], solar);
-          for (const dx of [-1.3, 1.3])
-            box(g, [x + dx, 0.85, -6.9], [0.08, 1.7, 0.08], dark);
-          sign(g, "Tram", x, 1.4, -6.7);
-        }
-      }
+      // CityTransit owns the tracks, platform and shelter: never duplicate them.
+      if (id === "MOB_TRAM") g.userData.infrastructureOwner = "CityTransit";
       if (id === "MOB_SCOOTER") {
-        box(g, [5, 0.08, -7], [2, 0.15, 0.8], stone);
+        box(g, [20, 0.05, -21.4], [2, 0.1, 0.6], stone);
         for (let i = 0; i < 4; i++) vehicle(g, id, i, "scooter");
-        sign(g, "Mobilità condivisa", 5, 1.5, -7);
+        sign(g, "Mobilità condivisa", 20, 1.1, -21);
       }
       if (id === "GREEN_TREES")
-        for (let i = 0; i < 10; i++) tree(g, -13 + i * 2.7, -6.8);
+        for (const x of boulevardTrees) tree(g, x, cityRoutes.trees);
       if (id === "GREEN_PARK") {
-        box(g, [-4, 0.04, -16], [7, 0.12, 4.8], this.green);
-        for (let i = 0; i < 8; i++)
-          tree(g, -7 + (i % 4) * 1.8, -14.5 - Math.floor(i / 4) * 2);
-        box(g, [-4, 0.16, -16], [5, 0.04, 0.5], stone);
-        for (const x of [-5, -3])
-          box(g, [x, 0.5, -14.8], [1.2, 0.12, 0.45], wood);
-        sign(g, "Parco di quartiere", -3.5, 1.2, -13.6);
-      }
-      if (id === "GREEN_PARK") {
+        box(g, [0, 0.01, 0], [8.7, 0.05, 5.7], this.green);
+        for (const z of [-2, 2])
+          for (const x of [-3.1, -1.05, 1.05, 3.1]) tree(g, x, z, 0.75);
+        box(g, [0, 0.047, 0], [8.3, 0.02, 0.7], stone);
+        for (const x of [-2, 2])
+          box(g, [x, 0.45, 0.85], [1.2, 0.12, 0.45], wood);
+        sign(g, "Parco di quartiere", 0, 0.75, 2.8);
         g.traverse((o) => {
           if (
             o instanceof THREE.Mesh &&
             o.material === this.green &&
-            o.position.x < -4
+            o.position.x < 0
           )
             o.material = this.parkDry;
         });
       }
       if (
-        id === "GREEN_ROOFS" ||
-        id === "ENERGY_ROOFTOP" ||
-        id === "HEAT_REFLECT" ||
-        id === "WATER_RAIN"
+        [
+          "GREEN_ROOFS",
+          "ENERGY_ROOFTOP",
+          "HEAT_REFLECT",
+          "WATER_RAIN",
+        ].includes(id)
       )
         for (const b of roofs) {
-          const x =
-            b.x +
-            (id === "GREEN_ROOFS" ? -0.6 : id === "ENERGY_ROOFTOP" ? 0.65 : 0);
-          const m =
-            id === "GREEN_ROOFS"
-              ? this.green
-              : id === "ENERGY_ROOFTOP"
-                ? solar
-                : id === "HEAT_REFLECT"
-                  ? white
-                  : water;
-          box(
-            g,
-            [x, b.height + 0.18, b.z],
-            [
-              id === "WATER_RAIN" ? 0.8 : 1.1,
-              id === "WATER_RAIN" ? 0.6 : 0.18,
-              b.depth * 0.55,
-            ],
-            m,
-            id === "WATER_RAIN" ? this.cylinder : this.cube,
-          );
-        }
-      if (id === "ENERGY_SOLAR_FARM")
-        for (let i = 0; i < 24; i++) {
-          const mesh = box(
-            g,
-            [4 + (i % 6) * 1.4, 0.8, -33 - Math.floor(i / 6) * 1.9],
-            [1.1, 0.12, 1.4],
-            solar,
-          );
-          mesh.rotation.x = -0.25;
-        }
-      if (id === "ENERGY_COMMUNITY") {
-        for (const x of [-6, 0, 6]) {
-          box(g, [x, 0.75, -23], [1.2, 1.5, 1], white);
-          box(g, [x, 1.6, -23], [1.4, 0.1, 1.2], solar);
-        }
-        for (let i = 0; i < 12; i++)
-          box(g, [-6 + i, 0.12, -22], [0.35, 0.025, 0.05], mat(0x8bb19c));
-        sign(g, "Energia condivisa e accumulo", 0, 2, -22.5);
-      }
-      if (
-        id === "BUILD_RETROFIT" ||
-        id === "BUILD_PASSIVE" ||
-        id === "BUILD_NEW"
-      )
-        for (const b of roofs.slice(0, 3)) {
-          if (id === "BUILD_NEW") {
+          if (id === "HEAT_REFLECT")
             box(
               g,
-              [b.x, b.height / 2, b.z],
-              [b.width + 0.15, b.height + 0.3, b.depth + 0.15],
+              [b.x, b.height + 0.161, b.z],
+              [b.width - 0.4, 0.02, b.depth - 0.4],
               white,
             );
+          if (id === "GREEN_ROOFS")
             box(
               g,
-              [b.x, b.height * 0.5, b.z + b.depth / 2 + 0.1],
-              [b.width * 0.8, b.height * 0.6, 0.08],
-              glass,
+              [b.x - 1, b.height + 0.25, b.z - 0.9],
+              [1.5, 0.12, 2],
+              this.green,
             );
-          } else
-            for (let k = 0; k < 4; k++) {
-              box(
-                g,
-                [b.x, b.height * (0.25 + k * 0.16), b.z + b.depth / 2 + 0.16],
-                [
-                  b.width * 0.9,
-                  id === "BUILD_PASSIVE" ? 0.08 : 0.4,
-                  id === "BUILD_PASSIVE" ? 0.65 : 0.13,
-                ],
-                id === "BUILD_PASSIVE" ? wood : white,
-              );
-            }
+          if (id === "ENERGY_ROOFTOP")
+            box(
+              g,
+              [b.x + 1.05, b.height + 0.25, b.z - 0.9],
+              [1.4, 0.1, 1.8],
+              solar,
+            );
+          if (id === "WATER_RAIN")
+            box(
+              g,
+              [b.x + 1.05, b.height + 0.52, b.z + 1.4],
+              [0.8, 0.6, 0.8],
+              water,
+              this.cylinder,
+            );
+        }
+      if (id === "ENERGY_SOLAR_FARM") {
+        for (let row = 0; row < 4; row++)
+          for (let col = 0; col < 3; col++) {
+            const x = (col - 1) * 1.9,
+              z = (row - 1.5) * 2.25;
+            box(g, [x, 0.35, z], [0.09, 0.7, 0.09], dark);
+            box(g, [x, 0.77, z], [1.55, 0.12, 1.8], solar).rotation.x = -0.2;
+          }
+        sign(g, "Campo fotovoltaico", 0, 0.6, 4.7);
+      }
+      if (id === "ENERGY_COMMUNITY") {
+        for (const x of [-1.5, 0, 1.5]) {
+          box(g, [x, 0.65, 0], [0.8, 1.3, 0.75], white);
+          box(g, [x, 1.35, 0], [1, 0.07, 1], solar);
+        }
+        sign(g, "Energia condivisa", 0, 1.8, 1.8);
+      }
+      if (id === "BUILD_NEW") {
+        building(g, "Nuovi edifici efficienti", 0, 0, 4.2);
+        for (const x of [-2.6, 2.6])
+          box(g, [x, 0.18, 0], [0.55, 0.3, 2], this.green);
+      }
+      if (id === "BUILD_RETROFIT" || id === "BUILD_PASSIVE")
+        for (const b of roofs.slice(0, 3)) {
+          for (let k = 0; k < 4; k++)
+            box(
+              g,
+              [
+                b.x,
+                b.height * (0.25 + k * 0.16),
+                b.z + b.depth / 2 + (id === "BUILD_PASSIVE" ? 0.55 : 0.13),
+              ],
+              [
+                b.width * 0.9,
+                id === "BUILD_PASSIVE" ? 0.08 : 0.4,
+                id === "BUILD_PASSIVE" ? 0.55 : 0.13,
+              ],
+              id === "BUILD_PASSIVE" ? wood : white,
+            );
         }
       if (id === "WATER_LEAKS") {
-        for (let i = 0; i < 4; i++)
-          box(g, [-3 + i * 1.1, 0.15, -12], [0.8, 0.28, 0.6], water);
-        sign(g, "Rete idrica riparata", -1, 1, -12);
+        for (const x of [-14, -7, 0])
+          box(g, [x, -0.065, -19.35], [0.6, 0.025, 0.5], water);
+        sign(g, "Rete idrica riparata", -17, 0.8, -21);
       }
       if (id === "WATER_REUSE") {
-        building(g, "Acqua trattata", -8, -20, 1.6);
-        for (const x of [-9, -7])
-          box(g, [x, 0.8, -18.5], [1.1, 1.4, 1.1], water, this.cylinder);
-        for (let i = 0; i < 6; i++)
-          box(g, [-8 + i * 0.7, 0.1, -16], [0.55, 0.08, 0.08], water);
+        building(g, "Acqua trattata", -1.4, 0, 1.6);
+        for (const z of [-1.3, 1.3])
+          box(g, [1.6, 0.7, z], [1.1, 1.4, 1.1], water, this.cylinder);
       }
       if (id === "HEAT_SHADE")
-        for (const x of [-10, -2, 7]) {
-          box(g, [x, 2.1, -6.7], [3.5, 0.15, 1.7], white);
+        for (const x of [-22, 22]) {
+          box(g, [x, 2.1, cityRoutes.trees], [3.4, 0.12, 1], white);
           for (const dx of [-1.5, 1.5])
-            box(g, [x + dx, 1, -6.7], [0.08, 2, 0.08], dark);
+            box(g, [x + dx, 1, cityRoutes.trees], [0.08, 2, 0.08], dark);
         }
       if (id === "HEAT_DISTRICT") {
-        building(g, "Raffrescamento", 8, -27, 1.8);
-        for (let i = 0; i < 3; i++)
-          box(g, [6.8 + i, 2, -27], [0.6, 0.35, 0.6], dark, this.cylinder);
-        for (let i = 0; i < 6; i++)
-          box(g, [5 + i * 0.8, 0.13, -25], [0.5, 0.04, 0.08], water);
+        building(g, "Raffrescamento", 0, -0.5, 1.8);
+        for (const x of [-0.8, 0, 0.8])
+          box(g, [x, 2, -0.5], [0.6, 0.35, 0.6], dark, this.cylinder);
       }
       if (id === "WASTE_REUSE") {
-        building(g, "Riparazione e riuso", 4, -20);
-        for (let i = 0; i < 5; i++)
-          box(g, [3 + i * 0.45, 0.55, -18.7], [0.35, 0.35, 0.5], wood);
+        building(g, "Riparazione e riuso", 0, -0.4);
+        for (const x of [-1, 0, 1])
+          box(g, [x, 0.3, 1.5], [0.4, 0.5, 0.45], wood);
       }
       if (id === "WASTE_RECYCLE") {
-        building(g, "Recupero materiali", 10, -26);
+        building(g, "Recupero materiali", 0, -0.4, 2.6);
         for (let i = 0; i < 4; i++)
           box(
             g,
-            [8.6 + i, 0.5, -24.5],
-            [0.7, 1, 0.7],
+            [-1.5 + i, 0.5, 1.7],
+            [0.65, 1, 0.65],
             mat([0x668f91, 0xc3ad6d, 0x9392aa, 0x8b9c68][i]),
           );
       }
       if (id === "WASTE_ENERGY") {
-        building(g, "Trattamento del residuo", 11, -32, 3);
-        box(g, [12, 3.2, -32], [0.4, 4, 0.4], stone, this.cylinder);
-        sign(g, "Emissioni da controllare", 10, 2, -30.5);
+        building(g, "Trattamento del residuo", 0, 0, 3);
+        box(g, [2, 2.5, -1], [0.4, 5, 0.4], stone, this.cylinder);
+        sign(g, "Emissioni da controllare", 2, 1.3, 1.6);
       }
       if (id === "LOG_CARGO")
         for (let i = 0; i < 4; i++) vehicle(g, id, i, "cargo");
       if (id === "LOG_EV") {
         for (let i = 0; i < 3; i++) vehicle(g, id, i, "van");
-        for (let i = 0; i < 3; i++)
-          box(g, [9 + i * 0.8, 1, -19], [0.25, 1.5, 0.25], water);
+        for (const x of [17.5, 19, 20.5])
+          box(g, [x, 0.75, -21.4], [0.25, 1.5, 0.25], water);
       }
       if (id === "LOG_HUB") {
-        building(g, "Microhub di quartiere", 7, -17, 1.8);
-        box(g, [7, 0.05, -14.8], [4, 0.04, 1.8], mat(0x99a493));
+        building(g, "Microhub di quartiere", 0, -0.3, 1.8);
+        box(g, [0, 0.01, 2], [5, 0.025, 1.2], mat(0x99a493));
       }
       if (id === "BIO_RIVER") {
-        box(g, [-5, 0.08, -13], [12, 0.12, 1.2], water);
-        for (let i = 0; i < 8; i++)
+        box(g, [-9, -0.01, -30], [14, 0.08, 0.8], water);
+        for (let i = 0; i < 7; i++)
           box(
             g,
-            [-10 + i * 1.5, 0.28, -13.9],
-            [0.7, 0.5, 0.6],
+            [-15 + i * 2, 0.2, -30.75],
+            [0.6, 0.4, 0.5],
             this.green,
             this.crown,
           );
       }
       if (id === "BIO_CORRIDORS") {
-        for (let i = 0; i < 10; i++) tree(g, -7 + i * 0.75, -18 - i * 0.7);
-        box(g, [-3, 0.05, -21], [1.3, 0.1, 8], this.green);
+        for (const z of corridorTrees) tree(g, -0.8, z, 0.65);
+        for (const [z, depth] of [
+          [-26.5, 5],
+          [-46, 23],
+        ])
+          box(g, [-0.8, 0.005, z], [1.2, 0.04, depth], this.green);
       }
       if (id === "BIO_POLLINATORS")
-        for (let i = 0; i < 25; i++) {
-          const x = -2 + (i % 5) * 0.55,
-            z = -14 - Math.floor(i / 5) * 0.6;
-          box(g, [x, 0.14, z], [0.45, 0.2, 0.4], this.green);
-          box(
-            g,
-            [x, 0.33, z],
-            [0.15, 0.16, 0.15],
-            mat(i % 2 ? 0xcfbe7a : 0xa995b1),
-            this.crown,
-          );
-        }
+        for (let row = 0; row < 4; row++)
+          for (let col = 0; col < 3; col++) {
+            const x = (col - 1) * 0.65,
+              z = (row - 1.5) * 1.05;
+            box(g, [x, 0.12, z], [0.5, 0.2, 0.7], this.green);
+            box(
+              g,
+              [x, 0.3, z],
+              [0.15, 0.16, 0.15],
+              mat((row + col) % 2 ? 0xcfbe7a : 0xa995b1),
+              this.crown,
+            );
+          }
       if (id === "FOOD_GARDENS") {
-        for (let i = 0; i < 10; i++) {
-          box(
-            g,
-            [-9 + (i % 5) * 0.8, 0.17, -28 - Math.floor(i / 5) * 1.3],
-            [0.65, 0.3, 1],
-            wood,
-          );
-          box(
-            g,
-            [-9 + (i % 5) * 0.8, 0.4, -28 - Math.floor(i / 5) * 1.3],
-            [0.4, 0.3, 0.8],
-            this.green,
-          );
-        }
-        sign(g, "Orti condivisi", -7, 1.2, -26);
+        for (const z of [-1.6, 1.6])
+          for (const x of [-2.4, 0, 2.4]) {
+            box(g, [x, 0.16, z], [1.5, 0.3, 2], wood);
+            box(g, [x, 0.4, z], [1.2, 0.3, 1.7], this.green);
+          }
+        sign(g, "Orti condivisi", 0, 0.8, 3.2);
       }
       if (id === "FOOD_VERTICAL") {
-        building(g, "Serra indoor", 7, -31, 6);
-        for (let i = 0; i < 6; i++)
-          box(g, [7, 1 + i * 0.8, -29.83], [2.7, 0.15, 0.06], this.green);
-        glass.emissive.set(0x19382c);
-        glass.emissiveIntensity = 0.12;
+        building(g, "Serra indoor", 0, -0.6, 5);
+        for (let i = 0; i < 5; i++)
+          box(g, [0, 1 + i * 0.8, 0.55], [2.7, 0.15, 0.05], this.green);
       }
       if (id === "FOOD_RECOVERY") {
-        building(g, "Recupero eccedenze", 2, -18, 1.7);
-        for (let i = 0; i < 4; i++) {
-          box(g, [-0.2 + i * 1.1, 1.5, -16], [0.9, 0.15, 1], white);
-          box(g, [-0.2 + i * 1.1, 0.6, -16], [0.9, 0.8, 0.6], wood);
+        building(g, "Recupero eccedenze", 0, -0.4, 1.7);
+        for (const x of [-2, 0, 2]) {
+          box(g, [x, 1.6, 1.7], [1.4, 0.1, 1.2], white);
+          box(g, [x, 0.4, 1.7], [1.1, 0.8, 0.6], wood);
         }
       }
     }
@@ -410,55 +405,93 @@ export class CityTransformationEngine {
     for (const id of ["R01", "R03", "R06", "R08", "R09", "R10", "R11"]) {
       const g = relation(id);
       if (id === "R01")
-        for (let i = 0; i < 8; i++)
-          box(g, [-8 + i * 0.6, 0.12, -17], [0.5, 0.08, 0.1], water);
+        for (let i = 0; i < 5; i++)
+          box(g, [-17 + i * 0.55, 0.08, -25], [0.48, 0.06, 0.08], water);
       if (id === "R03") {
-        box(g, [0, 3.1, -9.3], [28, 0.025, 0.025], dark);
-        for (const x of [-12, 0, 12])
-          box(g, [x, 1.6, -9.3], [0.08, 3.2, 0.08], dark);
-        sign(g, "Contributo rinnovabile · rete", 6, 2.4, -9.3);
+        box(g, [0, 3.1, cityRoutes.tram], [85, 0.025, 0.025], dark);
+        // Offset poles from tram vehicles and platform, shared cable on top.
+        for (const x of [-24, 0, 24])
+          box(g, [x, 1.55, cityRoutes.tram - 0.95], [0.065, 3.1, 0.065], dark);
+        sign(
+          g,
+          "Rete · contributo rinnovabile",
+          24,
+          2.5,
+          cityRoutes.tram - 0.95,
+        );
       }
       if (id === "R06")
-        for (let i = 0; i < 6; i++)
+        for (let i = 0; i < 4; i++)
           box(
             g,
-            [-5 + i * 0.6, 0.18, -18.6],
-            [0.9, 0.3, 0.8],
+            [-5 + i * 0.9, 0.16, -29],
+            [0.65, 0.3, 0.55],
             this.green,
             this.crown,
           );
       if (id === "R08") {
-        // The farm occupies x=4..12, z=-33..-40. A visible habitat strip
-        // runs along its western edge rather than cutting through the panels.
-        box(g, [2.5, 0.06, -33], [1.05, 0.12, 14], this.green);
-        box(g, [0.5, 0.06, -26.5], [4.5, 0.12, 1], this.green);
-        for (let i = 0; i < 7; i++) tree(g, 2.4, -27 - i * 2);
+        box(g, [0.45, 0.005, -53], [0.65, 0.04, 10], this.green);
+        for (const z of [-48.5, -51, -53.5, -56]) tree(g, 0.45, z, 0.4);
       }
-      if (id === "R09") {
-        for (let i = 0; i < 6; i++)
-          box(g, [6.5, 0.13, -24 - i], [0.12, 0.06, 0.8], solar);
-        sign(g, "Serra · domanda elettrica", 7, 1.5, -29.7);
-      }
-      if (id === "R10") {
-        for (let i = 0; i < 5; i++)
-          box(g, [8, 0.14, -22 - i], [0.1, 0.07, 0.7], solar);
-        sign(g, "Raffrescamento · domanda elettrica", 8, 1, -25.6);
+      if (id === "R09" || id === "R10") {
+        const end = id === "R09" ? -51 : -39;
+        for (let z = -27; z >= end; z -= 1.4)
+          box(g, [15.5, 0.035, z], [0.09, 0.04, 1.1], solar);
+        const p = cityParcels[id === "R09" ? "FOOD_VERTICAL" : "HEAT_DISTRICT"];
+        sign(
+          g,
+          id === "R09"
+            ? "Serra · domanda elettrica"
+            : "Raffrescamento · domanda elettrica",
+          p.x,
+          1,
+          p.z + 2.9,
+        );
       }
       if (id === "R11") {
-        for (const b of roofs.slice(0, 3))
-          box(
-            g,
-            [b.x, b.height * 0.25, b.z + b.depth / 2 + 0.25],
-            [b.width * 0.9, 0.35, 0.2],
-            wood,
-          );
-        sign(g, "Materiali recuperati · idoneità da verificare", 3, 1.5, -21);
+        const p = cityParcels.BUILD_NEW;
+        box(g, [p.x, 1.05, p.z + 1.24], [2.7, 0.3, 0.12], wood);
+        sign(g, "Materiali recuperati · idoneità", p.x, 0.6, p.z + 2.7);
       }
     }
     for (const g of [
       ...this.layers.values(),
       ...this.relationLayers.values(),
     ]) {
+      // Existing facades/roofs and overhead infrastructure stay at their real
+      // elevation throughout the reveal; scaling world Y would pass through them.
+      if (
+        [
+          "GREEN_ROOFS",
+          "ENERGY_ROOFTOP",
+          "WATER_RAIN",
+          "HEAT_REFLECT",
+          "BUILD_RETROFIT",
+          "BUILD_PASSIVE",
+          "R03",
+        ].includes(g.name)
+      ) {
+        const clones = new Map<
+          THREE.MeshStandardMaterial,
+          THREE.MeshStandardMaterial
+        >();
+        g.traverse((object) => {
+          if (
+            !(object instanceof THREE.Mesh) ||
+            !(object.material instanceof THREE.MeshStandardMaterial)
+          )
+            return;
+          const original = object.material;
+          let clone = clones.get(original);
+          if (!clone) {
+            clone = original.clone();
+            clones.set(original, clone);
+            this.materials.add(clone);
+          }
+          object.material = clone;
+        });
+        this.fades.set(g, [...clones.values()]);
+      }
       const batches = new Map<string, THREE.Mesh[]>();
       for (const child of g.children) {
         if (
@@ -506,10 +539,8 @@ export class CityTransformationEngine {
     this.markTime = time;
     const id = state.active.find((id) => (this.amounts.get(id) ?? 0) < 0.9);
     if (id) {
-      this.targetMark.position.fromArray(
-        sectorPositions[interventions.find((o) => o.id === id)!.sector],
-      );
-      this.targetMark.position.y = 0.15;
+      this.targetMark.position.fromArray(interventionPosition(id));
+      this.targetMark.position.y += 0.15;
     }
     this.update(time);
   }
@@ -521,8 +552,7 @@ export class CityTransformationEngine {
       const target = this.state.active.includes(id) ? 1 : 0,
         amount = THREE.MathUtils.lerp(this.starts.get(id) ?? 0, target, t);
       this.amounts.set(id, amount);
-      g.visible = amount > 0.002;
-      g.scale.y = Math.max(0.001, amount);
+      this.reveal(g, amount);
     }
     for (const channel of Object.keys(
       this.visualChannels,
@@ -539,8 +569,7 @@ export class CityTransformationEngine {
         t,
       );
       this.relationAmounts.set(id, amount);
-      g.visible = amount > 0.002;
-      g.scale.y = Math.max(0.001, amount);
+      this.reveal(g, amount);
     }
     this.green.color.lerp(
       new THREE.Color(this.state.flags.includes("R01") ? 0x638458 : 0x70875b),
@@ -550,8 +579,7 @@ export class CityTransformationEngine {
       new THREE.Color(this.state.flags.includes("R02") ? 0x9b9870 : 0x638458),
       t,
     );
-    const corridor = this.layers.get("BIO_CORRIDORS")!;
-    corridor.position.x = this.state.flags.includes("R08") ? -1.8 : 0;
+    // Habitat uses reserved strips; never move a planted corridor across houses.
     for (const mover of this.movers) {
       const seconds = time / 1000;
       const cargo = mover.type === "cargo",
@@ -560,15 +588,38 @@ export class CityTransformationEngine {
       mover.mesh.position.set(
         ((seconds * (cargo ? 1.8 : 2.1) + mover.index * 8) % 28) - 14,
         0,
-        bike ? -7.8 : hub ? -14.7 : mover.type === "van" ? -10.9 : -7,
+        mover.type === "van"
+          ? cityRoutes.delivery
+          : mover.type === "scooter"
+            ? cityRoutes.scooter
+            : bike
+              ? cityRoutes.cargoCycle
+              : cityRoutes.cargoService,
       );
       if (hub)
-        mover.mesh.position.x = 7 - ((seconds * 1.5 + mover.index * 3) % 15);
+        mover.mesh.position.x = 27 - ((seconds * 1.5 + mover.index * 3) % 14);
     }
     if (this.layers.get("MOB_BIKE")!.visible) this.cyclists.update(time);
     this.targetMark.visible =
       time - this.markTime < 2200 && this.state.active.length > 0;
-    this.targetMark.scale.setScalar(1 + (time - this.markTime) / 1500);
+    this.targetMark.scale.setScalar(
+      0.6 + 0.08 * Math.sin((time - this.markTime) / 350),
+    );
+  }
+  private reveal(g: THREE.Group, amount: number) {
+    g.visible = amount > 0.002;
+    const fading = this.fades.get(g);
+    g.scale.y = fading ? 1 : Math.max(0.001, amount);
+    fading?.forEach((material) => {
+      material.userData.interventionOpacity = amount;
+      material.opacity = amount * (material.userData.sceneOpacity ?? 1);
+      const transparent = material.opacity < 0.999;
+      if (material.transparent !== transparent) {
+        material.transparent = transparent;
+        material.needsUpdate = true;
+      }
+      material.depthWrite = material.opacity > 0.98;
+    });
   }
   shiftTime(delta: number) {
     this.startedAt += delta;

@@ -1,3 +1,4 @@
+import { cityRoutes } from "./CityPlan";
 import * as THREE from "three";
 import { CycleTraffic } from "./CycleTraffic";
 import { UrbanLife } from "./UrbanLife";
@@ -27,8 +28,8 @@ export class EnvironmentalDistrict {
     this.sustainable.name = "Sustainable infrastructure";
     this.root.add(this.critical, this.sustainable, this.activity.root);
     this.sustainable.add(this.cyclists.root);
-    this.cyclists.materials.forEach(m => this.materials.add(m));
-    this.activity.materials.forEach(m => this.materials.add(m));
+    this.cyclists.materials.forEach((m) => this.materials.add(m));
+    this.activity.materials.forEach((m) => this.materials.add(m));
     const material = (color: number, roughness = 0.8, metalness = 0) => {
       const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
       this.materials.add(m);
@@ -110,7 +111,14 @@ export class EnvironmentalDistrict {
       "Industrial chimneys",
       new THREE.CylinderGeometry(0.45, 0.65, 1, 8),
       rust,
-      [-13, 3, 16].map((x, i) => [x, 3.75 + i * .6, -28 - i * 2, 1, 7.5 + i * 1.2, 1]),
+      [-30, 30, 39].map((x, i) => [
+        x,
+        3.75 + i * 0.6,
+        -68 - i * 2,
+        1,
+        7.5 + i * 1.2,
+        1,
+      ]),
     );
     const soot = new THREE.MeshBasicMaterial({
       color: 0x342e2a,
@@ -129,7 +137,7 @@ export class EnvironmentalDistrict {
     // A dry channel becomes a retained-water garden without changing geometry.
     this.water = material(0x866543, 0.97);
     batch(this.root, "Water recovery channel", box, this.water, [
-      [0, -0.02, -5.1, 55, 0.045, 0.65],
+      [0, -0.02, -4.8, 55, 0.045, 0.65],
     ]);
     const green = material(0x54793d),
       metal = material(0xbfc9c8, 0.3, 0.65);
@@ -251,11 +259,20 @@ export class EnvironmentalDistrict {
     );
     this.vehicles[0].userData.powertrain = "electric in sustainable future";
     for (const mesh of this.vehicles) {
-      mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, -10), 43);
+      mesh.boundingSphere = new THREE.Sphere(
+        new THREE.Vector3(0, 0.5, -16),
+        50,
+      );
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     }
-    this.smoke.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 15, -30), 22);
-    this.blades.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 9, -36), 19);
+    this.smoke.boundingSphere = new THREE.Sphere(
+      new THREE.Vector3(4, 15, -70),
+      55,
+    );
+    this.blades.boundingSphere = new THREE.Sphere(
+      new THREE.Vector3(0, 9, -36),
+      19,
+    );
     for (const group of [this.critical, this.sustainable])
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) {
@@ -284,10 +301,10 @@ export class EnvironmentalDistrict {
     this.time = -Infinity;
   }
   setTraffic(amount: number) {
-    this.future=Math.min(.6,Math.max(0,amount));
-    this.activity.setFuture(Math.min(.45,amount));
-    this.critical.visible=true;
-    this.sustainable.visible=false;
+    this.future = Math.min(0.6, Math.max(0, amount));
+    this.activity.setFuture(Math.min(0.45, amount));
+    this.critical.visible = true;
+    this.sustainable.visible = false;
   }
   update(time: number) {
     // Foreground vehicles track each rendered frame; only distant smoke/rotors
@@ -295,7 +312,9 @@ export class EnvironmentalDistrict {
     if (Number.isFinite(this.trafficTime) && time >= this.trafficTime) {
       const seconds = time / 1000;
       const criticalSpeed = 0.62 + Math.cos(seconds * 0.9) * 0.38;
-      this.trafficDistance += Math.min(0.1, (time - this.trafficTime) / 1000) * THREE.MathUtils.lerp(criticalSpeed, 2.3, this.future);
+      this.trafficDistance +=
+        Math.min(0.1, (time - this.trafficTime) / 1000) *
+        THREE.MathUtils.lerp(criticalSpeed, 2.3, this.future);
     }
     this.trafficTime = time;
     this.activity.update(time);
@@ -306,8 +325,10 @@ export class EnvironmentalDistrict {
       // gaps. Fading extra traffic never moves two cars into the same slot.
       const lane = i % 2;
       const slot = i < 8 ? Math.floor(i / 2) : Math.floor((i - 8) / 2) + 0.5;
-      const x = (((this.trafficDistance + slot * 14 + (lane ? 32 : 28)) % 56) - 28) * (lane ? -1 : 1);
-      const z = lane ? -11.05 : -9.95;
+      const x =
+        (((this.trafficDistance + slot * 14 + (lane ? 32 : 28)) % 56) - 28) *
+        (lane ? -1 : 1);
+      const z = cityRoutes.cars[lane];
       this.dummy.position.set(x, 0.17, z);
       this.dummy.rotation.set(0, lane ? Math.PI : 0, 0);
       this.dummy.scale.setScalar(visible);
@@ -337,9 +358,9 @@ export class EnvironmentalDistrict {
         drift = (time / 2800 + puff * (18 / this.smoke.count)) % 6;
       const envelope = Math.min(1, drift * 2, (6 - drift) * 1.5);
       this.dummy.position.set(
-        [-13, 3, 16][stack] + drift * 0.38,
+        [-30, 30, 39][stack] + drift * 0.38,
         7.5 + stack * 1.2 + drift * 0.65,
-        -28 - stack * 2,
+        -68 - stack * 2,
       );
       this.dummy.rotation.set(0, 0, 0);
       this.dummy.scale.set(

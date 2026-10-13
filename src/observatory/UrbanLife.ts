@@ -1,3 +1,4 @@
+import { cityRoutes } from "./CityPlan";
 import * as THREE from "three";
 
 /** Authored street activity, with no camera motion or per-frame allocations. */
@@ -9,6 +10,7 @@ export class UrbanLife {
   private dummy = new THREE.Object3D();
   private lastTime = -Infinity;
   private future = 0;
+  private distance = 0;
   private low = false;
   constructor(readonly theme: "environmental" = "environmental") {
     this.root.name = `${theme} street activity`;
@@ -28,7 +30,7 @@ export class UrbanLife {
       mesh.name = name;
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       // Routes stay inside this street envelope, including limb/vehicle extents.
-      mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, -9), 35);
+      mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, -5.9), 52);
       parent.add(mesh);
       return mesh;
     };
@@ -81,13 +83,12 @@ export class UrbanLife {
       this.warning,
     );
     beacon.name = "Degraded infrastructure warning light";
-    beacon.position.set(-10.5, 2.3, -7.6);
+    beacon.position.set(-26, 2.3, cityRoutes.trees);
     this.root.add(beacon);
     this.update(0);
   }
   setFuture(value: number) {
     this.future = value;
-    this.lastTime = -Infinity;
   }
   setQuality(low: boolean) {
     this.low = low;
@@ -95,6 +96,10 @@ export class UrbanLife {
   }
   update(time: number) {
     if (time >= this.lastTime && time - this.lastTime < 33) return;
+    const delta = Number.isFinite(this.lastTime)
+      ? THREE.MathUtils.clamp((time - this.lastTime) / 1000, 0, 0.1)
+      : 0;
+    this.distance = (this.distance + delta * (0.65 + this.future * 0.3)) % 84;
     this.lastTime = time;
     const seconds = time / 1000,
       f = this.future;
@@ -102,36 +107,24 @@ export class UrbanLife {
     for (let i = 0; i < this.people.length; i++)
       this.people[i].count = i < 2 ? count : count * 2;
     for (let i = 0; i < count; i++) {
-      // Routes and walkers remain active from the critical city onward.
-      const phase = seconds * (0.25 + (i % 3) * 0.025) + i * 1.7;
-      const wave = Math.sin(phase),
-        direction = Math.cos(phase);
-      const criticalX = ((i % 4) - 1.5) * 5.5 + wave * 0.8;
-      const stationary = i >= 8;
-      const goodX = stationary ? -6.5 + (i - 8) * 0.65 : wave * 8;
-      const x = THREE.MathUtils.lerp(criticalX, goodX, f);
-      const z = -6.65 - ((f * i) % 2) * 0.2;
-      const scale = i < 4 ? 1 : Math.max(0.001, f);
-      const yaw =
-        stationary && f > 0.5
-          ? i % 2
-            ? -Math.PI / 2
-            : Math.PI / 2
-          : direction > 0
-            ? Math.PI / 2
-            : -Math.PI / 2;
-      const stride =
-        Math.sin(seconds * 4 + i) *
-        0.24 *
-        Math.abs(direction) *
-        (stationary ? 1 - f : 1);
+      // Two one-way footpaths with fixed headway. Future changes never move
+      // a resident sideways into trees, shelters, bikes or another resident.
+      const direction = i % 2 ? -1 : 1;
+      const x =
+        direction * (((this.distance + Math.floor(i / 2) * 14 + 42) % 84) - 42);
+      const z = cityRoutes.pedestrian[i % 2];
+      const scale = 1,
+        stationary = false;
+      const yaw = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
+      const stride = Math.sin(seconds * 4 + i) * 0.2;
       for (let part = 0; part < 4; part++) {
         const pieces = part < 2 ? 1 : 2;
         for (let side = 0; side < pieces; side++) {
           const lateral = (side ? 1 : -1) * (part === 3 ? 0.2 : 0.08);
           this.dummy.position.set(
             x + (part < 2 ? 0 : Math.cos(yaw) * lateral),
-            part === 0 ? 1.02 : part === 1 ? 1.5 : part === 2 ? 0.35 : 1.05,
+            (part === 0 ? 1.02 : part === 1 ? 1.5 : part === 2 ? 0.35 : 1.05) -
+              0.07,
             z - (part < 2 ? 0 : Math.sin(yaw) * lateral),
           );
           const gesture =

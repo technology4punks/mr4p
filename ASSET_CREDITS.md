@@ -45,3 +45,7 @@ I quattro GLB Kenney in `public/scenarios/kenney/` sono **CC0**, autore Kenney; 
 “Rigged robot” di **joney_lol**, via [Poly Pizza](https://poly.pizza/m/BwjA6Thdzd), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), resta un candidato umanoide opzionale in `public/models/humanoid/`, con attribuzione, checksum, modifiche e licenza. Non è caricato automaticamente e non sostituisce RobotExpressive. [Valutazione tecnica](docs/HUMANOID_CANDIDATE.md).
 
 Non sono stati scaricati nuovi asset esterni per la V4: avatar e materiali/modello/HDRI Poly Haven già verificati sono riutilizzati. Le texture 1k sono JPEG e l’HDRI è 1k; non si dichiara compressione GPU KTX2 o Draco che non è stata applicata.
+
+## Riordino spaziale · 13 ottobre 2026
+
+Nessun asset esterno aggiunto. Pianta, lotti e percorsi sono originali e deterministici; le geometrie instanziate, i materiali PBR e gli asset locali già attribuiti sono riutilizzati. [Documentazione della pianta](docs/CITY_LAYOUT.md).
