@@ -1,0 +1,101 @@
+{
+  "license_url": "https://polyhaven.com/license",
+  "files": [
+    {
+      "asset": "wood_floor_deck",
+      "file": "wood_floor_deck/diff.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_diff_1k.jpg",
+      "bytes": 925789,
+      "sha256": "1f2c623e87b0ee905f6f4ec8664dd19b4b135207c96e86198ff2919770b47166",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "wood_floor_deck",
+      "file": "wood_floor_deck/normal.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_nor_gl_1k.jpg",
+      "bytes": 665094,
+      "sha256": "2fa427b9196099c0ff72d1a1ab472e2a79ca2a76906a5c46d134f8a86e086d23",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "wood_floor_deck",
+      "file": "wood_floor_deck/rough.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_rough_1k.jpg",
+      "bytes": 658448,
+      "sha256": "5754d2c2a91a288bb257e0fa8c697d97b48472c9fb77c4c7f0ffcc302f3f60a2",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "concrete_floor_02",
+      "file": "concrete_floor_02/diff.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_diff_1k.jpg",
+      "bytes": 776097,
+      "sha256": "6db84a6d87dc50508b9d134d6fbd2b7e876b8081a5f43a118a249ca18de73af5",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "concrete_floor_02",
+      "file": "concrete_floor_02/normal.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_nor_gl_1k.jpg",
+      "bytes": 192757,
+      "sha256": "fcda391b57a816d646ae15544688be53790478da5cd48dbe514b3c6901415e61",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "concrete_floor_02",
+      "file": "concrete_floor_02/rough.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_rough_1k.jpg",
+      "bytes": 318550,
+      "sha256": "c7f026a611b7859903c61ec7fd4574944157223e9e7796413dd6e2a66eaeac7a",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "modern_coffee_table_01",
+      "file": "modern_coffee_table_01/table.gltf",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/modern_coffee_table_01/modern_coffee_table_01_1k.gltf",
+      "bytes": 2771,
+      "sha256": "a35d811da4c174d0c888f23353dda21501763dbf5505c66f57fef4b3f613e50c",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "modern_coffee_table_01",
+      "file": "modern_coffee_table_01/modern_coffee_table_01.bin",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/modern_coffee_table_01/modern_coffee_table_01.bin",
+      "bytes": 154864,
+      "sha256": "b8fe0d49041b879a5d5962685a39e3daf009679f7b6a88ced1347e6dc6c0851e",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "modern_coffee_table_01",
+      "file": "modern_coffee_table_01/textures/modern_coffee_table_01_rough_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/modern_coffee_table_01/modern_coffee_table_01_rough_1k.jpg",
+      "bytes": 403959,
+      "sha256": "8013b48b0ebb845907f840afcae9cbc915a5205ac82ed99cbba31771febacb0f",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "modern_coffee_table_01",
+      "file": "modern_coffee_table_01/textures/modern_coffee_table_01_diff_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/modern_coffee_table_01/modern_coffee_table_01_diff_1k.jpg",
+      "bytes": 410569,
+      "sha256": "069b89dd3ef03ddcbb7b2e6a124b1903aa7848394509121aa19f87bd0ef0218c",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "modern_coffee_table_01",
+      "file": "modern_coffee_table_01/textures/modern_coffee_table_01_nor_gl_1k.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/modern_coffee_table_01/modern_coffee_table_01_nor_gl_1k.jpg",
+      "bytes": 359134,
+      "sha256": "43e0d317d0f8418b130c0058c645225ee83b808b1dc0e5e7236bead3bdd77139",
+      "license": "CC0-1.0"
+    },
+    {
+      "asset": "venice_sunset",
+      "file": "venice_sunset_1k.hdr",
+      "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/venice_sunset_1k.hdr",
+      "bytes": 1440400,
+      "sha256": "92fe2b29b1957828fb8925a57633540bbba5bf380d9285ed553443e834249352",
+      "license": "CC0-1.0"
+    }
+  ]
+}

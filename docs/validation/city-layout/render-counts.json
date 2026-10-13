@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-13",
+  "renderer": "Chromium / SwiftShader software",
+  "viewport": [
+    1440,
+    1000
+  ],
+  "pixelRatio": 1,
+  "scope": "isolated room and city, no avatar, no asset preload, single-frame samples; counts change with traffic and frustum, screenshot may capture a different frame",
+  "hardwareTested": false,
+  "fpsBenchmark": null,
+  "consoleErrors": [],
+  "samples": [
+    {
+      "name": "critical",
+      "drawCalls": 39,
+      "triangles": 21416,
+      "geometries": 32,
+      "textures": 1
+    },
+    {
+      "name": "sample",
+      "drawCalls": 64,
+      "triangles": 28548,
+      "geometries": 43,
+      "textures": 2
+    },
+    {
+      "name": "all",
+      "drawCalls": 204,
+      "triangles": 35588,
+      "geometries": 42,
+      "textures": 20
+    },
+    {
+      "name": "all-side",
+      "drawCalls": 207,
+      "triangles": 35664,
+      "geometries": 42,
+      "textures": 20
+    },
+    {
+      "name": "map",
+      "drawCalls": 237,
+      "triangles": 36532,
+      "geometries": 32,
+      "textures": 21
+    },
+    {
+      "name": "low",
+      "drawCalls": 201,
+      "triangles": 28916,
+      "geometries": 40,
+      "textures": 20
+    }
+  ],
+  "cameraFar": 150,
+  "skyRadius": 140
+}

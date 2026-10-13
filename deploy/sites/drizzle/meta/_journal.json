@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791797902001,
+      "tag": "0000_outstanding_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791896657723,
+      "tag": "0001_experience_runs",
+      "breakpoints": true
+    }
+  ]
+}
