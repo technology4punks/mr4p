@@ -5,12 +5,16 @@ export default {
     if (env.DB && Date.now() - lastPurge > 3_600_000) {
       lastPurge = Date.now();
       ctx.waitUntil(
-        env.DB.prepare("DELETE FROM future_sessions WHERE expires_at <= ?")
-          .bind(Date.now())
-          .run()
-          .catch(() => {
-            lastPurge = 0;
-          }),
+        Promise.all([
+          env.DB.prepare("DELETE FROM future_sessions WHERE expires_at <= ?")
+            .bind(Date.now())
+            .run(),
+          env.DB.prepare("DELETE FROM experience_runs WHERE expires_at <= ?")
+            .bind(Date.now())
+            .run(),
+        ]).catch(() => {
+          lastPurge = 0;
+        }),
       );
     }
     const response = await handler.fetch(request, env, ctx);

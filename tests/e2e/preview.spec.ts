@@ -19,6 +19,7 @@ test("loads safely without requesting microphone, supports touch and starts expl
     });
   });
   await page.goto("/");
+  await page.getByRole("checkbox", {name:"Visita guidata · 3–4 minuti"}).uncheck();
   await expect(
     page.getByText("ROBOTEXPRESSIVE · CC0", { exact: true }),
   ).toBeVisible();

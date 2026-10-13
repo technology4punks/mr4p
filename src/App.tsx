@@ -2,14 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { Experience, type ExperienceSnapshot } from "./Experience";
 import { detectCapabilities, type Capabilities } from "./xr/capabilities";
 import { levers, optionsFor, interventions } from "./decision/catalog";
+import { ControlRoom } from "./admin/ControlRoom";
 import { voicePresentation } from "./audio/voicePresentation";
 export default function App() {
+  return location.pathname.startsWith("/control-room") ? (
+    <ControlRoom />
+  ) : (
+    <ExperienceApp />
+  );
+}
+function ExperienceApp() {
   const host = useRef<HTMLDivElement>(null),
     engine = useRef<Experience | null>(null);
   const [caps, setCaps] = useState<Capabilities>(),
     [snapshot, setSnapshot] = useState<ExperienceSnapshot>(),
     [failure, setFailure] = useState(""),
     [debug, setDebug] = useState(false),
+    [guided, setGuided] = useState(true),
+    [recordingConsent, setRecordingConsent] = useState(false),
+    [menu, setMenu] = useState(false),
     [reflection, setReflection] = useState(""),
     [revisionSlot, setRevisionSlot] = useState(""),
     [deleteStatus, setDeleteStatus] = useState("");
@@ -60,7 +71,7 @@ export default function App() {
     setReflection("");
     setRevisionSlot("");
     setDeleteStatus("");
-    void engine.current?.startExperience(!!caps?.ar);
+    void engine.current?.startExperience(!!caps?.ar, guided, recordingConsent);
   };
   return (
     <div className="app v4-app">
@@ -69,6 +80,9 @@ export default function App() {
           <span className="brand-mark">N</span> NEO
         </a>
         <span className="header-note">THE COMPLEXITY OF CHOICE</span>
+        <a className="text-button" href="/control-room">
+          Control room
+        </a>
         <button
           className="text-button"
           onClick={() => {
@@ -104,6 +118,23 @@ export default function App() {
               >
                 {finished ? "Ricomincia" : "INIZIA ESPERIENZA"}
               </button>
+              <label className="visit-setting">
+                <input
+                  type="checkbox"
+                  checked={guided}
+                  onChange={(e) => setGuided(e.target.checked)}
+                />{" "}
+                Visita guidata · 3–4 minuti
+              </label>
+              <label className="visit-setting">
+                <input
+                  type="checkbox"
+                  checked={recordingConsent}
+                  onChange={(e) => setRecordingConsent(e.target.checked)}
+                />{" "}
+                Acconsento alla registrazione anonima dell’esperienza: durata,
+                scelte e frase finale. Nessun nome, audio o trascrizione.
+              </label>
               <p className="hint">
                 {caps?.ar
                   ? "Realtà mista disponibile. Consenti spazio e microfono dopo l’avvio."
@@ -371,13 +402,20 @@ export default function App() {
                   >
                     Continua senza salvare
                   </button>
-                  <button onClick={() => engine.current?.editReflection()}>
-                    Modifica riflessione
-                  </button>
+                  {!s.guided && (
+                    <button onClick={() => engine.current?.editReflection()}>
+                      Modifica riflessione
+                    </button>
+                  )}
                   {s.error && <p className="error">{s.error}</p>}
                 </>
               )}
-              {s.saved && (
+              {snapshot?.recordingStatus && (
+                <p className="privacy" role="status">
+                  {snapshot.recordingStatus}
+                </p>
+              )}
+              {(s.saved || snapshot?.hasSavedData) && (
                 <>
                   <button onClick={() => engine.current?.downloadReceipt()}>
                     Scarica ricevuta privata
@@ -517,31 +555,41 @@ export default function App() {
             <p>{snapshot?.message}</p>
             <span className="asset-label">ROBOTEXPRESSIVE · CC0</span>
           </div>
-          <div className="emotes">
-            <button onClick={() => engine.current?.emote("greeting")}>
-              Saluta
-            </button>
-            {caps?.ar && s?.state !== "WAITING_FOR_START" && !finished && (
-              <button
-                disabled={snapshot?.xr.active}
-                onClick={() => void engine.current?.enter()}
-              >
-                Entra in realtà mista
+          <details
+            className="stage-menu"
+            open={menu}
+            onToggle={(event) => setMenu(event.currentTarget.open)}
+          >
+            <summary aria-label="Apri menu">Menu</summary>
+            <div className="emotes">
+              <button onClick={() => engine.current?.action("talk")}>
+                Riprendi ascolto
               </button>
-            )}
-            {caps?.vr && s?.state !== "WAITING_FOR_START" && !finished && (
-              <button onClick={() => void engine.current?.enterVR()}>
-                Entra in VR
+              <button onClick={() => engine.current?.returnToReality()}>
+                Torna alla realtà
               </button>
-            )}
-            <button onClick={() => engine.current?.toggleAmbience()}>
-              Suoni ambiente
-            </button>
-          </div>
+              <button onClick={() => engine.current?.toggleAmbience()}>
+                Suoni ambiente
+              </button>
+              {caps?.ar && (
+                <button onClick={() => void engine.current?.enter()}>
+                  Entra in realtà mista
+                </button>
+              )}
+              {caps?.vr && (
+                <button onClick={() => void engine.current?.enterVR()}>
+                  Entra in VR
+                </button>
+              )}
+              <button onClick={() => engine.current?.pauseResume()}>
+                Pausa / riprendi
+              </button>
+            </div>
+          </details>
           {failure && <p className="error render-error">{failure}</p>}
         </section>
       </main>
-      {snapshot?.xr.active && (
+      {snapshot?.xr.active && debug && (
         <section className="placement">
           <button onClick={() => engine.current?.action("confirm")}>
             Conferma posizione

@@ -1,0 +1,18 @@
+{
+  "version": 23,
+  "site": "https://neo-mr-avatar-test.sk1kko.chatgpt.site",
+  "publicExperience": "passed",
+  "guidedEntry": "passed",
+  "deadlineReturn": "passed",
+  "finalQuote": "passed",
+  "writesWithoutConsent": 0,
+  "anonymousRead": 401,
+  "forgedIdentityRead": 401,
+  "syntheticConsentedWrite": 201,
+  "syntheticDelete": 200,
+  "lateWriteAfterRevocation": 409,
+  "controlRoomSignin": "passed",
+  "pageErrors": [],
+  "voice": "microphone denied; no live voice test",
+  "operatorLogin": "real operator cookies unavailable; backend and UI tested separately"
+}

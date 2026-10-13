@@ -9,6 +9,7 @@ import {
   optionsFor,
   optionById,
 } from "../decision/catalog.js";
+import { takeaway } from "./GuidedVisit.js";
 export type StoryState =
   | "WAITING_FOR_START"
   | "INITIALIZING_MR"
@@ -37,6 +38,7 @@ export type StoryState =
   | "USER_EXIT";
 export type StorySnapshot = {
   name: string | null;
+  guided: boolean;
   state: StoryState;
   environment: "reality" | "observatory";
   future: "critical" | "transformed";
@@ -70,8 +72,11 @@ export type StoryEvent = {
     | "edit_reflection"
     | "pause"
     | "resume"
-    | "exit";
+    | "exit"
+    | "guided_finish"
+    | "guided_close";
   message?: string;
+  guided?: boolean;
 };
 export type StoryResult = {
   accepted: boolean;
@@ -87,6 +92,7 @@ export class StoryEngine {
   private initial(): StorySnapshot {
     return {
       name: null,
+      guided: false,
       state: "WAITING_FOR_START",
       environment: "reality",
       future: "critical",
@@ -151,6 +157,7 @@ export class StoryEngine {
         return s.state === "WAITING_FOR_START"
           ? this.patch({
               state: "INITIALIZING_MR",
+              guided: event.guided ?? false,
               message: "Inizializzazione dell’esperienza…",
             })
           : reject("Esperienza già avviata.");
@@ -165,7 +172,7 @@ export class StoryEngine {
         return s.state === "OPENING_PORTAL"
           ? this.patch({
               state: "AVATAR_GREETING",
-              message: "Ciao, sono NEO. Ti mostro una città del 2050?",
+              message: "Ciao, sono NEO. Come ti chiami? Il nome è facoltativo.",
             })
           : reject("Portale non attivo.");
       case "portal_complete": {
@@ -226,14 +233,36 @@ export class StoryEngine {
         this.applyPending();
         return this.result(result.accepted, result.reason);
       }
+      case "guided_finish":
+        if (
+          !s.guided ||
+          s.environment !== "observatory" ||
+          s.state === "RETURNING_TO_MR"
+        )
+          return reject("Visita guidata non attiva.");
+        return this.patch({
+          state: "RETURNING_TO_MR",
+          transitioning: true,
+          pendingInterventions: [],
+          generatedMessage: takeaway(s.decisions.city.active),
+          message: "Torniamo nella tua stanza. Porta con te una piccola idea.",
+        });
+      case "guided_close":
+        return s.guided && s.state === "WAITING_FOR_CONSENT" && !s.consent
+          ? this.patch({ state: "FAREWELL", message: s.generatedMessage })
+          : reject("Chiusura non disponibile.");
       case "return_complete":
         return s.state === "RETURNING_TO_MR"
           ? this.patch({
-              state: "ASKING_FINAL_QUESTION",
+              state: s.guided ? "WAITING_FOR_CONSENT" : "ASKING_FINAL_QUESTION",
+              generatedMessage: s.guided
+                ? s.generatedMessage || takeaway(s.decisions.city.active)
+                : s.generatedMessage,
               environment: "reality",
               transitioning: false,
-              message:
-                "Cosa pensi sia necessario per costruire un futuro sostenibile, dopo queste decisioni?",
+              message: s.guided
+                ? s.generatedMessage || takeaway(s.decisions.city.active)
+                : "Cosa pensi sia necessario per costruire un futuro sostenibile, dopo queste decisioni?",
             })
           : reject("Ritorno non attivo.");
       case "saved":
@@ -242,14 +271,16 @@ export class StoryEngine {
               state: "FAREWELL",
               saved: true,
               error: null,
-              message:
-                "Il messaggio è stato salvato. Grazie per aver esplorato queste possibilità.",
+              message: s.guided
+                ? s.generatedMessage
+                : "Il messaggio è stato salvato. Grazie per aver esplorato queste possibilità.",
             })
           : reject("Nessun salvataggio autorizzato.");
       case "save_failed":
         return s.state === "SAVING_MESSAGE"
           ? this.patch({
               state: "WAITING_FOR_CONSENT",
+              consent: false,
               error: event.message ?? "Salvataggio non riuscito.",
               message:
                 "Salvataggio non riuscito. Puoi riprovare o proseguire senza salvare.",
@@ -382,6 +413,8 @@ export class StoryEngine {
       s.state !== "RETURNING_TO_MR"
     )
       return this.result(true, "Osservatorio già attivo.");
+    if (name === "enter_observatory" && s.guided && s.generatedMessage)
+      return reject("Visita conclusa. Puoi ricominciare una nuova esperienza.");
     if (name === "enter_observatory")
       return [
         "INVITATION",
@@ -552,9 +585,12 @@ export class StoryEngine {
       return this.patch({
         state: args.consent ? "SAVING_MESSAGE" : "FAREWELL",
         consent: args.consent,
+        error: null,
         message: args.consent
           ? "Salvataggio in corso…"
-          : "Grazie per aver esplorato queste possibilità. Nessun dato salvato.",
+          : s.guided
+            ? s.generatedMessage
+            : "Grazie per aver esplorato queste possibilità. Hai scelto di continuare senza un ulteriore salvataggio.",
       });
     }
     return reject("Evento non autorizzato nello stato corrente.");

@@ -739,6 +739,16 @@ export class RealtimeClient {
       },
     });
   }
+  get turnBusy() {
+    return !!(
+      this.responseActive ||
+      this.outputPlaying ||
+      this.utterances.size ||
+      this.pendingUserResponse ||
+      this.pendingToolResponse ||
+      this.inflightRequest
+    );
+  }
   requestNarration(text: string) {
     // Scene notifications must not become fake user replies, or queue a monologue
     // behind the answer NEO is already giving. A real turn always takes priority.

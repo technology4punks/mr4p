@@ -1,3 +1,17 @@
+# Visita guidata e control room · Sites versione 23
+
+Distribuzione nativa `succeeded` il **13 ottobre 2026 alle 13:55:35 UTC** sul Site pubblico **https://neo-mr-avatar-test.sk1kko.chatgpt.site**. Sorgente Sites `b47b0d32f25291952c353479ecd8ad254f17c3e2`; versione `appgprj_6aca1a908de48191beaed1a926d7909d~appgver_99c21ac877fc8191b953610246d0a3ba`; deploy `appgdep_6ace383f501c8191acef7a88d5f67d99`. Ambiente revision **6**: chiave OpenAI, modello/voce e D1 preservati; allowlist operatori impostata solo nel runtime sicuro.
+
+Estensione della città ordinata della versione 22: visita guidata di 210 secondi attivi, poche scelte, ritorno automatico e frase finale; tre comandi XR persistenti rimossi, menu richiamabile conservato. Registro anonimo con consenso separato e [control room PC](https://neo-mr-avatar-test.sk1kko.chatgpt.site/control-room) protetta da identità ChatGPT verificata/allowlist backend. Migration D1 additiva 0001, migration 0000 e dati preesistenti conservati.
+
+Verifiche completate: 217 test Node/shared, 206 Sites/shared/route, lint/typecheck/build/bundle scan e tutti i 30 casi browser (9,6 minuti). Audio simulato, login operatore reale e Quest fisico da verificare. Ricaricare completamente la pagina sul Quest per ottenere il nuovo prompt e chiudere la precedente connessione Realtime. Se vuoi raccogliere le visite, il partecipante deve selezionare la checkbox anonima prima di iniziare o salvare esplicitamente alla fine.
+
+Smoke anonimo sul sito distribuito passato: ingresso guidato senza secondo consenso, parco, ritorno alla deadline accelerata e frase conclusiva, **zero POST senza consenso**, nessun errore JavaScript. API control room: **401** anonimo e **401** anche tentando header identità falsificati. Record sintetico con consenso esplicito: **201** creazione, **200** cancellazione, **409** invio ritardato dopo revoca; nessun record sintetico leggibile lasciato nel registro. Pagina operatori mostra il link di login nativo. [Esiti](validation/guided-control-room/public-smoke-v23.json), [visita pubblica](validation/guided-control-room/public-v23.png), [accesso riservato](validation/guided-control-room/public-control-room-gate-v23.png).
+
+Microfono negato intenzionalmente e orologio browser accelerato: questa prova verifica fallback, stato e backend distribuiti, non audio live, durata percepita, login dell’account operatore reale o hardware XR.
+
+---
+
 # Riordino della città · Sites versione 22
 
 La pianta condivisa separa persone, alberi, ciclisti, tram e traffico e riserva lotti distinti a tutte le facilities. Tetti e cavi compaiono alla quota corretta; conservati voce, avatar, AR/VR e persistenza. Dettagli: [CITY_LAYOUT.md](CITY_LAYOUT.md).

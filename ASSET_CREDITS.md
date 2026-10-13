@@ -1,3 +1,5 @@
+> Visita guidata/control room, 13 ottobre 2026: nessun nuovo asset 3D o texture; riusati gli asset e le licenze documentati sotto. Interfaccia control room realizzata con CSS originale, senza immagini esterne.
+
 # Asset credits
 
 ## RobotExpressive

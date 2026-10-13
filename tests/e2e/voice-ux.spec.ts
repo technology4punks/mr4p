@@ -129,6 +129,7 @@ test("shows three consecutive voice turns, mute and recovery even with graphics 
     };
   });
   await page.goto("/");
+  await page.getByRole("checkbox", {name:"Visita guidata · 3–4 minuti"}).uncheck();
   const status = page.locator(".voice-status strong");
   await expect(status).toHaveCount(0);
   await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
@@ -346,6 +347,7 @@ test("catalog remains available during transformations and queues the next topic
     }),
   );
   await page.goto("/");
+  await page.getByRole("checkbox", {name:"Visita guidata · 3–4 minuti"}).uncheck();
   await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
   await page
     .getByRole("button", { name: "Entra nell’osservatorio", exact: true })

@@ -1,0 +1,5 @@
+{
+  "profile": "iphone-webkit",
+  "diagnostics": "Stato\nFINAL_CITY_REFLECTION\nDecisioni\n4\nInvio microfono\nchecking\nPeer\nclosed\nFPS\n24.0\nDraw call\n82\nGeometrie\n74\nTexture\n16\nRisorse interne\n{\"WATER\":\"low\",\"ENERGY\":\"high\",\"LAND\":\"low\",\"INVESTMENT\":\"high\",\"ACCESSIBILITY\":\"moderate\"}\nInterdipendenze\nR03\nSalvato\nfalse",
+  "hardware": "headless software renderer; not Quest Pro"
+}

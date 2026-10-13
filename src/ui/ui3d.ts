@@ -106,16 +106,7 @@ export class UI3D {
     // The small dock shares the panel's upper-right world anchor.
     this.shortcuts.position.set(0, 0, 0);
     this.root.add(this.panel, this.shortcuts);
-    this.makeButton(this.shortcuts, "menu", "Menu · A / X", 0, 0.07, 0.32);
-    this.makeButton(this.shortcuts, "talk", "Avvia voce", 0, -0.014, 0.32);
-    this.makeButton(
-      this.shortcuts,
-      "decision",
-      "Le mie scelte",
-      0,
-      -0.098,
-      0.32,
-    );
+    // Closed means no overlay buttons. A/X or the hand menu gesture opens it.
     this.rebuild();
     this.root.visible = false;
   }
@@ -330,7 +321,7 @@ export class UI3D {
   }
   private updateTargets() {
     this.panel.visible = this.open;
-    this.shortcuts.visible = !this.open;
+    this.shortcuts.visible = false;
     this.targets = this.buttons.filter(
       (b) => b.mesh.parent === (this.open ? this.panel : this.shortcuts),
     );

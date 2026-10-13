@@ -17,6 +17,9 @@ import {
 import { FutureObservatory } from "./observatory/FutureObservatory";
 import { AdaptiveQuality, smoothTransition } from "./observatory/performance";
 import { Ambience } from "./observatory/Ambience";
+import { GuidedVisit } from "./story/GuidedVisit";
+import { ExperienceRecorder } from "./recording/ExperienceRecorder";
+import { explicitStorageRequest, type RunPayload } from "./recording/payload";
 import { VoiceIndicator } from "./ui/VoiceIndicator";
 import { voicePresentation } from "./audio/voicePresentation";
 
@@ -31,6 +34,8 @@ export type ExperienceSnapshot = {
   fps: number;
   state: AvatarState;
   story: StorySnapshot;
+  recordingStatus: string;
+  hasSavedData: boolean;
   immersion: number;
   transformation: number;
   drawCalls: number;
@@ -75,6 +80,17 @@ export class Experience {
   private fpsStart = 0;
   private debug = false;
   private discoveryStarted = false;
+  private lastUserWords = "";
+  private guided = new GuidedVisit();
+  private recordingConsent = false;
+  private recordingStatus = "";
+  private recordingStartedAt = 0;
+  private recordingRevision = 0;
+  private pendingGuidedCue = "";
+  private guidedClosingSpoken = false;
+  private recorder = new ExperienceRecorder((status) => {
+    this.recordingStatus = status;
+  });
   private pausedAt: number | null = null;
   private viewerPosition = new THREE.Vector3();
   readonly story = new StoryEngine();
@@ -166,7 +182,17 @@ export class Experience {
         }
       },
       (role, text) => {
-        if (role === "Tu") this.story.receiveTranscript(text);
+        if (role === "Tu") {
+          this.lastUserWords = text;
+          this.story.receiveTranscript(text);
+          if (
+            text.trim() &&
+            ["INVITATION", "AVATAR_GREETING"].includes(
+              this.story.snapshot.state,
+            )
+          )
+            this.guided.replied = true;
+        }
         transcript(role, text);
       },
       (name, args) => {
@@ -223,6 +249,7 @@ export class Experience {
     this.renderer.domElement.addEventListener("pointerdown", this.pointerDown);
     this.renderer.domElement.addEventListener("pointerup", this.pointerUp);
     document.addEventListener("visibilitychange", this.ambientBackground);
+    window.addEventListener("pagehide", this.finishRecording);
     this.renderer.setClearColor(0x101e27, 1);
     this.resize = new ResizeObserver(this.onResize);
     this.resize.observe(host);
@@ -232,19 +259,9 @@ export class Experience {
     // controls above it. Narrative time must keep advancing independently of
     // GPU frames; resuming graphics catches up using the same monotonic clock.
     this.storyClock = setInterval(() => {
-      if (
-        !this.disposed &&
-        !document.hidden &&
-        [
-          "OPENING_PORTAL",
-          "AVATAR_GREETING",
-          "ENTERING_OBSERVATORY",
-          "APPLYING_INTERVENTION",
-          "RETURNING_TO_MR",
-          "FAREWELL",
-        ].includes(this.story.snapshot.state)
-      )
-        this.updateStoryVisuals();
+      if (this.disposed || document.hidden) return;
+      this.updateStoryVisuals();
+      this.updateGuidedVisit();
     }, 100);
     void this.avatar.load().then((result) => {
       if (this.disposed) return;
@@ -283,6 +300,8 @@ export class Experience {
       fps: this.fps,
       state: this.avatar.state,
       story: { ...this.story.snapshot },
+      recordingStatus: this.recordingStatus,
+      hasSavedData: !!(this.recorder.saved || this.savedRecord),
       immersion: this.immersion,
       transformation: this.transformation,
       drawCalls: this.renderer.info.render.calls,
@@ -626,6 +645,45 @@ export class Experience {
   private modelToolActive = false;
   private storyTool(name: string, args: string): StoryResult {
     if (
+      name === "set_storage_consent" &&
+      this.story.snapshot.state === "WAITING_FOR_CONSENT"
+    ) {
+      try {
+        if (JSON.parse(args).consent === false) {
+          this.recordingConsent = false;
+          if (this.recorder.attempted)
+            void this.recorder
+              .remove({ id: this.sessionId, deleteToken: this.deleteToken })
+              .catch(() => {});
+        }
+      } catch {
+        /* Validate below. */
+      }
+    }
+
+    if (
+      name === "set_storage_consent" &&
+      this.modelToolActive &&
+      this.story.snapshot.guided &&
+      !this.recordingConsent
+    ) {
+      try {
+        if (
+          JSON.parse(args).consent === true &&
+          !explicitStorageRequest(this.lastUserWords)
+        )
+          return {
+            accepted: false,
+            reason:
+              "Un sì alla storia non autorizza la registrazione. Per salvare serve una richiesta esplicita di registrare dati/esperienza o il pulsante di consenso; si può continuare senza salvare.",
+            snapshot: structuredClone(this.story.snapshot),
+          };
+      } catch {
+        /* StoryEngine validates malformed arguments below. */
+      }
+    }
+
+    if (
       [
         "enter_observatory",
         "show_intervention",
@@ -663,6 +721,7 @@ export class Experience {
   private storyChanged(snapshot: StorySnapshot) {
     this.voice.synchronizeStory(snapshot);
     this.message = snapshot.message;
+    this.recordSnapshot(snapshot);
     this.xr.ui.setDecisionState(snapshot);
     if (snapshot.state === "PAUSED") {
       this.pausedAt = performance.now();
@@ -671,6 +730,7 @@ export class Experience {
     if (this.pausedAt !== null) {
       const pausedDuration = performance.now() - this.pausedAt;
       this.transitionStartedAt += pausedDuration;
+      this.guided.shiftTime(pausedDuration);
       this.portal.shiftTime(pausedDuration);
       this.observatory.transformations.shiftTime(pausedDuration);
       this.pausedAt = null;
@@ -700,6 +760,7 @@ export class Experience {
       void this.observatory.preload(this.renderer);
     }
     if (snapshot.state === "APPLYING_INTERVENTION") {
+      if (snapshot.guided) this.pendingGuidedCue = "";
       this.transitionStartedAt = performance.now();
       this.observatory.transformations.apply(
         snapshot.decisions.city,
@@ -708,10 +769,32 @@ export class Experience {
       this.avatar.setState("positive");
     }
     if (snapshot.state === "RETURNING_TO_MR") {
+      this.pendingGuidedCue = "";
       this.transitionStartedAt = performance.now();
       this.transitionStart = this.immersion;
     }
-    if (snapshot.state === "SAVING_MESSAGE") void this.saveReflection();
+    if (snapshot.state === "SAVING_MESSAGE") {
+      this.recordingConsent = true;
+      this.recordSnapshot(snapshot);
+      if (!snapshot.guided) void this.saveReflection();
+    }
+    if (
+      snapshot.guided &&
+      snapshot.state === "WAITING_FOR_CONSENT" &&
+      snapshot.environment === "reality"
+    ) {
+      this.guided.returnedAt ??= performance.now();
+      if (!this.guidedClosingSpoken)
+        this.pendingGuidedCue =
+          "Siamo tornati nella tua stanza. Pronuncia solo questa frase, con calma: «" +
+          snapshot.generatedMessage +
+          "». Poi lascia una pausa, senza fare altre domande o usare tool.";
+      if (this.recordingConsent && !snapshot.error)
+        this.story.tool(
+          "set_storage_consent",
+          JSON.stringify({ consent: true }),
+        );
+    }
     if (snapshot.state === "USER_EXIT") {
       this.avatar.root.visible = false;
       this.voice.stop();
@@ -721,9 +804,10 @@ export class Experience {
     if (snapshot.state === "FAREWELL") {
       this.transitionStartedAt = performance.now();
       this.avatar.setState("greeting");
-      this.voice.requestNarration(
-        "Saluta brevemente. Non dire che il messaggio è salvato se saved è false.",
-      );
+      if (!snapshot.guided)
+        this.voice.requestNarration(
+          "Saluta brevemente. Non dire che il messaggio è salvato se saved è false.",
+        );
     }
     if (snapshot.state === "EXPERIENCE_COMPLETED") {
       this.avatar.root.visible = false;
@@ -736,11 +820,15 @@ export class Experience {
       ) &&
       !this.modelToolActive
     )
-      this.voice.requestNarration(
-        "Nuovo stato autorevole: " +
-          snapshot.message +
-          " Descrivi solo trasformazioni attive. Una o due frasi, poi lascia spazio all’utente.",
-      );
+      if (snapshot.guided && snapshot.state === "SHOWING_CRITICAL_FUTURE")
+        this.pendingGuidedCue =
+          "Questa è una città ipotetica del 2050: caldo e smog raccontano decisioni che non hanno funzionato. Possiamo ancora cambiare qualcosa. Chiedi soltanto: da dove cominceresti? Poi ascolta.";
+      else
+        this.voice.requestNarration(
+          "Nuovo stato autorevole: " +
+            snapshot.message +
+            " Descrivi solo trasformazioni attive. Una o due frasi, poi lascia spazio all’utente.",
+        );
   }
   private alignObservatory() {
     this.needsAlignment = false;
@@ -835,7 +923,8 @@ export class Experience {
     }
     if (
       s.state === "FAREWELL" &&
-      transitionTime > 4 &&
+      transitionTime > (s.guided ? 8 : 4) &&
+      !this.voice.turnBusy &&
       this.voice.snapshot.activity !== "speaking" &&
       this.voice.snapshot.activity !== "processing"
     )
@@ -853,13 +942,18 @@ export class Experience {
     } else this.scene.fog = null;
     if (this.xr.session) this.renderer.setClearColor(0x000000, 0);
   }
-  async startExperience(useMR = true) {
+  async startExperience(useMR = true, guided = true, recordingConsent = false) {
     if (
       this.story.snapshot.state === "EXPERIENCE_COMPLETED" ||
       this.story.snapshot.state === "USER_EXIT"
     )
       this.restart();
-    if (!this.story.dispatch({ type: "start" }).accepted) return;
+    this.recordingConsent = recordingConsent;
+    this.recordingStartedAt = Date.now();
+    this.recordingStatus = recordingConsent
+      ? "Registrazione anonima autorizzata."
+      : "Nessun dato dell’esperienza viene registrato.";
+    if (!this.story.dispatch({ type: "start", guided }).accepted) return;
     // Explicit Start is also the microphone gesture; voice is never automatic on load.
     void this.voice.start();
     if (useMR && navigator.xr) await this.enter();
@@ -898,14 +992,137 @@ export class Experience {
   startDiscovery() {
     if (this.discoveryStarted) return;
     this.discoveryStarted = this.voice.requestNarration(
-      "Presentati in una frase e chiedi il nome con una sola domanda. Fermati e aspetta la risposta. Non invitare ancora nell’osservatorio e non aggiungere un esempio o una seconda domanda. Il nome è facoltativo, ma questa domanda non è una risposta dell’utente.",
+      "Di’ soltanto: Ciao, sono NEO. Come ti chiami? Poi fermati e ascolta. Il nome è facoltativo; l’app gestirà il passaggio al futuro dopo i saluti. Nessun tool narrativo in questo commento.",
     );
   }
+  private updateGuidedVisit() {
+    const s = this.story.snapshot;
+    if (
+      !s.guided ||
+      s.state === "PAUSED" ||
+      [
+        "WAITING_FOR_START",
+        "INITIALIZING_MR",
+        "OPENING_PORTAL",
+        "AVATAR_GREETING",
+        "USER_EXIT",
+        "EXPERIENCE_COMPLETED",
+      ].includes(s.state)
+    )
+      return;
+    const now = performance.now();
+    this.guided.begin(now);
+    if (
+      s.state === "INVITATION" &&
+      this.guided.shouldIntroduce(now, this.voice.turnBusy)
+    ) {
+      const text =
+        "Di’ in due frasi: Ora ci teletrasportiamo in un possibile 2050, dove alcune decisioni hanno peggiorato le cose. Possiamo ancora cambiarne qualcuna, insieme. Non chiedere permesso e non aggiungere domande.";
+      if (
+        this.voice.snapshot.status !== "connected" ||
+        this.voice.requestNarration(text)
+      )
+        this.guided.introducedAt = now;
+    }
+    if (
+      s.state === "INVITATION" &&
+      this.guided.introducedAt !== null &&
+      now - this.guided.introducedAt >= 1400
+    )
+      this.storyTool("enter_observatory", "{}");
+    if (this.guided.shouldReturn(s, now))
+      this.story.dispatch({ type: "guided_finish" });
+    const current = this.story.snapshot;
+    if (
+      this.pendingGuidedCue &&
+      !this.voice.turnBusy &&
+      this.voice.requestNarration(this.pendingGuidedCue)
+    ) {
+      if (current.environment === "reality") this.guidedClosingSpoken = true;
+      this.pendingGuidedCue = "";
+    }
+    if (
+      current.state === "SAVING_MESSAGE" &&
+      this.recorder.saved?.status === "completed" &&
+      !this.recorder.busy
+    )
+      this.story.dispatch({ type: "saved" });
+    if (
+      current.state === "SAVING_MESSAGE" &&
+      !this.recorder.busy &&
+      this.recorder.saved?.status !== "completed"
+    )
+      this.story.dispatch({
+        type: "save_failed",
+        message: this.recordingStatus,
+      });
+    if (
+      current.state === "WAITING_FOR_CONSENT" &&
+      this.guided.returnedAt !== null &&
+      now - this.guided.returnedAt >= 15_000 &&
+      !this.voice.turnBusy
+    )
+      this.story.dispatch({ type: "guided_close" });
+  }
+  private recordSnapshot(s: StorySnapshot) {
+    if (!this.recordingConsent || s.error) return;
+    this.recorder.update(this.runPayload(s));
+  }
+  private runPayload(s: StorySnapshot): RunPayload {
+    const status =
+      s.environment === "reality" && !!s.generatedMessage
+        ? "completed"
+        : ["USER_EXIT", "EXPERIENCE_COMPLETED"].includes(s.state)
+          ? "interrupted"
+          : "active";
+    const mode = this.xr?.session
+      ? (this.xr.diagnostic.mode as RunPayload["mode"])
+      : "browser";
+    return {
+      id: this.sessionId,
+      deleteToken: this.deleteToken,
+      consent: true,
+      revision: ++this.recordingRevision,
+      startedAt: this.recordingStartedAt,
+      elapsedSeconds: Math.min(
+        86400,
+        Math.max(0, Math.round((Date.now() - this.recordingStartedAt) / 1000)),
+      ),
+      state: s.state,
+      status,
+      mode,
+      guided: s.guided,
+      active: s.decisions.city.active,
+      message: s.generatedMessage.slice(0, 300),
+      reason: s.state === "USER_EXIT" ? "exit" : this.guided.reason,
+    };
+  }
+  private finishRecording = () => {
+    if (!this.recordingConsent || !this.recordingStartedAt) return;
+    const s = this.story.snapshot,
+      p = this.runPayload(s);
+    if (p.status !== "completed") {
+      p.state = "USER_EXIT";
+      p.status = "interrupted";
+      p.reason = "closed";
+    }
+    this.recorder.close(p);
+  };
   restart() {
+    this.finishRecording();
     this.discoveryStarted = false;
+    this.lastUserWords = "";
+    this.guided.reset();
+    this.recorder.reset();
+    this.recordingConsent = false;
+    this.recordingStatus = "";
+    this.recordingRevision = 0;
+    this.pendingGuidedCue = "";
+    this.guidedClosingSpoken = false;
     this.pausedAt = null;
     this.saveGeneration++;
     this.saving = false;
+    this.savedRecord = undefined;
     this.voice.stop();
     this.story.reset();
     this.sessionId = crypto.randomUUID();
@@ -977,17 +1194,31 @@ export class Experience {
     this.avatar.root.visible = false;
   }
   downloadReceipt() {
-    if (!this.savedRecord) return;
+    const run = this.recorder.saved;
+    if (!this.savedRecord && !run) return;
+    const record = run
+      ? { id: run.id, deleteToken: run.deleteToken }
+      : this.savedRecord!;
     const url = URL.createObjectURL(
       new Blob(
         [
           JSON.stringify(
             {
               version: "V4",
-              ...this.savedRecord,
-              deleteEndpoint: `${location.origin}/api/future-sessions/${this.savedRecord.id}`,
+              ...record,
+              deleteEndpoint: `${location.origin}/api/${run ? "experience-runs" : "future-sessions"}/${record.id}`,
+              deleteEndpoints: [
+                ...(run
+                  ? [`${location.origin}/api/experience-runs/${run.id}`]
+                  : []),
+                ...(this.savedRecord
+                  ? [
+                      `${location.origin}/api/future-sessions/${this.savedRecord.id}`,
+                    ]
+                  : []),
+              ],
               instructions:
-                "DELETE all’endpoint con Authorization: Bearer deleteToken. Conserva questo file privatamente.",
+                "DELETE a ciascun deleteEndpoint con Authorization: Bearer deleteToken. Conserva questo file privatamente.",
             },
             null,
             2,
@@ -1029,16 +1260,23 @@ export class Experience {
     this.choose(id);
   }
   async deleteSaved() {
-    if (!this.savedRecord) return false;
-    const response = await fetch(
-      `/api/future-sessions/${this.savedRecord.id}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${this.savedRecord.deleteToken}` },
-      },
-    );
-    if (response.ok) this.savedRecord = undefined;
-    return response.ok;
+    this.recordingConsent = false;
+    const run = this.recorder.saved;
+    let runRemoved = true,
+      reflectionRemoved = true;
+    if (run) runRemoved = await this.recorder.remove();
+    if (this.savedRecord) {
+      const response = await fetch(
+        `/api/future-sessions/${this.savedRecord.id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${this.savedRecord.deleteToken}` },
+        },
+      );
+      reflectionRemoved = response.ok;
+      if (response.ok) this.savedRecord = undefined;
+    }
+    return runRemoved && reflectionRemoved;
   }
   async prepareVR() {
     const supported = await navigator.xr
@@ -1116,6 +1354,8 @@ export class Experience {
     this.avatar.setHeight(height);
   }
   dispose() {
+    this.finishRecording();
+    window.removeEventListener("pagehide", this.finishRecording);
     this.disposed = true;
     clearTimeout(this.preloadTimer);
     clearInterval(this.storyClock);

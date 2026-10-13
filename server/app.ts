@@ -1,3 +1,4 @@
+import { controlRoomAuthorized } from "../src/recording/payload.js";
 import { validateSession } from "../src/decision/sessionPayload.js";
 import { SqliteSessions, type SessionRepository } from "./session-store.js";
 import express from "express";
@@ -156,22 +157,18 @@ export function createApp(
     try {
       data = validateSession(req.body);
     } catch (error) {
-      res
-        .status(422)
-        .json({
-          error: error instanceof Error ? error.message : "Dati non validi.",
-        });
+      res.status(422).json({
+        error: error instanceof Error ? error.message : "Dati non validi.",
+      });
       return;
     }
     try {
       const result = await repository.save(data);
       res.status(201).json(result);
     } catch {
-      res
-        .status(503)
-        .json({
-          error: "Salvataggio non riuscito. Riprova o continua senza salvare.",
-        });
+      res.status(503).json({
+        error: "Salvataggio non riuscito. Riprova o continua senza salvare.",
+      });
     }
   });
   app.delete("/api/future-sessions/:id", async (req, res) => {
@@ -186,6 +183,112 @@ export function createApp(
       res.status(503).json({ error: "Cancellazione non riuscita." });
     }
   });
+  app.use(
+    "/api/experience-runs",
+    express.json({ limit: "16kb" }),
+    (_req, res, next) => {
+      res.setHeader("Cache-Control", "no-store");
+      next();
+    },
+    rateLimit({ ...limitOptions, limit: 60 }),
+  );
+  app.use("/api/experience-runs", (req, res, next) => {
+    const origin = req.get("origin");
+    let allowed = false;
+    try {
+      allowed = config.origin
+        ? origin === config.origin
+        : !config.production &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(
+            new URL(origin ?? "").hostname,
+          );
+    } catch {
+      /* reject */
+    }
+    if (!allowed || req.get("sec-fetch-site") === "cross-site") {
+      res.status(403).json({ error: "Origine non autorizzata." });
+      return;
+    }
+    next();
+  });
+  app.post("/api/experience-runs", async (req, res) => {
+    try {
+      if (!repository.saveRun) {
+        res.status(503).json({ error: "Registrazione non configurata." });
+        return;
+      }
+      const p = await repository.saveRun(req.body);
+      res.status(201).json(p);
+    } catch {
+      res
+        .status(422)
+        .json({
+          error: "Dati o consenso non validi; registrazione non confermata.",
+        });
+    }
+  });
+  app.delete("/api/experience-runs/:id", async (req, res) => {
+    try {
+      const token = (req.get("authorization") ?? "").replace(/^Bearer /, "");
+      if (
+        !token ||
+        !repository.removeRun ||
+        !(await repository.removeRun(String(req.params.id), token))
+      ) {
+        res.status(403).json({ error: "Cancellazione non autorizzata." });
+        return;
+      }
+      res.json({ deleted: true });
+    } catch {
+      res.status(503).json({ error: "Cancellazione non confermata." });
+    }
+  });
+  app.get("/api/control-room/experiences", async (req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    const presented = Buffer.from(req.get("x-neo-proxy-secret") ?? ""),
+      expected = Buffer.from(config.proxyAuthSecret ?? "");
+    const trusted =
+      !!expected.length &&
+      presented.length === expected.length &&
+      timingSafeEqual(presented, expected) &&
+      !!req.get("x-neo-user");
+    if (
+      !trusted ||
+      !controlRoomAuthorized(req.get("x-neo-email"), config.controlRoomEmails)
+    ) {
+      res
+        .status(403)
+        .json({ error: "Control room riservata agli operatori autorizzati." });
+      return;
+    }
+    const page = Number(req.query.page ?? 0),
+      size = Number(req.query.pageSize ?? 20),
+      status = String(req.query.status ?? "");
+    if (
+      !Number.isInteger(page) ||
+      page < 0 ||
+      page > 10000 ||
+      !Number.isInteger(size) ||
+      size < 1 ||
+      size > 50 ||
+      !["", "active", "completed", "interrupted"].includes(status)
+    ) {
+      res.status(422).json({ error: "Filtri non validi." });
+      return;
+    }
+    try {
+      if (!repository.listRuns) {
+        res.status(503).json({ error: "Archivio non disponibile." });
+        return;
+      }
+      res.json(await repository.listRuns(page, size, status));
+    } catch {
+      res.status(503).json({ error: "Archivio non disponibile." });
+    }
+  });
+  app.get("/control-room", (_req, res) =>
+    res.sendFile(resolve("dist/index.html")),
+  );
   app.use("/api", (_req, res) =>
     res.status(404).json({ error: "API non trovata." }),
   );

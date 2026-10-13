@@ -8,9 +8,15 @@
 
 Premi **INIZIA ESPERIENZA**: soltanto allora vengono richiesti microfono e, sui browser compatibili, una sessione AR. Un portale ancorato nello spazio introduce NEO. Dopo l’invito entri nell’osservatorio tridimensionale con finestra e città su tre livelli di profondità.
 
-NEO fa una domanda alla volta e attende la tua risposta: i commenti dell’app non avviano nuove scene. Parla liberamente di ciò che ti interessa: NEO mostra direttamente gli interventi disponibili, senza conferme o selezione preventiva della leva. Nome e scelte restano in memoria durante la sessione, anche riconnettendo la voce. Scegli fra dieci ambiti e trenta interventi. Ogni scelta modifica lo stesso ambiente in sette secondi; la conversazione resta aperta. Puoi scegliere più opzioni distinte nello stesso ambito, concludere dopo quattro scelte oppure aggiungerne una quinta. Le prime cinque scelte formano il registro didattico; puoi continuare a esplorare altri interventi senza bloccare la visita. Le richieste durante le animazioni restano in coda. La città conserva benefici, compromessi e problemi residui. Nella riflessione finale puoi sostituire una sola scelta, anche con un altro ambito: gli effetti superati vengono rimossi.
+La **visita guidata** è attiva di default. NEO saluta e chiede il nome una sola volta, senza renderlo obbligatorio. Poi annuncia il viaggio in un futuro ipotetico segnato da decisioni sbagliate, in cui possiamo cambiare qualcosa. La città risponde agli interessi espressi: trenta interventi in dieci ambiti, senza conferme o leva preliminare. Una domanda alla volta, poi ascolto; il silenzio non inventa decisioni.
 
-Puoi fare domande, mettere in pausa o tornare alla realtà. Dopo una riflessione libera, NEO propone un messaggio collegato alle tue scelte. **Il consenso a salvarlo è separato**. La schermata finale permette di ricominciare; voce e XR vengono chiusi.
+Dopo quattro scelte completate, oppure tre dopo due minuti, torni automaticamente alla realtà. Il limite è **210 secondi attivi** dall’invito, esclusa una pausa esplicita; transizioni e chiusura aggiungono alcuni secondi. NEO lascia una frase breve collegata alle scelte, senza questionario finale. Puoi fare domande, interromperlo o tornare prima. Nome e parole restano soltanto nella memoria della pagina e vengono azzerati al restart.
+
+Disattivando **Visita guidata** prima dello Start resta disponibile il percorso libero precedente: esplorazione, quattro/cinque decisioni, una revisione e riflessione finale. Le animazioni durano sette secondi e le richieste durante le transizioni restano in coda. Le conseguenze cumulative conservano benefici, compromessi e problemi residui.
+
+La registrazione è facoltativa: seleziona **Registra dati anonimi** prima dello Start per registrare anche una visita incompleta, oppure salva esplicitamente alla fine. Un “sì” alla storia non autorizza il salvataggio. Nessun nome, email, audio o dialogo completo dei partecipanti viene registrato. Un backend indisponibile non blocca il ritorno o la frase conclusiva.
+
+La [control room da PC](https://neo-mr-avatar-test.sk1kko.chatgpt.site/control-room) richiede accesso ChatGPT e allowlist degli operatori verificata nel backend. Il visore rimane pubblico. Dettagli: [visita guidata e control room](docs/GUIDED_CONTROL_ROOM.md).
 
 La V4 contiene esclusivamente lo scenario ambientale. Le precedenti città sociali/economiche e il pulsante che rendeva tutto sostenibile sono sostituiti dal modello cumulativo richiesto in `SPEC.md`.
 
@@ -39,6 +45,9 @@ La modalità 3D è utilizzabile anche se manca una chiave o viene negato il micr
 |---|---|
 | `src/decision/catalog.ts` | 10 leve, 30 interventi, benefici, compromessi e metadati |
 | `src/decision/DecisionEngine.ts` | slot, duplicati, revisione e ricostruzione delle 12 regole |
+| `src/story/GuidedVisit.ts` | durata attiva, ritorno e frase conclusiva |
+| `src/admin/ControlRoom.tsx` | consultazione protetta, filtri e CSV della pagina |
+| `src/recording/ExperienceRecorder.ts` | registro anonimo asincrono con consenso e ricevuta |
 | `src/story/StoryEngine.ts` | stati, consensi, proposte ambigue e tool autorizzati |
 | `src/observatory/CityPlan.ts` | pianta condivisa, percorsi e lotti riservati senza sovrapposizioni |
 | `src/observatory/CityTransformationEngine.ts` | strati e collegamenti predefiniti sulla stessa città |
@@ -57,9 +66,9 @@ Nessuna geometria viene generata dal modello linguistico. I cinque contesti inte
 
 Start precede qualsiasi acquisizione audio. NEO usa risposte concise e informative, conosce scelte e stato autorevole e chiede chiarimenti sulle intenzioni ambigue. Il nome è una memoria transitoria della visita, esclusa dal salvataggio.
 
-Il microfono rimane aperto con interruzioni intelligenti: un evento VAD da solo non cancella l’audio. Il client aspetta parole riconoscibili e gestisce fine risposta, mute, pause XR, eventi tardivi e recupero della traccia. **Riprendi ascolto** riattiva l’acquisizione se il dispositivo l’ha sospesa. Non esiste un timer narrativo che obblighi a concludere la visita.
+Il microfono rimane aperto con interruzioni intelligenti: un evento VAD da solo non cancella l’audio. Il client aspetta parole riconoscibili e gestisce fine risposta, mute, pause XR, eventi tardivi e recupero della traccia. **Riprendi ascolto** riattiva l’acquisizione se il dispositivo l’ha sospesa. Il timer guidato chiude la visita, ma non inventa risposte o scelte. La modalità libera conserva l’esplorazione senza scadenza.
 
-Menu e dock sono traslucidi, arrotondati e fermi nello spazio; un richiamo esplicito li riposiziona in alto a destra. Controller/raggio, stick per il focus e mani/pinch sono mantenuti. In XR le scelte sono disponibili nel menu, insieme a ritorno, revisione e consenso. Le risorse interne non compaiono nell’esperienza del partecipante.
+Il menu chiuso non mostra i tre vecchi comandi rapidi. Controller A/X, stick o gesto mani lo richiamano; sulla pagina resta il piccolo menu a scomparsa. I pannelli aperti sono traslucidi, arrotondati e fermi nello spazio; un richiamo esplicito li riposiziona in alto a destra. Controller/raggio, stick per il focus e mani/pinch sono mantenuti. In XR le scelte sono disponibili nel menu, insieme a ritorno, revisione e consenso. Le risorse interne non compaiono nell’esperienza del partecipante.
 
 ## Persistenza e hosting
 
@@ -67,7 +76,7 @@ Node salva in `FUTURE_DB_PATH` (default `./data/future-observatory.sqlite`), su 
 
 Su **Sites** il progetto pubblico esistente usa D1, binding `DB`, schema e migration Drizzle. Il segreto OpenAI rimane nelle variabili runtime del Site. L’overlay riproducibile è in `deploy/sites/`; il client e il catalogo sono gli stessi della versione Node. I record scaduti vengono eliminati alle operazioni API e alla prima richiesta dopo ogni ora; in assenza totale di traffico la rimozione fisica attende una richiesta successiva. Non sono esposti endpoint di lettura pubblica.
 
-Il backend Node in produzione conserva l’autenticazione tramite reverse proxy: `APP_ORIGIN`, `REQUIRE_PROXY_AUTH=true`, `PROXY_AUTH_SECRET` e numero esatto di hop. Il proxy deve rimuovere gli header ricevuti e impostare `X-NEO-USER` solo dopo l’autenticazione. Il Site pubblico usa il proprio endpoint con limiti per visitatori anonimi e origine esatta, senza richiedere login al visore.
+Il backend Node in produzione conserva l’autenticazione tramite reverse proxy: `APP_ORIGIN`, `REQUIRE_PROXY_AUTH=true`, `PROXY_AUTH_SECRET` e numero esatto di hop. Il proxy deve rimuovere gli header ricevuti e impostare `X-NEO-USER` e `X-NEO-EMAIL` solo dopo l’autenticazione. La control room richiede inoltre `CONTROL_ROOM_ALLOWED_EMAILS`; senza configurazione nega l’accesso. Il Site pubblico usa il proprio endpoint con limiti per visitatori anonimi e origine esatta, senza richiedere login al visore.
 
 Il salvataggio restituisce un identificativo e la scadenza. La cancellazione richiede un token privato, conservato in memoria durante la visita e scaricabile come ricevuta: conservalo se vuoi cancellare dopo aver chiuso la pagina. Il database conserva solo l’hash del token. Non usare nomi, contatti o altre informazioni identificanti nella riflessione.
 

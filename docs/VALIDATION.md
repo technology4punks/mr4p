@@ -1,3 +1,17 @@
+# Visita guidata e control room · 13 ottobre 2026
+
+`npm run check` passato: lint, typecheck, build Node/client, **217 test** e verifica segreti nel bundle. Sites: typecheck, **206 test** e build Vinext passati. **30 test browser passati in un’unica esecuzione (9,6 minuti)** su desktop Chromium, Android emulato e iPhone WebKit. Nuove regressioni: ingresso dopo saluto facoltativo, deadline, frase conclusiva, consenso esplicito, backend indisponibile, coda seriale/ack, revoca prima di un invio tardivo, retention e allowlist backend. I test precedenti verificano anche il percorso libero e tre turni audio simulati.
+
+[Control room desktop](validation/guided-control-room/control-room-desktop-chromium.png), [Android](validation/guided-control-room/control-room-android-chromium.png), [iPhone](validation/guided-control-room/control-room-iphone-webkit.png). Record e identità operatore nelle immagini sono fixture sintetiche: non provano il login dell’account operatore reale. Le API di accesso sono testate separatamente nei due backend.
+
+Campioni diagnostici dell’intera visita libera con quattro scelte, renderer headless software: desktop 10 FPS/83 draw call, Android emulato 16 FPS/82 draw call, WebKit 24 FPS/82 draw call; tutti 74 geometrie e 16 texture. Sono valori istantanei del test, non medie né prestazioni mobili reali. [Dati grezzi](validation/guided-control-room/v4-performance-desktop-chromium.json). Geometrie/asset urbani invariati; nessun nuovo benchmark Quest o obiettivo 72 FPS certificato. Bundle client 1.092,34 kB (gzip 305,49 kB), senza post-processing aggiunto.
+
+Microfono, modello e WebRTC dei test voce sono simulati. Restano da verificare sul Quest fisico: ascolto reale, comportamento del prompt, interruzioni/eco, mani/controller per richiamare il menu, compositing passthrough, confini e comfort. Checklist aggiornata in [DEVICE_TESTS.md](DEVICE_TESTS.md). Esito della pubblicazione e smoke pubblico in [DEPLOYMENT_V4.md](DEPLOYMENT_V4.md).
+
+Sites versione 23 pubblicata con successo; smoke pubblico passato con deadline accelerata, frase, zero invii senza consenso, gate 401 e ciclo D1 sintetico creazione/cancellazione/revoca. Dettagli e limiti in [DEPLOYMENT_V4.md](DEPLOYMENT_V4.md).
+
+---
+
 ## Pianta condivisa · 13 ottobre 2026
 
 `npm run check` passato: lint, typecheck, build Node/client, 199 test e controllo segreti nel bundle. Typecheck, 190 test e build Sites passati. Otto regressioni spaziali controllano i volumi Three.js effettivi, lotti, tetti, camminatori, traffico, qualità ridotta e dissolvenze a quota fissa. Il cielo contiene lo skyline e rientra nel far plane della camera in room scale. Percorsi e interventi rimangono separati anche con tutti e trenta attivi. Nessun nuovo asset scaricato, nessuna modifica al dialogo o al backend.

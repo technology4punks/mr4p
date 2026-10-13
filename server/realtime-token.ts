@@ -5,6 +5,7 @@ import { storyInstructions, storyTools } from "./story-config.js";
 export const instructions = storyInstructions;
 export type ServerConfig = {
   databasePath?: string;
+  controlRoomEmails?: string;
   retentionDays?: number;
   apiKey?: string;
   model?: string;

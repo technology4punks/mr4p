@@ -10,8 +10,12 @@ beforeEach(() => {
     fillRect: vi.fn(),
     strokeRect: vi.fn(),
     fillText: vi.fn(),
-    clearRect: vi.fn(), beginPath: vi.fn(), roundRect: vi.fn(),
-    fill: vi.fn(), stroke: vi.fn(), arc: vi.fn(),
+    clearRect: vi.fn(),
+    beginPath: vi.fn(),
+    roundRect: vi.fn(),
+    fill: vi.fn(),
+    stroke: vi.fn(),
+    arc: vi.fn(),
   } as unknown as ReturnType<HTMLCanvasElement["getContext"]>);
 });
 function rayTo(ui: UI3D, action: string) {
@@ -26,7 +30,7 @@ function rayTo(ui: UI3D, action: string) {
   );
 }
 describe("immersive menu interaction", () => {
-  it("holds an open menu in world space, then leaves only working shortcuts when closed", () => {
+  it("holds the open menu in world space and hides every control when closed", () => {
     const ui = new UI3D();
     ui.root.visible = true;
     ui.setOpen(true);
@@ -45,17 +49,31 @@ describe("immersive menu interaction", () => {
     expect(ui.hit(confirm)).toBeUndefined();
     ui.followViewer(new THREE.Vector3(1, 1.6, 0), new THREE.Quaternion());
     expect(ui.root.position.equals(initial)).toBe(true);
-    expect(ui.hit(rayTo(ui, "menu"))).toBe("menu");
+    const visible: THREE.Object3D[] = [];
+    ui.root.traverseVisible((o) => {
+      if (o.userData.action) visible.push(o);
+    });
+    expect(visible).toHaveLength(0);
+    expect(ui.focusedAction).toBeUndefined();
+    ui.toggle();
+    expect(ui.hit(rayTo(ui, "confirm"))).toBe("confirm");
     ui.root.visible = false;
-    expect(ui.hit(rayTo(ui, "menu"))).toBeUndefined();
+    expect(ui.hit(confirm)).toBeUndefined();
     ui.dispose();
   });
   it("keeps closed controls fixed too, and recenters only on explicit opening or a new session", () => {
     const ui = new UI3D();
     ui.root.visible = true;
     ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
-    const initial = ui.root.position.clone(), orientation = ui.root.quaternion.clone();
-    ui.followViewer(new THREE.Vector3(2, 1.7, 1), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+    const initial = ui.root.position.clone(),
+      orientation = ui.root.quaternion.clone();
+    ui.followViewer(
+      new THREE.Vector3(2, 1.7, 1),
+      new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        Math.PI,
+      ),
+    );
     expect(ui.root.position.equals(initial)).toBe(true);
     expect(ui.root.quaternion.equals(orientation)).toBe(true);
     ui.setOpen(true);
@@ -71,7 +89,11 @@ describe("immersive menu interaction", () => {
     const indicator = new VoiceIndicator();
     const avatar = new THREE.Group();
     avatar.position.set(0.7, 0, -1.3);
-    const voice = { activity: "ready", microphone: "live", interruptions: true } as VoiceSnapshot;
+    const voice = {
+      activity: "ready",
+      microphone: "live",
+      interruptions: true,
+    } as VoiceSnapshot;
     indicator.update(voice, 0.1, avatar, new THREE.Vector3(0, 1.6, 0));
     const initial = indicator.root.position.clone();
     indicator.update(voice, 0.1, avatar, new THREE.Vector3(2, 1.7, 1));
@@ -128,7 +150,17 @@ describe("native and polled XR input deduplication", () => {
   });
 });
 
-it("offers decision choices in the open menu and compact dock", () => {
- const ui=new UI3D();ui.root.visible=true;ui.setContext("observatory");ui.setOpen(true);ui.followViewer(new THREE.Vector3(0,1.6,0),new THREE.Quaternion());
- expect(ui.hit(rayTo(ui,"decision"))).toBe("decision");ui.setOpen(false);expect(ui.hit(rayTo(ui,"decision"))).toBe("decision");ui.dispose();
+it("offers decision choices only inside the opened menu", () => {
+  const ui = new UI3D();
+  ui.root.visible = true;
+  ui.setContext("observatory");
+  ui.setOpen(true);
+  ui.followViewer(new THREE.Vector3(0, 1.6, 0), new THREE.Quaternion());
+  const ray = rayTo(ui, "decision");
+  expect(ui.hit(ray)).toBe("decision");
+  ui.setOpen(false);
+  expect(ui.hit(ray)).toBeUndefined();
+  ui.navigate(1, 0);
+  expect(ui.isOpen).toBe(true);
+  ui.dispose();
 });

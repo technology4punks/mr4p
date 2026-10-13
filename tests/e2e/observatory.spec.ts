@@ -22,6 +22,7 @@ test("V4: four cumulative decisions, one revision, reflection, consent, persiste
     }),
   );
   await page.goto("/");
+  await page.getByRole("checkbox", {name:"Visita guidata · 3–4 minuti"}).uncheck();
   await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
   await page
     .getByRole("button", { name: "Entra nell’osservatorio", exact: true })
@@ -153,6 +154,7 @@ test("returns while entering, declines storage, then restarts cleanly", async ({
       writes++;
   });
   await page.goto("/");
+  await page.getByRole("checkbox", {name:"Visita guidata · 3–4 minuti"}).uncheck();
   await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
   await page
     .getByRole("button", { name: "Entra nell’osservatorio", exact: true })
@@ -188,6 +190,7 @@ test("completes entry and a seven-second choice when canvas frame callbacks are 
     }),
   );
   await page.goto("/");
+  await page.getByRole("checkbox", {name:"Visita guidata · 3–4 minuti"}).uncheck();
   await page.getByRole("button", { name: "INIZIA ESPERIENZA" }).click();
   const entry = page.getByRole("button", {
     name: "Entra nell’osservatorio",

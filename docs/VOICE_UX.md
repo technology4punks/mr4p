@@ -1,3 +1,15 @@
+# Visita guidata breve · 13 ottobre 2026
+
+Questo aggiornamento prevale sul precedente requisito di non entrare automaticamente: il viaggio annunciato fa parte della visita guidata. NEO saluta, chiede il nome una volta e lascia spazio alla risposta. Il controller propone l’introduzione dopo la risposta o dopo 16 secondi, soltanto quando non ci sono parlato o ASR pendenti. Nome e risposta non sono condizioni per accedere al futuro. Il prompt usa 10–30 parole e presenta il 2050 come scenario ipotetico.
+
+L’app annuncia il viaggio, mostra il futuro critico e chiede da dove cominciare. Non seleziona interventi al posto dell’utente. Le richieste reali continuano a mostrare direttamente il catalogo. I commenti dell’app non sono turni utente e non possono chiamare tool; nessun nuovo monologo a ogni trasformazione. Le nuove battute programmate attendono `turnBusy`, conservando priorità alle parole e al recupero audio.
+
+Ritorno dopo quattro decisioni, oppure tre oltre due minuti, o a 210 secondi attivi. Una pausa esplicita sospende il tempo; il limite può interrompere una trasformazione per garantire l’uscita. NEO pronuncia una frase breve costruita dalle scelte effettive. La chiusura attende almeno otto secondi e un turno libero; il servizio di registrazione indisponibile non blocca la visita. La modalità libera conserva riflessione/revisione.
+
+Il consenso ai dati resta distinto: checkbox iniziale o richiesta esplicita di salvare dati, scelte o frase. Un semplice “sì” alla storia non lo concede. Il VAD, l’interruzione con parole riconoscibili e il recupero ASR della versione precedente sono preservati. Test WebRTC simulati non certificano ascolto, eco o prompt effettivo sul Quest fisico.
+
+---
+
 # Turni bilanciati: ascolto prima dell’avanzamento
 
 Il feedback successivo alla versione 20 segnala avanzamento autonomo. La prima revisione aveva reso l’invito troppo proattivo e inseriva i commenti applicativi come messaggi `user`: il modello poteva trattarli come nuove risposte e concatenare azioni.

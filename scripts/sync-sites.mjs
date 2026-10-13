@@ -35,6 +35,8 @@ for (const file of [
   "xr-session",
   "decision-engine",
   "city-plan",
+  "guided-visit",
+  "experience-recorder",
 ])
   await cp(`tests/${file}.test.ts`, resolve(root, `tests/${file}.test.ts`));
 await rm(resolve(root, "tests/environmental-scenery.test.ts"), { force: true });

@@ -1,3 +1,5 @@
+import { RunStore } from "./run-store.js";
+import type { RunPage } from "../src/recording/payload.js";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -7,9 +9,13 @@ import { deriveCity } from "../src/decision/DecisionEngine.js";
 export interface SessionRepository {
   save(input: unknown): Promise<{ id: string; expiresAt: number }>;
   remove(id: string, token: string): Promise<boolean>;
+  saveRun?(input: unknown): Promise<{ id: string }>;
+  removeRun?(id: string, token: string): Promise<boolean>;
+  listRuns?(page: number, pageSize: number, status: string): Promise<RunPage>;
 }
 export class SqliteSessions implements SessionRepository {
   readonly db: DatabaseSync;
+  private runs: RunStore;
   constructor(
     path = ":memory:",
     private retentionDays = 30,
@@ -19,9 +25,20 @@ export class SqliteSessions implements SessionRepository {
     this.db.exec(
       "CREATE TABLE IF NOT EXISTS future_sessions (id TEXT PRIMARY KEY, experience_version TEXT NOT NULL, decision_sequence TEXT NOT NULL, active_interventions TEXT NOT NULL, triggered_interdependencies TEXT NOT NULL, revised_decision TEXT, final_reflection TEXT NOT NULL, generated_future_message TEXT NOT NULL, consent_to_store INTEGER NOT NULL CHECK(consent_to_store=1), created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, deletion_hash TEXT NOT NULL); CREATE INDEX IF NOT EXISTS future_sessions_expiry ON future_sessions(expires_at);",
     );
+    this.runs = new RunStore(this.db, this.retentionDays);
     this.purge();
   }
+  saveRun(input: unknown) {
+    return this.runs.save(input);
+  }
+  removeRun(id: string, token: string) {
+    return this.runs.remove(id, token);
+  }
+  listRuns(page: number, size: number, status: string) {
+    return this.runs.list(page, size, status);
+  }
   purge() {
+    this.runs.purge();
     this.db
       .prepare("DELETE FROM future_sessions WHERE expires_at <= ?")
       .run(Date.now());

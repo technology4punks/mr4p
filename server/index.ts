@@ -9,6 +9,7 @@ const purgeTimer = setInterval(() => sessions.purge(), 3_600_000);
 purgeTimer.unref();
 const app = createApp(
   {
+    controlRoomEmails: process.env.CONTROL_ROOM_ALLOWED_EMAILS,
     databasePath:
       process.env.FUTURE_DB_PATH || "./data/future-observatory.sqlite",
     retentionDays: Number(process.env.RETENTION_DAYS || 30),
