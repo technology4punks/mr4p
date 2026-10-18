@@ -27,6 +27,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     private var jobs: [String: Task<Void, Never>] = [:]
     private var pendingUser = false, pendingTool = false, speaking = false, greeted = false
     private var timeout: Task<Void, Never>?
+    private var health: Task<Void,Never>?
     private var evidence: [String:SpeechEvidence] = [:]
     private var transcriptTimers: [String:Task<Void,Never>] = [:]
     private var backend: NeoBackend?
@@ -109,13 +110,19 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
             guard generation == run else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 201 || (response as? HTTPURLResponse)?.statusCode == 200, let answer = String(data: data, encoding: .utf8) else { throw NeoFailure("Connessione voce non riuscita. Controlla rete o credito API.") }
             try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void,Error>) in peer.setRemoteDescription(RTCSessionDescription(type: .answer,sdp: answer)) { error in if let error { c.resume(throwing: error) } else { c.resume() } } }
-            timeout = Task { [weak self] in
+            if channel?.readyState == .open { startHealthMonitor() }
+            else { timeout = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(30))
                 guard let self, !Task.isCancelled, self.generation == run else { return }
                 if self.channel?.readyState != .open { self.recover() }
-                else { await self.watchdog(run) }
-            }
+                else { self.startHealthMonitor() }
+            } }
         } catch { if generation == run { closeTransport(); state = .error; message = error.localizedDescription; changed?(); if retryCount < 5 { recover() } } }
+    }
+    private func startHealthMonitor() {
+        timeout?.cancel();timeout=nil
+        guard health == nil else { return }
+        let run=generation;health=Task { [weak self] in await self?.watchdog(run) }
     }
     private func watchdog(_ run: UUID) async {
         while generation == run && !Task.isCancelled {
@@ -253,7 +260,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         closeTransport(); heard="";said="";context=[:];muted=false; state = .off; self.message=message;changed?()
     }
     private func closeTransport() {
-        generation = UUID(); timeout?.cancel(); transcriptTimers.values.forEach {$0.cancel()};transcriptTimers.removeAll();evidence.removeAll();lastBytes=nil;stalledSince=nil; jobs.values.forEach { $0.cancel() }; jobs.removeAll(); channel?.close(); channel = nil; pc?.close(); pc = nil; track?.isEnabled = false; track = nil
+        generation = UUID(); timeout?.cancel();health?.cancel();health=nil; transcriptTimers.values.forEach {$0.cancel()};transcriptTimers.removeAll();evidence.removeAll();lastBytes=nil;stalledSince=nil; jobs.values.forEach { $0.cancel() }; jobs.removeAll(); channel?.close(); channel = nil; pc?.close(); pc = nil; track?.isEnabled = false; track = nil
         gate.reset(); calls.removeAll(); answered.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false;pendingAnnouncement=nil
     }
     nonisolated func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
@@ -264,7 +271,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         guard dataChannel.readyState == .open else { return }
         Task { @MainActor [weak self] in
             guard let self, self.channel === dataChannel, !self.greeted else { return }
-            self.greeted = true; self.retryCount=0; self.updateContext(self.context); self.state = self.muted ? .muted : .ready
+            self.greeted = true; self.retryCount=0; self.startHealthMonitor(); self.updateContext(self.context); self.state = self.muted ? .muted : .ready
             self.send(["type":"session.update","session":["type":"realtime","audio":["input":["noise_reduction":["type":"near_field"],"turn_detection":["type":"server_vad","threshold":0.6,"prefix_padding_ms":350,"silence_duration_ms":650,"create_response":false,"interrupt_response":false]]]]])
             if !self.recent.isEmpty {
                 for (role,text) in self.recent {self.send(["type":"conversation.item.create","item":["type":"message","role":role,"content":[["type":role == "user" ? "input_text" : "output_text","text":text]]]])}
