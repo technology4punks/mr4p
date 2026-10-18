@@ -78,6 +78,12 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         recovery = Task { [weak self] in
             do { try await Task.sleep(for:.seconds(delay)) } catch { return }
             guard let self, self.desiredRunning, !self.interruptedBySystem else { return }
+            // An interrupted SDP/permission operation can still be unwinding. Do not
+            // lose the recovery request to start()'s concurrent-connection guard.
+            while self.starting {
+                do { try await Task.sleep(for:.milliseconds(200)) } catch { return }
+                guard self.desiredRunning, !self.interruptedBySystem else { return }
+            }
             self.recovery=nil; await self.start(backend:backend)
         }
     }
@@ -191,11 +197,11 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
             guard !muted, let item=event["item_id"] as? String, var proof=evidence[item] else { return }
             if let end=event["audio_end_ms"] as? Double, let start=proof.audioStartMS { proof.duration=max(0,(end-start)/1000-1.0) }
             else { proof.duration=Date().timeIntervalSince(proof.started) }
-            evidence[item]=proof; let run=generation
+            evidence[item]=proof; let run=generation, turn=gate.turn
             transcriptTimers[item]?.cancel()
             transcriptTimers[item]=Task { [weak self] in
                 do { try await Task.sleep(for:.seconds(4)) } catch { return }
-                guard let self, self.generation==run, !self.muted, !self.answered.contains(item), !proof.overlapping, proof.seconds()>=0.7 else { return }
+                guard let self, self.generation==run, self.gate.turn==turn, !self.muted, !self.answered.contains(item), !proof.overlapping, proof.seconds()>=0.7 else { return }
                 self.answered.insert(item); self.evidence.removeValue(forKey:item)
                 // Clarify instead of silently locking the turn when ASR fails. No tools.
                 if !self.gate.responseActive && !self.speaking {
@@ -217,7 +223,9 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
             let proof=evidence.removeValue(forKey:item)
             if answered.contains(item) { return }
             let overlapping=proof?.overlapping ?? (speaking || gate.responseActive)
-            guard let text=event["transcript"] as? String, gate.user(text,duration:proof?.seconds() ?? 0,overlapping:overlapping) else { return }
+            guard let text=event["transcript"] as? String, gate.user(text,duration:proof?.seconds() ?? 0,overlapping:overlapping) else {
+                send(["type":"conversation.item.delete","item_id":item]);return
+            }
             answered.insert(item); if answered.count>100 { answered=[item] }
             heard=text; pendingAnnouncement=nil; recent.append(("user",String(text.prefix(1000)))); if recent.count>8 {recent.removeFirst()}
             jobs.values.forEach { $0.cancel() }; pendingUser=true
