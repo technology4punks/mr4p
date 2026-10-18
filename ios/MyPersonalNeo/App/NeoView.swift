@@ -28,7 +28,7 @@ struct NeoView: View {
                     Text("MY PERSONAL NEO").font(.caption.weight(.semibold)).tracking(4).foregroundStyle(mint)
                     Text("Il mondo reale.\nIn compagnia.").font(.system(size:42,weight:.light,design:.serif))
                     Text("Scegli il tuo compagno").font(.headline)
-                    Picker("Compagno",selection:$neo.avatar) { ForEach(AvatarProfile.allCases) { p in Text(p.title).tag(p) } }.pickerStyle(.segmented)
+                    Picker("Compagno",selection:$neo.avatar) { ForEach(AvatarProfile.allCases) { p in Text(p.title).tag(p) } }.pickerStyle(.segmented).disabled(neo.starting)
                     if let url=Bundle.main.url(forResource:neo.avatar.resource,withExtension:"jpg"), let image=UIImage(contentsOfFile:url.path) {
                         Image(uiImage:image).resizable().scaledToFit().frame(maxHeight:220).clipShape(RoundedRectangle(cornerRadius:24))
                     }
@@ -54,7 +54,7 @@ struct NeoView: View {
                     if !neo.voice.heard.isEmpty { Text("Tu: "+neo.voice.heard).font(.caption) }
                 }
                 Section("Spazio") {
-                    Text(neo.room.status).font(.caption)
+                    Text("Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?") · \(neo.room.status)").font(.caption)
                     Text(String(format:"Scena %.0f FPS · camera %.0f FPS (richiesti %d) · rig %.0f Hz",neo.room.performance.fps,neo.room.cameraCadence.fps,neo.room.cameraTargetFPS,neo.room.performance.animationHz)).font(.caption.monospacedDigit())
                     Text(neo.room.sensingLabel).font(.caption)
                     Text(String(format:"Età frame %.2f s · gap camera massimo %.0f ms · update CPU massimo %.1f ms",neo.room.cameraAge,neo.room.cameraCadence.largestGap*1000,neo.room.longestUpdateMS)).font(.caption.monospacedDigit())

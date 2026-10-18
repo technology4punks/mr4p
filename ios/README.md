@@ -1,6 +1,6 @@
 # My Personal Neo · iPhone nativo
 
-SwiftUI + ARKit + RealityKit, iOS 17+, OpenAI Realtime/WebRTC. App separata da Robot Buddy; chiavi solo nel backend già configurato. **Revisione 3**: compagni fumettosi uomo/donna/cane e modalità AR leggera predefinita, dopo il grave rallentamento segnalato nell’app nativa su **iPhone 14 Pro**. FPS reali della nuova build ancora da misurare sul dispositivo.
+SwiftUI + ARKit + RealityKit, iOS 17+, OpenAI Realtime/WebRTC. App separata da Robot Buddy; chiavi solo nel backend già configurato. **Revisione 4**: correzione dei pivot del rig, acquisizione AR a finestre e snapshot indipendenti dalla camera, dopo blocco video e T-pose segnalati su **iPhone 14 Pro**. Il codice corregge cause concrete; continuità camera, FPS e termica devono ancora essere verificati sul dispositivo.
 
 ## Installazione / aggiornamento
 
@@ -22,19 +22,26 @@ Backend: `https://neo-mr-avatar-test.sk1kko.chatgpt.site`, endpoint `/api/person
 
 ## Profilo leggero e diagnostica
 
-La revisione non attribuisce il problema ai soli poligoni: la precedente configurazione combinava texture fotografiche, mesh classificata continua, colliders mesh, occlusione persone, cubemap e aggiornamenti del rig ogni frame. La nuova configurazione:
+La revisione 3 non ha risolto il blocco segnalato sul dispositivo. La revisione 4 corregge tre percorsi distinti: buffer camera trattenuti durante la rete, lavoro continuo sul main actor e rig convertito con pivot della posa animata anziché della posa bind.
 
-- Carica **un solo compagno**, una mesh e un materiale con palette **64×64**; rimossi dal bundle gli avatar realistici Rocketbox e le loro texture 1k.
-- Usa tracking, piani orizzontali/verticali e profondità LiDAR. **Mesh dettagliata opzionale**, spenta di default: niente classificazione o cottura di colliders triangolari continua. Occlusione di base con massimo 24 superfici misurate, aggiornate al massimo due volte al secondo.
-- Disabilita person segmentation, cubemap automatiche, motion blur, profondità di campo, camera grain e grounding shadows. Non dichiara occlusione di persone o geometria universale.
-- Aggiorna pose e locomozione a **30 Hz**, con rendering/tracking indipendenti; riduce a 20 Hz dopo due finestre sotto 40 FPS e recupera 30 Hz oltre 52 FPS. Indici joint precalcolati, IK ridotta a due iterazioni, niente ricerca/dizionari per joint a ogni posa. I pannelli SwiftUI non vengono ridisegnati per ogni evento vocale quando sono nascosti.
-- Controlla pavimento e ostacoli con piani misurati; niente nove raycast fisici su mesh ogni frame. Cache breve dei controlli geometrici, invalidata su stop/tracking perso. Ostacoli sottili/mobili/non scansionati possono sfuggire: non è navigazione garantita.
+- **Acquisizione iniziale di 6 secondi**: piani orizzontali/verticali e `sceneDepth` opzionale; poi world tracking senza richiesta continua di piani, profondità, mesh o colliders. Il controllo nascosto **Riscansiona superfici** apre una nuova finestra. Togliere `sceneDepth` interrompe il flusso richiesto dall’app, non controlla direttamente l’accensione hardware del LiDAR.
+- **Una osservazione per volta**: finestra di misura fino a 1 s, JPEG massimo 960 px e 550 KB; posa, intrinseci, piani e profondità vengono copiati. Nessun `ARFrame`, `ARDepthData` o buffer camera viene conservato durante richieste AI. Immagine materializzata senza rendering differito, compressione JPEG su task di utilità. Risposte precedenti a un cambio tracking/sessione o oltre 30 s scartate.
+- **Nessun task per frame o occlusore generato**: massimo 64 piani numerici in RAM. Rimossa la rigenerazione di mesh planari sul main actor. Nessuna occlusione fisica degli arredi promessa in questa revisione; sono prioritari camera stabile e rig animato. Segmentation, cubemap, motion blur, profondità di campo, grain e grounding shadows disabilitati.
+- **Camera a 30 FPS quando il formato è supportato**, scegliendo la risoluzione più bassa disponibile a quella frequenza. È una richiesta di configurazione, non una misura ottenuta. Pose a 30 Hz, adattive a 20 Hz sotto carico, rendering indipendente.
+- **Rig corretto**: pivot recuperati dalle inverse bind matrices glTF; postura rilassata assegnata prima del primo tick; idle e gesti continuano durante tracking limitato, mentre navigazione e IK spaziale si fermano. Import asincrono prima della camera, cache degli indici/gerarchia e due iterazioni IK. Una sola mesh/materiale, palette 64 px, uno solo dei tre compagni caricato.
+- **Audio**: notifiche `categoryChange` ignorate; cambi dispositivo filtrati, raggruppati e deduplicati, senza riattivare AVAudioSession o ricreare WebRTC. Configurazione audio idempotente, microfono full duplex conservato.
 
-Nei controlli: **FPS scena** (cadence di SceneEvents.Update, non GPU time), frequenza animazione e switch mesh dettagliata. Nessuna diagnostica sovrapposta nell’esperienza. Servono misure su 14 Pro di FPS, termica, memoria e latenza voce prima di dichiarare risolto il problema prestazionale.
+I controlli nascosti mostrano separatamente FPS scena e camera, frequenza richiesta, età dell’ultimo frame, gap massimo camera, massimo tempo CPU dell’aggiornamento e fase di acquisizione. I valori della scena non sono tempo GPU. Nessun HUD aggiunto.
+
+La geometria è una cache temporanea, non una stanza salvata: il seguito si ferma dopo **20 s senza misure recenti**, lo sguardo continua. Un nuovo scan/«osserva» aggiorna le superfici viste; ostacoli ignoti, sottili o mobili possono sfuggire. La ripresa dopo background ricrea il riferimento e invalida oggetti/calibrazioni precedenti.
+
+### Stanze salvate: prossima fase
+
+Il progetto richiesto è documentato in [SAVED_ROOMS_DESIGN.md](../docs/SAVED_ROOMS_DESIGN.md): memoria locale, `ARWorldMap`, rilocalizzazione, keyframe facoltativi e proposte AI validate da misure geometriche. Non attiva persistenza o invii nuovi. ARKit non espone una ROI LiDAR per rimisurare soltanto un oggetto: l’app potrà aggiornare selettivamente le proprie celle, acquisendo misure in finestre brevi.
 
 ## Interazioni e limiti
 
-ARKit misura; OpenAI riconosce oggetti in una foto. La fusione usa frame/posa della foto e depth/raycast reali: nessuna coordinata inventata, nessuna comprensione totale. Le localizzazioni sono centri stimati, non superfici complete; scadono per avvicinamento dopo 30 secondi.
+ARKit misura; OpenAI riconosce oggetti in una foto. La fusione usa la copia di posa/intrinseci della foto e profondità/piani misurati nello stesso riferimento: nessuna coordinata inventata, nessuna comprensione totale. Le localizzazioni sono centri stimati, non superfici complete; scadono per avvicinamento dopo 30 secondi.
 
 Passo lento 0,42 m/s; seguito discreto e avvicinamento entro 3 m con arresto a 75 cm. Supporto ignoto/tracking limitato/ostacoli misurati fermano il movimento; nessun aggiramento automatico. Sguardo verso la camera e pose locali; il cane cammina, guarda l’oggetto e muove la coda, **non esegue gesti umani**.
 
@@ -60,7 +67,7 @@ Watchdog RTP dall’apertura canale, recupero traccia/connessione e cambi uscita
 
 Una texture 64px ciascuno: budget teorico RGBA8 16 KiB prima dei mipmap, non misura GPU. File dei tre USDZ complessivi circa **1,59 MB**, rispetto ai precedenti 18,14 MB; non tutti sono caricati contemporaneamente. [Anteprima geometrie/texture convertite](../docs/validation/personal-neo/toon-companions-r3.png); è un rendering di controllo, non una cattura RealityKit sul telefono.
 
-Fonti: [uomo](https://quaternius.com/packs/ultimatemodularcharacters.html), [donna](https://quaternius.com/packs/ultimatemodularwomen.html), [cane](https://quaternius.com/packs/ultimateanimatedanimals.html). Dati glTF gratuiti, nessun DCC o modellazione manuale. Script conserva rig/pesi, uniforma assi/scala e unisce mesh/materiali in una palette locale. Le clip sorgenti non sono caricate; gesti/locomozione/IK locali in Swift.
+Fonti: [uomo](https://quaternius.com/packs/ultimatemodularcharacters.html), [donna](https://quaternius.com/packs/ultimatemodularwomen.html), [cane](https://quaternius.com/packs/ultimateanimatedanimals.html). Dati glTF gratuiti, nessun DCC o modellazione manuale. Script recupera i pivot dalle inverse bind matrices, verifica la discesa effettiva dei vertici pesati delle mani, conserva rig/pesi, uniforma assi/scala e unisce mesh/materiali in una palette locale. Le clip sorgenti non sono caricate; gesti/locomozione/IK locali in Swift.
 
 ```sh
 python3 -m venv /tmp/neo-usd-tools
@@ -75,4 +82,4 @@ Il vecchio convertitore Rocketbox è conservato come `convert-rocketbox.py` per 
 
 `MyPersonalNeoTests` esercita import reale di tutti e tre i rig, un solo materiale/mesh, texture, proporzioni, pose/camminata, geometria tastiera/calibrazione, proiezione foto/depth, filtro rumore/turni e budget adattivo. CI macOS/Xcode senza firma. Dettagli e risultati finali in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
 
-Test fisico necessario su **iPhone 14 Pro**: ricompilare, confrontare mesh dettagliata off/on dai controlli, muovere camera e avatar, dieci turni voce con rumori/interruzioni, uscita Bluetooth/chiamata, background, calibrazioni. Annotare iOS, build, FPS scena, latenza e termica. Non sono stati creati certificati, provisioning o upload TestFlight/App Store. Per TestFlight usare il proprio team, scheda App Store Connect, Product→Archive→Distribute App e verifica privacy/provider.
+Test fisico necessario su **iPhone 14 Pro**: ricompilare dalla branch aggiornata e provare ogni compagno. Per almeno 3 minuti muovere lentamente la camera; controllare passaggio acquisizione→esplorazione dopo 6 s, assenza di T-pose, età/gap camera e voce. Chiedere «cosa vedi?» più volte, anche con rete lenta: una sola osservazione in corso e camera sempre libera. Poi riscansione, dieci turni voce/rumori/interruzioni, Bluetooth/chiamata, background/ripresa e calibrazioni. Annotare iOS, commit/build, FPS camera/scena, massimi gap/update, latenza e termica. Non sono stati creati certificati, provisioning o upload TestFlight/App Store. Per TestFlight usare il proprio team, scheda App Store Connect, Product→Archive→Distribute App e verifica privacy/provider.

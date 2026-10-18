@@ -112,7 +112,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         } else { cameraTargetFPS=config.videoFormat.framesPerSecond }
         if supportsLiDAR, sensing.needsDepth { config.frameSemantics.insert(.sceneDepth) }
         // No mesh reconstruction, collision cooking or generated occluders in the interactive path.
-        config.sceneReconstruction = .none
+        config.sceneReconstruction = []
         view.session.run(config,options:reset ? [.resetTracking,.removeExistingAnchors] : [])
         status=sensingLabel; changed?()
     }
@@ -146,7 +146,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         followUser = false
     }
     private func floor(at p: SIMD3<Float>) -> SIMD3<Float>? {
-        measuredPlanes.values.lazy.filter { $0.isHorizontal && ProcessInfo.processInfo.systemUptime-(planeTimes[$0.id] ?? 0)<20 }.compactMap {
+        measuredPlanes.values.lazy.filter { $0.isHorizontal && ProcessInfo.processInfo.systemUptime-(self.planeTimes[$0.id] ?? 0)<20 }.compactMap {
             $0.intersection(origin:p+[0,0.3,0],direction:[0,-1,0],maxDistance:0.5)
         }.min { simd_distance($0,p)<simd_distance($1,p) }
     }

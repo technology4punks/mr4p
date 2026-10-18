@@ -1,4 +1,4 @@
-> **Stato corrente: revisione 3** — dopo il feedback su iPhone 14 Pro nativo, i tre umani realistici sono sostituiti da uomo/donna/cane Quaternius CC0, con profilo AR leggero. Le sezioni sulle revisioni 1/2 sotto sono cronologia; guida corrente in [ios/README.md](../ios/README.md). Nessuna misura prestazionale fisica della revisione 3 ancora disponibile.
+> **Stato corrente: revisione 4** — corrette conversione bind/posa iniziale, durata delle acquisizioni, conservazione dei buffer camera e notifiche audio. Uomo/donna/cane CC0 restano leggeri. Le sezioni sulle revisioni 1–3 sotto sono cronologia. Guida corrente: [ios/README.md](../ios/README.md); progetto futuro: [stanze salvate](SAVED_ROOMS_DESIGN.md). Le prove fisiche della nuova build su iPhone 14 Pro sono ancora necessarie.
 
 # My Personal Neo · app nativa iPhone
 
@@ -9,12 +9,12 @@ Nuovo progetto sulla branch `codex/my-personal-neo`, affiancato all’esperienza
 | Livello | Implementazione | Limite concreto |
 |---|---|---|
 | Spazio | ARKit world tracking, superfici orizzontali/verticali | Tracking può essere limitato o perso |
-| Profondità | Scene mesh classificata, depth, occlusione/physics RealityKit, solo se supportate | LiDAR non è presente su tutti gli iPhone; mesh stimata |
+| Profondità | Piani e sceneDepth durante acquisizioni limitate; nessuna mesh/physics continua | LiDAR opzionale; cache temporanea, nessuna occlusione degli arredi in R4 |
 | Significato | Responses API: foto JPEG 960 px, JSON schema con oggetti/categorie/box | Riconoscimento probabilistico, non misurazione dei contatti |
-| Fusione | Frame e posa al momento della foto, trasformazione portrait/raw, campionamento depth con confidence; fallback raycast | Centro stimato su misura disponibile, nessuna coordinata inventata |
+| Fusione | Snapshot numerico al momento della foto, portrait/raw, depth con confidence; intersezione su piani copiati | Centro stimato su misura disponibile, nessuna coordinata inventata |
 | Intelligence | OpenAI Realtime, tool autorizzati su richieste reali | Nessun codice grafico o azione arbitraria dal modello |
 | Conoscenza | Web search server-side, risultati e URL citati verificabili | Modello/manuale generico non equivale a manuale esatto |
-| Avatar | Tre umani Rocketbox MIT, 80 joint, texture 1k, pose locali e IK braccio/mano | Dita, seduta e contatti da verificare fisicamente |
+| Avatar | Uomo/donna/cane Quaternius CC0, 62/46 joint, palette 64 px; pose locali e IK umano | Dita, seduta e contatti da verificare fisicamente |
 | Interazioni | Puntamento, seduta calibrata, tastiera 88 tasti, demo judo di base | Nessun azionamento meccanico o animazione universale appresa |
 
 La voce usa WebRTC nativo con echo cancellation, riconoscimento prima delle interruzioni, coda dei risultati asincroni e recupero timeout/ASR. Un aggiornamento di scena è contesto di sistema, non risposta dell’utente. I tool tardivi non avviano una risposta oltre un nuovo turno. Il background chiude voce/scansione e richiede ripresa esplicita. La revisione 2 tenta il recupero del canale voce dopo rete/route/interruzioni audio iOS senza perdere il contesto in RAM. Nessun timer didattico o teletrasporto della visita V4. Osservazione assistita opzionale e disattivata di default: un frame ogni 15 secondi con tracking stabile, evitando analisi sovrapposte e turni parlati; aggiorna solo il contesto, senza risposte o azioni autonome. Non è comprensione continua di ogni evento né video in tempo reale.
@@ -31,8 +31,8 @@ Il client nativo imposta Origin sul dominio configurato: è un controllo del pun
 
 1. iPhone/iOS/browser non necessari: installare da Xcode con team Apple Developer. [Guida](../ios/README.md).
 2. Start esplicito, nessuna camera/microfono prima dell’attivazione. Verificare permessi negati, ripresa e interruzione/chiamata.
-3. Scansionare pareti, tavolo, sedia; controllare contatore superfici/mesh. Provare anche un dispositivo senza LiDAR.
-4. Posizionare NEO sul pavimento; muovere il telefono, controllare ancoraggio e occlusione. Il rig deve essere visibile e finito.
+3. Scansionare pavimento e superfici nei primi 6 s; verificare passaggio a esplorazione senza scansione continua. Riscansionare dai controlli quando serve. Provare anche un dispositivo senza LiDAR.
+4. Posizionare NEO sul pavimento; muovere il telefono, controllare ancoraggio, posa iniziale e animazione. La R4 privilegia camera/rig e non abilita occlusione degli arredi. Il rig deve essere visibile e finito.
 5. «Cosa vedi?»: confrontare categorie, posizioni e sorgente della misura. Muovere il telefono mentre attende: la posa usata deve restare quella del fotogramma. Oggetti senza misura non devono ottenere coordinate fittizie.
 6. «Indica la sedia», «Cerca il manuale di [modello]»: controllare strumento autorizzato e fonti. Una nuova richiesta deve interrompere la vecchia ricerca senza monologhi tardivi.
 7. Dieci turni voce, interruzioni con parole, rumori, mute, riavvio dopo chiamata/background. Verificare latenza, eco e ripresa dell’ascolto.
@@ -92,3 +92,25 @@ Verifica preliminare revisione 3: pipeline [39125544102](https://github.com/tech
 Pagina/backend aggiornati a **Sites 26**, distribuzione `succeeded` il 18 ottobre 2026 alle **12:08:20 UTC**, runtime revision **6** preservato. Sorgente Sites `d36cb8ae2c73ead6dee79a47fe9e4791c7c6456c`, deploy `appgdep_6ad4b6a253408191ad9c24de8af2b778`. [Smoke pubblico](validation/personal-neo/public-smoke-v26.json): pagina, tutte e tre le preview, licenza e token vocale **200**, control room anonima **401**, ingresso Buddy **200**, nessun errore JavaScript. [Pagina pubblicata](validation/personal-neo/public-v26.png). Il servizio è aggiornato, ma per provare le ottimizzazioni AR occorre ricompilare l’app sul proprio iPhone.
 
 **Esito finale revisione 3:** [pipeline 39126138979](https://github.com/technology4punks/mr4p/actions/runs/39126138979), codice Swift `b0c214d80a5a5d9ffa8e9465b8b269e0436d218a`: compilazione app/test e test del simulatore **success**, inclusi i nove casi della suite. Il codice compilato include la guardia finale delle capacità del cane e il suo orientamento agli oggetti; i nove test non costituiscono una verifica fisica di queste interazioni. Il successo dei test non misura frame rate, temperatura o continuità audio su iPhone 14 Pro; queste verifiche richiedono la nuova build sul dispositivo. Le modifiche successive a questo codice sono documentazione/sincronizzazione della pagina, senza ulteriori cambi Swift.
+
+
+## Revisione 4 · blocco camera, T-pose e scansione a finestre
+
+Il nuovo test utente sulla revisione 3 riporta ancora scatti seguiti da blocco camera e avatar in T-pose. Quindi la riduzione degli asset non dimostra una soluzione sufficiente. Non sono disponibili Instruments o tracce hardware del telefono: i seguenti sono difetti verificati nel codice, non una diagnosi esclusiva della causa del blocco.
+
+1. **Rig:** il convertitore usava trasformazioni dei joint già animate con una mesh ancora in T-pose. Usa ora `meshGlobal * inverse(inverseBindMatrix)` per ricostruire i pivot bind. Verifica CPU sui veri vertici pesati: discesa media delle mani nella posa rilassata almeno **0,5276 m uomo / 0,5343 m donna**, senza aumentare bytes, triangoli o materiali. RealityKit riceve la posa immediatamente; non attende tracking normale per animare idle/gesti.
+2. **Camera:** `inspect` tratteneva l’intero `ARFrame` per tutta la richiesta AI; richieste tool concorrenti potevano sovrapporre acquisizioni. Ora snapshot e JPEG sono di proprietà dell’app e la pipeline è seriale. La compressione avviene dopo il rilascio degli oggetti ARKit; niente rete con frame/pixel buffer conservati. Validazione di epoch/sessione e freschezza prima di assegnare coordinate.
+3. **Lavoro continuo:** rimossi task main per frame e rigenerazione degli occlusori a ogni aggiornamento. Acquisizione 6 s, poi world tracking senza discovery/depth/mesh continui. Misure su richiesta fino a 1 s e rescan esplicito; cache solo numerica di 64 piani. Il movimento si arresta con supporto scaduto, tracking perso o ostacolo noto; non è un sistema di collisione universale.
+4. **Audio/lifecycle:** filtro e debounce delle route, nessun feedback `categoryChange`→riconfigurazione. Avvio asincrono protetto da doppi tap e ritorni tardivi dal background; calibrazioni invalidate alla ripresa.
+
+Diagnostica solo nei controlli: FPS scena/camera separati, formato camera richiesto, età/gap massimo dei frame, CPU update massimo e fase. **30 FPS è la frequenza camera richiesta quando supportata, non una prestazione misurata su iPhone.** Nessuna nuova persistenza, chiave o modifica del backend/Buddy.
+
+### Memoria stanza: progettata, non ancora attiva
+
+[Disegno completo](SAVED_ROOMS_DESIGN.md) con fonti Apple: acquisizione iniziale opt-in, `ARWorldMap`, rilocalizzazione e memoria locale versionata; AI propone cambiamenti, misure reali li convalidano. L’aggiornamento incrementale riguarda celle/oggetti dell’app; ARKit non espone comandi LiDAR per singole ROI. Niente salvataggi foto/mappe in questa consegna.
+
+### Validazione revisione 4
+
+Build/test iOS su macOS in corso per la branch. Test aggiunti su vera posa iniziale/import asincrono, tracking limitato, target invalidi, copia depth con stride e lifetime, snapshot/pose, finestre di scansione e notifiche audio. Risultati finali da aggiornare dopo la CI. `npm run check`: lint, typecheck, build, scansione bundle e **223 test passati**. Suite browser in corso.
+
+Per provare le correzioni è necessario **aggiornare `codex/my-personal-neo` e ricompilare/installare da Xcode**. Il sito/backend già pubblicato non aggiorna l’app installata; non è stato effettuato upload TestFlight. FPS, memoria residente, continuità audio/camera e termica sul 14 Pro restano da misurare con la nuova build.

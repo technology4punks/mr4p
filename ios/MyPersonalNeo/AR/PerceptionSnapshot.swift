@@ -118,9 +118,7 @@ struct ScenePlaneSnapshot {
 
     init(anchor: ARPlaneAnchor) {
         let geometry = anchor.geometry
-        let boundary = (0..<min(geometry.boundaryVertexCount, 512)).map { index -> SIMD2<Float> in
-            let p = geometry.boundaryVertices[index]; return [p.x, p.z]
-        }
+        let boundary = geometry.boundaryVertices.prefix(512).map { p -> SIMD2<Float> in [p.x,p.z] }
         self.init(id:anchor.identifier,isHorizontal:anchor.alignment == .horizontal,
                   transform: anchor.transform, center: anchor.center, extent: [anchor.extent.x, anchor.extent.z], boundary: boundary)
     }

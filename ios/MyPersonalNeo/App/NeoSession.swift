@@ -57,11 +57,12 @@ final class NeoSession: ObservableObject {
         guard startID == id, UIApplication.shared.applicationState != .background else { return }
         guard allowed else { message = "Consenti la fotocamera nelle Impostazioni per avviare la scansione AR."; return }
         do {
-            try await room.start(profile:avatar)
-            guard startID == id, UIApplication.shared.applicationState != .background else {room.stop();return}
-            UserDefaults.standard.set(avatar.rawValue,forKey:"neo.avatar")
+            let chosenAvatar=avatar
+            try await room.start(profile:chosenAvatar)
+            guard startID == id, UIApplication.shared.applicationState != .background else {return}
+            UserDefaults.standard.set(chosenAvatar.rawValue,forKey:"neo.avatar")
             active = true; controlsVisible = false; message = "Scansiona lentamente il pavimento: NEO apparirà davanti a te."
-            voice.updateContext(["avatarKind":avatar.rawValue,"hasHands":avatar.isHuman])
+            voice.updateContext(["avatarKind":chosenAvatar.rawValue,"hasHands":chosenAvatar.isHuman])
             await voice.start(backend:backend)
             if startID == id, active, voice.state == .error { controlsVisible = true }
         }
