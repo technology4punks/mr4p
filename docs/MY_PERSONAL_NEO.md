@@ -12,10 +12,10 @@ Nuovo progetto sulla branch `codex/my-personal-neo`, affiancato all’esperienza
 | Fusione | Frame e posa al momento della foto, trasformazione portrait/raw, campionamento depth con confidence; fallback raycast | Centro stimato su misura disponibile, nessuna coordinata inventata |
 | Intelligence | OpenAI Realtime, tool autorizzati su richieste reali | Nessun codice grafico o azione arbitraria dal modello |
 | Conoscenza | Web search server-side, risultati e URL citati verificabili | Modello/manuale generico non equivale a manuale esatto |
-| Avatar | USD Skel 48 joint, 6 mesh, pose locali e IK braccio/mano | Dita, seduta e contatti da verificare fisicamente |
+| Avatar | Tre umani Rocketbox MIT, 80 joint, texture 1k, pose locali e IK braccio/mano | Dita, seduta e contatti da verificare fisicamente |
 | Interazioni | Puntamento, seduta calibrata, tastiera 88 tasti, demo judo di base | Nessun azionamento meccanico o animazione universale appresa |
 
-La voce usa WebRTC nativo con echo cancellation, riconoscimento prima delle interruzioni, coda dei risultati asincroni e recupero timeout/ASR. Un aggiornamento di scena è contesto di sistema, non risposta dell’utente. I tool tardivi non avviano una risposta oltre un nuovo turno. Il passaggio in background o l’interruzione audio iOS chiude la voce e sospende la scansione; ripresa esplicita. Nessun timer didattico o teletrasporto della visita V4. Osservazione assistita opzionale e disattivata di default: un frame ogni 15 secondi con tracking stabile, evitando analisi sovrapposte e turni parlati; aggiorna solo il contesto, senza risposte o azioni autonome. Non è comprensione continua di ogni evento né video in tempo reale.
+La voce usa WebRTC nativo con echo cancellation, riconoscimento prima delle interruzioni, coda dei risultati asincroni e recupero timeout/ASR. Un aggiornamento di scena è contesto di sistema, non risposta dell’utente. I tool tardivi non avviano una risposta oltre un nuovo turno. Il background chiude voce/scansione e richiede ripresa esplicita. La revisione 2 tenta il recupero del canale voce dopo rete/route/interruzioni audio iOS senza perdere il contesto in RAM. Nessun timer didattico o teletrasporto della visita V4. Osservazione assistita opzionale e disattivata di default: un frame ogni 15 secondi con tracking stabile, evitando analisi sovrapposte e turni parlati; aggiorna solo il contesto, senza risposte o azioni autonome. Non è comprensione continua di ogni evento né video in tempo reale.
 
 ## Backend separato, hosting condiviso
 
@@ -54,3 +54,11 @@ Sites **versione 24**, distribuzione `succeeded` alle **10:34:41 UTC**: [pagina 
 Smoke live anonimo passato: pagina, token personale **200** con sola verifica del valore effimero senza stamparlo, visione strutturata **200** su illustrazione sintetica (un oggetto), ricerca web reale **200** con una fonte, control room anonima **401**, ingresso Robot Buddy senza login e zero errori JavaScript. [Esiti](validation/personal-neo/public-smoke-v24.json), [pagina distribuita](validation/personal-neo/public-v24.png). Microfono negato nel browser: nessuna prova di voce live o ambiente iPhone reale.
 
 Per l’installazione sul dispositivo usare il progetto Xcode e il team del proprietario; non sono stati creati certificati, provisioning, IPA firmate, upload App Store o inviti TestFlight.
+
+## Revisione 2 · feedback iPhone
+
+Tre avatar umani realistici selezionabili prima dello start; movimento lento e interazione sul pavimento misurato, sguardo verso la camera, gesto e animazione essenziale della bocca. Nessun HUD, trascrizione, puntino o apertura automatica di pannelli durante l’esperienza. Controlli con doppio tocco a due dita o voce; calibrazione guidata a voce. Stato diagnostico e fonti disponibili soltanto nei controlli richiamati.
+
+Microfono full duplex dall’ingresso; filtro delle interruzioni su durata audio e parole riconosciute, isolamento degli item ASR e recupero canale/trasporto. Nessun cambio a prompt o microfono di Robot Buddy. Il recupero conserva al massimo otto messaggi in RAM e non crea archivi. Il menu e il sistema operativo consentono sempre sospensione.
+
+Verifica hardware richiesta: ogni avatar (volto, capelli, ombre, sguardo), ancoraggio e posa seduta, pavimento/ostacoli con e senza LiDAR, dieci turni audio con brevi rumori e vere interruzioni, uscita Bluetooth/chiamata, ritorno dall’app in background e gesto controlli. Non sono disponibili nuove misure FPS, latenza o termica su dispositivo. I raggi stimano collisioni, non garantiscono contatto o comprensione totale. Nessun upload TestFlight eseguito.

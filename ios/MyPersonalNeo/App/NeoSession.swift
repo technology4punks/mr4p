@@ -48,6 +48,7 @@ final class NeoSession: ObservableObject {
     }
     func start() async {
         let allowed = await AVCaptureDevice.requestAccess(for:.video)
+        guard UIApplication.shared.applicationState != .background else { return }
         guard allowed else { message = "Consenti la fotocamera nelle Impostazioni per avviare la scansione AR."; return }
         do {
             try room.start(profile:avatar); UserDefaults.standard.set(avatar.rawValue,forKey:"neo.avatar")
@@ -154,9 +155,9 @@ final class NeoSession: ObservableObject {
                 stopPerformance();try room.walkNear(target);message="Mi avvicino sul pavimento misurato; mi fermo se il percorso non è libero."
             case "follow_user": room.followUser=true;room.stopWalking();message="Ti resto vicino se il pavimento misurato è libero."
             case "show_controls": controlsVisible=true;message="Controlli aperti. Doppio tocco con due dita per nasconderli."
-            case "point_at_object":guard room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};room.stopWalking();let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
+            case "point_at_object":guard room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};room.stopWalking();room.followUser=false;let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
             case "demonstrate":guard let id=args["animation"] as? String,["wave","explain","judo_rei","judo_tai_sabaki"].contains(id),room.rig.root.isEnabled,room.trackingNormal,!room.rig.seated else {throw NeoFailure("Posiziona NEO e scegli una dimostrazione disponibile.")};demo(id)
-            case "stop_demonstration":stopPerformance();room.stopWalking();room.followUser=false;room.rig.stop(stand:false)
+            case "stop_demonstration":cancelCalibration();stopPerformance();room.stopWalking();room.followUser=false;room.rig.stop(stand:false)
             default:throw NeoFailure("Azione non disponibile.")
             }
             return ["accepted":true,"reason":message,"calibratedPiano":pianoReady,"tracking":room.trackingNormal]

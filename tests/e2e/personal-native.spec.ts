@@ -4,7 +4,7 @@ test("native iPhone project has a separate public page without requesting captur
  await page.exposeFunction("captureRequested",()=>{captures++});
  await page.addInitScript(()=>Object.defineProperty(navigator,"mediaDevices",{value:{getUserMedia:async()=>{await (window as unknown as {captureRequested:()=>Promise<void>}).captureRequested();throw new DOMException("denied","NotAllowedError")}}}));
  await page.goto("/personal-neo");
- await expect(page.getByRole("heading",{name:"Il mondo reale. Una nuova intelligenza."})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Il mondo reale. In buona compagnia."})).toBeVisible();
  await expect(page.getByRole("link",{name:"Apri il progetto iPhone ↗"})).toHaveAttribute("href",/codex\/my-personal-neo\/ios/);
  await expect(page.getByText("Installazione da Xcode",{exact:false})).toBeVisible();
  expect(captures).toBe(0);

@@ -13,6 +13,8 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     var revealControls: (() -> Void)?
     var followUser = true
     private var destination: SIMD3<Float>?
+    private var lastGeometryCheck = Date.distantPast
+    private var checkedPosition: SIMD3<Float>?
     private var lastFollow = Date.distantPast
     var changed: (() -> Void)?
     var tap: ((SIMD3<Float>) -> Void)?
@@ -72,7 +74,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         rig.root.isEnabled = true; placed = true
     }
     @objc private func recallControls() { revealControls?() }
-    func stopWalking() { destination = nil; rig.walkAmount = 0 }
+    func stopWalking() { destination = nil; rig.walkAmount = 0; checkedPosition=nil }
     func walkNear(_ object: SIMD3<Float>) throws {
         guard trackingNormal, placed, !rig.seated else { throw NeoFailure("Serve un avatar in piedi su pavimento misurato.") }
         let offset = rig.root.position - SIMD3<Float>(object.x,rig.root.position.y,object.z)
@@ -131,9 +133,17 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         if let target=destination {
             if let candidate=AvatarMotion.step(from:p,to:target,delta:delta) {
                 // Floor must be known at centre and both feet, not merely at the destination.
-                let side=SIMD3<Float>(0.15,0,0)
-                let supported = [-side,SIMD3<Float>.zero,side].allSatisfy { AvatarMotion.permitted(candidate:candidate+$0,measuredFloor:floor(at:candidate+$0),blocked:false) }
-                if supported && !blocked(from:p,toward:candidate) {
+                // Reuse a sweep for at most 100 ms / 4 cm. The collision lookahead is
+                // 25 cm, so this avoids 720 mesh/depth queries a second while staying
+                // well inside the measured clearance. Any stop/tracking loss invalidates it.
+                let cached = checkedPosition.map { simd_distance($0,candidate)<0.045 && Date().timeIntervalSince(lastGeometryCheck)<0.1 } ?? false
+                var permitted=cached
+                if !cached {
+                    let side=SIMD3<Float>(0.15,0,0)
+                    permitted = [-side,SIMD3<Float>.zero,side].allSatisfy { AvatarMotion.permitted(candidate:candidate+$0,measuredFloor:floor(at:candidate+$0),blocked:false) } && !blocked(from:p,toward:candidate)
+                    if permitted { checkedPosition=candidate;lastGeometryCheck=Date() }
+                }
+                if permitted {
                     rig.root.position=candidate;rig.walkAmount=min(1,rig.walkAmount+delta*4);facing=target-p
                 } else { stopWalking(); lastFollow=Date().addingTimeInterval(2) }
             } else { stopWalking() }

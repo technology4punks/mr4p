@@ -34,8 +34,8 @@ def build(person,asset,height):
   def wm(i):
    if i not in world:world[i]=(wm(parents[i]) if i in parents else np.eye(4))@matrix(g['nodes'][i])
    return world[i]
-  # FBX is Z-up, looking toward -Y. Bake into metres, Y-up, +Z forward.
-  turn=np.array([[1,0,0,0],[0,0,1,0],[0,-1,0,0],[0,0,0,1]],dtype=float)
+  # Assimp preserves FBX pre-rotation nodes; world matrices already give Y-up, +Z forward.
+  turn=np.eye(4)
   parts=[]
   for i,n in enumerate(g['nodes']):
    if 'mesh' not in n:continue

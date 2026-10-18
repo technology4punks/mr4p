@@ -4,7 +4,7 @@
     "person": "Female_Adult_01",
     "source": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_01",
     "license": "MIT",
-    "sha256": "ebb51769493dd5361140bb24c284c9d1247f86bb6f2ab3d8843a69031fdb7ab0",
+    "sha256": "28b7f8ec7ccf710673cbb497da3874dd60d9723989254ac3ffb2865a2da736d1",
     "sourceHashes": {
       "Assets/Avatars/Adults/Female_Adult_01/Export/Female_Adult_01.fbx": "8cbaf86576004b96469bc80df123b97fef788f4a7bb3f3eaa616fcfaf55698a3",
       "Assets/Avatars/Adults/Female_Adult_01/Textures/f001_body_color.tga": "c038b01c5d05831c3f4e8c6daa18394e8a4851372acd3fcbdf30e7ee53c56cae",
@@ -26,7 +26,7 @@
     "person": "Male_Adult_01",
     "source": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_01",
     "license": "MIT",
-    "sha256": "2cf7e5b86ffe578a8400a3a3819a034f4f58b238dda50f1700ed8e42c3a0fe93",
+    "sha256": "938f139d342b840c811d55fb3e07d999ab77649868773a120cc39b21c5f9eee7",
     "sourceHashes": {
       "Assets/Avatars/Adults/Male_Adult_01/Export/Male_Adult_01.fbx": "8d1edb51b4dc3427ae2456f4407fc105532c145dd019e53cd42bab31cc948a29",
       "Assets/Avatars/Adults/Male_Adult_01/Textures/m002_body_color.tga": "6a048a6b2140a1f5293798ca286be64fd0de6d79572e1273ff5765bd578f463f",
@@ -48,7 +48,7 @@
     "person": "Female_Adult_02",
     "source": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_02",
     "license": "MIT",
-    "sha256": "8b5fbca603d5acd96aa354f995e5a9bce6838c66f3560f56f07444308402aec5",
+    "sha256": "721b413b13321a102e6302ed4bed42c3d99832904ba2a233cde95c5b58ca52b6",
     "sourceHashes": {
       "Assets/Avatars/Adults/Female_Adult_02/Export/Female_Adult_02.fbx": "71a9d3495d06e42e33f9276795bd75fea9d4779c5ad47f65490f049ae2b7eaa9",
       "Assets/Avatars/Adults/Female_Adult_02/Textures/f002_body_color.tga": "94577d184374270beef531394253c864483b9b9cb2c58e30ecd9364e8baa9f29",

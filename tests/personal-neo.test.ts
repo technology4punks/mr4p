@@ -11,7 +11,8 @@ it("uses a native-specific voice prompt and keeps Buddy's narrative session inta
  const app=createApp({apiKey:"test-server-key"},fetcher);
  expect((await request(app).post("/api/personal-neo/token").set("Origin",origin)).status).toBe(200);
  let session=JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)).session;
- expect(session.instructions).toContain("LiDAR");expect(session.tools.some((t:{name:string})=>t.name==="point_at_object")).toBe(true);expect(session.tools.some((t:{name:string})=>t.name==="play_piano")).toBe(true);
+ expect(session.instructions).toContain("LiDAR");expect(session.instructions).toContain("nessun HUD");
+ expect(session.tools.map((t:{name:string})=>t.name)).toEqual(expect.arrayContaining(["move_near_object","follow_user","show_controls"]));expect(session.tools.some((t:{name:string})=>t.name==="point_at_object")).toBe(true);expect(session.tools.some((t:{name:string})=>t.name==="play_piano")).toBe(true);
  await request(app).post("/api/realtime-token").set("Origin",origin);
  session=JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body)).session;
  expect(session.instructions).toContain("Future Observatory");expect(session.tools.some((t:{name:string})=>t.name==="show_intervention")).toBe(true);

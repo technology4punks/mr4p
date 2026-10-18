@@ -22,6 +22,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     private var generation = UUID()
     private var calls = Set<String>()
     private var answered = Set<String>()
+    private var pendingAnnouncement: String?
     private var context: [String:Any] = [:]
     private var jobs: [String: Task<Void, Never>] = [:]
     private var pendingUser = false, pendingTool = false, speaking = false, greeted = false
@@ -83,14 +84,16 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         guard pc == nil, !starting else { return }
         starting=true; defer { starting=false }
         self.backend=backend; desiredRunning=true
-        let allowed = await withCheckedContinuation { continuation in AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) } }
-        guard allowed else { desiredRunning=false; state = .error; message = "Consenti il microfono nelle Impostazioni dell’iPhone."; changed?(); return }
         generation = UUID(); let run = generation
+        let allowed = await withCheckedContinuation { continuation in AVAudioSession.sharedInstance().requestRecordPermission { continuation.resume(returning: $0) } }
+        guard generation == run, desiredRunning else { return }
+        guard allowed else { desiredRunning=false; state = .error; message = "Consenti il microfono nelle Impostazioni dell’iPhone."; changed?(); return }
         state = .connecting; message = "Collego la conversazione…"; changed?()
         do {
             try configureAudio()
             let token = try await backend.token()
-            guard generation == run, token.expires_at > Date().timeIntervalSince1970 else { return }
+            guard generation == run else { return }
+            guard token.expires_at > Date().timeIntervalSince1970 else { throw NeoFailure("Token voce scaduto, ricollego.") }
             let configuration = RTCConfiguration(); configuration.sdpSemantics = .unifiedPlan
             let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: ["googEchoCancellation":"true", "googNoiseSuppression":"true", "googAutoGainControl":"true"])
             guard let peer = factory.peerConnection(with: configuration, constraints: constraints, delegate: self) else { throw NeoFailure("WebRTC non disponibile.") }
@@ -131,14 +134,15 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     }
     private func checkUplink(_ bytes: UInt64, run: UUID) {
         guard generation == run, desiredRunning, !muted, channel?.readyState == .open else { return }
-        defer { lastBytes = bytes }
+        defer { if generation == run { lastBytes = bytes } }
         if let lastBytes, bytes <= lastBytes {
             if stalledSince == nil { stalledSince=Date(); track?.isEnabled=false; track?.isEnabled=true }
             else if Date().timeIntervalSince(stalledSince!) > 12 { recover() }
         } else { stalledSince=nil }
     }
     func announce(_ text: String) {
-        guard !gate.responseActive, !speaking else { return }
+        guard channel?.readyState == .open else { return }
+        guard !gate.responseActive, !speaking else { pendingAnnouncement=text;return }
         gate.begin(comment:true)
         send(["type":"response.create","response":["tool_choice":"none","max_output_tokens":140,"instructions":"Pronuncia solo questa indicazione dell’app, poi ascolta: " + text]])
     }
@@ -152,7 +156,11 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         channel?.sendData(RTCDataBuffer(data: data,isBinary: false))
     }
     private func flush() {
-        guard !gate.responseActive, !speaking, !muted, pendingUser || pendingTool else { return }
+        guard !gate.responseActive, !speaking, !muted else { return }
+        guard pendingUser || pendingTool else {
+            if let next=pendingAnnouncement {pendingAnnouncement=nil;announce(next)}
+            return
+        }
         pendingUser = false; pendingTool = false; gate.begin(); lastEvent = Date(); state = .thinking
         send(["type":"response.create"]); changed?()
     }
@@ -204,7 +212,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
             let overlapping=proof?.overlapping ?? (speaking || gate.responseActive)
             guard let text=event["transcript"] as? String, gate.user(text,duration:proof?.seconds() ?? 0,overlapping:overlapping) else { return }
             answered.insert(item); if answered.count>100 { answered=[item] }
-            heard=text; recent.append(("user",String(text.prefix(1000)))); if recent.count>8 {recent.removeFirst()}
+            heard=text; pendingAnnouncement=nil; recent.append(("user",String(text.prefix(1000)))); if recent.count>8 {recent.removeFirst()}
             jobs.values.forEach { $0.cancel() }; pendingUser=true
             if speaking || gate.responseActive { interrupt() }; flush()
         case "conversation.item.input_audio_transcription.failed":
@@ -229,7 +237,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
             }
         case "response.done":
             if !said.isEmpty, !(responseID.map {cancelled.contains($0)} ?? false) {recent.append(("assistant",String(said.prefix(1000))));if recent.count>8 {recent.removeFirst()}}
-            gate.complete(); flush(); if !speaking { state = muted ? .muted : .ready }; changed?()
+            gate.complete(); if !speaking { state = muted ? .muted : .ready }; flush(); changed?()
         case "error":
             let code = (event["error"] as? [String:Any])?["code"] as? String ?? ""
             if code == "response_cancel_not_active" { gate.complete(); flush() }
@@ -242,11 +250,11 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     func toggleMute() { muted.toggle(); track?.isEnabled = !muted; if muted { interrupt();pendingUser=false;pendingTool=false;evidence.removeAll();transcriptTimers.values.forEach {$0.cancel()};transcriptTimers.removeAll() }; state = muted ? .muted : .ready; if !muted { flush() }; changed?() }
     func stop(message: String = "Voce spenta") {
         desiredRunning=false;recovery?.cancel();recovery=nil;retryCount=0;interruptedBySystem=false;recent.removeAll()
-        closeTransport(); muted=false; state = .off; self.message=message;changed?()
+        closeTransport(); heard="";said="";context=[:];muted=false; state = .off; self.message=message;changed?()
     }
     private func closeTransport() {
         generation = UUID(); timeout?.cancel(); transcriptTimers.values.forEach {$0.cancel()};transcriptTimers.removeAll();evidence.removeAll();lastBytes=nil;stalledSince=nil; jobs.values.forEach { $0.cancel() }; jobs.removeAll(); channel?.close(); channel = nil; pc?.close(); pc = nil; track?.isEnabled = false; track = nil
-        gate.reset(); calls.removeAll(); answered.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false
+        gate.reset(); calls.removeAll(); answered.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false;pendingAnnouncement=nil
     }
     nonisolated func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
         if dataChannel.readyState == .closed {

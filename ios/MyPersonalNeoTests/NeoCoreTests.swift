@@ -93,6 +93,9 @@ final class NeoCoreTests: XCTestCase {
             try rig.load(profile)
             XCTAssertTrue(rig.isLoaded);XCTAssertFalse(rig.models.isEmpty)
             XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == 80 && $0.jointTransforms.count == 80 })
+            let bounds=rig.root.visualBounds(relativeTo:rig.root).extents
+            XCTAssertGreaterThan(bounds.y,1.5);XCTAssertLessThan(bounds.y,1.9)
+            XCTAssertLessThan(bounds.x,1.5);XCTAssertLessThan(bounds.z,0.7)
             rig.update(delta:0.03);let before=rig.models[0].jointTransforms
             rig.play("wave");rig.update(delta:0.03)
             XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.999 }, "Wave must move real skin for \(profile)")
