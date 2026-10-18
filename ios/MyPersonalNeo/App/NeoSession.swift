@@ -65,6 +65,7 @@ final class NeoSession: ObservableObject {
             let reply = try await backend.look(question:question,jpeg:jpeg)
             try Task.checkCancellation(); guard observationID == id, active, room.trackingNormal else { throw NeoFailure("Scansione cambiata: ripeti l’osservazione con tracking stabile.") }
             objects = SceneFusion.locate(reply.objects ?? [],frame:frame,orientation:orientation,session:room.view.session)
+            voice.updateContext(["objects":objects.map(\.summary),"pianoCalibrated":pianoReady,"tracking":room.trackingNormal])
             markers.forEach { $0.removeFromParent() }; markers.removeAll()
             for object in objects { if let p = object.position { let dot = ModelEntity(mesh:.generateSphere(radius:0.012),materials:[UnlitMaterial(color:.cyan)]);dot.position=p;room.world.addChild(dot);markers.append(dot) } }
             answer = reply.text; sources = reply.sources; showDetails = true; message = "Osservazione aggiornata · geometria e significato restano distinti"
@@ -96,7 +97,7 @@ final class NeoSession: ObservableObject {
     private func calibrate(_ point: SIMD3<Float>) {
         guard calibrationStep > 0 else { return }; calibrationPoints.append(point)
         if calibrationPoints.count == 3 {
-            do { piano = try PianoCalibration(low:calibrationPoints[0],high:calibrationPoints[1],back:calibrationPoints[2]); pianoReady = true; calibrationStep = 0; room.tap = nil; message = "Tastiera calibrata. Puoi chiedere a NEO di sedersi e suonare." }
+            do { piano = try PianoCalibration(low:calibrationPoints[0],high:calibrationPoints[1],back:calibrationPoints[2]); pianoReady = true; voice.updateContext(["pianoCalibrated":true,"tracking":room.trackingNormal]); calibrationStep = 0; room.tap = nil; message = "Tastiera calibrata. Puoi chiedere a NEO di sedersi e suonare." }
             catch { calibrationPoints.removeAll();calibrationStep=1;message=error.localizedDescription+" "+calibrationPrompt }
         } else { calibrationStep += 1; message=calibrationPrompt }
     }

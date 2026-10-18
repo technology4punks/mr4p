@@ -17,7 +17,7 @@ products=obj('products',f'{{isa = PBXGroup; children = ({app},{testprod},); name
 group=obj('root',f'{{isa = PBXGroup; children = ({",".join(refs)},{products},); sourceTree = "<group>";}}')
 package=obj('webrtcpackage','{isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/stasel/WebRTC.git"; requirement = {kind = exactVersion; version = 155.0.0;};}')
 productdep=obj('webrtcproduct',f'{{isa = XCSwiftPackageProductDependency; package = {package}; productName = WebRTC;}}');webbuild=obj('webrtcbuild',f'{{isa = PBXBuildFile; productRef = {productdep};}}')
-def phase(name,kind,ids):return obj(name,f'{{isa = {kind}; buildActionMask = 2147483647; files = ({",".join(ids)},); runOnlyForDeploymentPostprocessing = 0;}}')
+def phase(name,kind,ids):return obj(name,f'{{isa = {kind}; buildActionMask = 2147483647; files = ({",".join(ids)}); runOnlyForDeploymentPostprocessing = 0;}}')
 source=phase('source','PBXSourcesBuildPhase',[builds[str(p.relative_to(ios))] for p in swifts]);res=phase('resources','PBXResourcesBuildPhase',[builds[str(p.relative_to(ios))] for p in resources]);framework=phase('framework','PBXFrameworksBuildPhase',[webbuild]);testsource=phase('testsource','PBXSourcesBuildPhase',[builds[str(p.relative_to(ios))] for p in tests]);testframe=phase('testframe','PBXFrameworksBuildPhase',[])
 common={'SWIFT_VERSION':'5.0','IPHONEOS_DEPLOYMENT_TARGET':'17.0','SDKROOT':'iphoneos','CLANG_ENABLE_MODULES':'YES','ENABLE_USER_SCRIPT_SANDBOXING':'YES','TARGETED_DEVICE_FAMILY':'1','CODE_SIGN_STYLE':'Automatic'}
 def configs(prefix,extra):

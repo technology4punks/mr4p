@@ -17,6 +17,9 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     private var gate = VoiceTurnGate()
     private var generation = UUID()
     private var calls = Set<String>()
+    private var answered = Set<String>()
+    private var audioFallback = Set<String>()
+    private var context: [String:Any] = [:]
     private var jobs: [String: Task<Void, Never>] = [:]
     private var pendingUser = false, pendingTool = false, speaking = false, greeted = false
     private var timeout: Task<Void, Never>?
@@ -81,6 +84,11 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
             }
         }
     }
+    func updateContext(_ context: [String:Any]) {
+        self.context = context
+        guard let data = try? JSONSerialization.data(withJSONObject:context), let text=String(data:data,encoding:.utf8) else { return }
+        send(["type":"conversation.item.create","item":["type":"message","role":"system","content":[["type":"input_text","text":"Stato spaziale corrente dell'app: "+text+". Non è un turno utente e non autorizza iniziative o tool. Aspetta la richiesta."]]]])
+    }
     private func send(_ event: [String: Any]) {
         guard channel?.readyState == .open, let data = try? JSONSerialization.data(withJSONObject: event) else { return }
         channel?.sendData(RTCDataBuffer(data: data,isBinary: false))
@@ -104,12 +112,13 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         switch type {
         case "input_audio_buffer.speech_started": speechStart = Date(); message = "Sto ricevendo audio…"; changed?()
         case "input_audio_buffer.speech_stopped":
+            let item = event["item_id"] as? String ?? UUID().uuidString
             transcriptTimer?.cancel(); let run = generation
             transcriptTimer = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(3))
                 guard let self, !Task.isCancelled, self.generation == run else { return }
                 // Preserve the committed audio for an audio-only answer when ASR is absent.
-                if !self.speaking { self.pendingUser = true; self.gate.mayAuthorizeAudio(); self.flush() }
+                if !self.speaking && !self.answered.contains(item) { self.answered.insert(item); self.audioFallback.insert(item); self.pendingUser = true; self.gate.mayAuthorizeAudio(); self.flush() }
                 self.message = "Se non ho capito, ripeti la domanda."; self.changed?()
             }
         case "conversation.item.input_audio_transcription.delta":
@@ -117,6 +126,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         case "conversation.item.input_audio_transcription.completed":
             transcriptTimer?.cancel()
             guard let text = event["transcript"] as? String, gate.user(text) else { state = muted ? .muted : .ready; changed?(); return }
+            if let item=event["item_id"] as? String { if answered.contains(item) { heard=text;changed?();return }; answered.insert(item);if answered.count>100 {answered=[item]} }
             heard = text; jobs.values.forEach { $0.cancel() }; pendingUser = true
             if speaking || gate.responseActive { interrupt() }
             flush()
@@ -151,13 +161,13 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     func toggleMute() { muted.toggle(); track?.isEnabled = !muted; if muted { interrupt() }; state = muted ? .muted : .ready; if !muted { flush() }; changed?() }
     func stop(message: String = "Voce spenta") {
         generation = UUID(); timeout?.cancel(); transcriptTimer?.cancel(); jobs.values.forEach { $0.cancel() }; jobs.removeAll(); channel?.close(); channel = nil; pc?.close(); pc = nil; track?.isEnabled = false; track = nil
-        gate.reset(); calls.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false; muted = false; state = .off; self.message = message; changed?()
+        gate.reset(); calls.removeAll(); answered.removeAll(); audioFallback.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false; muted = false; state = .off; self.message = message; changed?()
     }
     nonisolated func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
         guard dataChannel.readyState == .open else { return }
         Task { @MainActor [weak self] in
             guard let self, self.channel === dataChannel, !self.greeted else { return }
-            self.greeted = true; self.state = .ready; self.gate.begin(comment:true)
+            self.greeted = true; self.updateContext(self.context); self.state = .ready; self.gate.begin(comment:true)
             self.send(["type":"response.create","response":["tool_choice":"none","max_output_tokens":120,"instructions":"Presentati in italiano: Ciao, sono NEO. Cosa esploriamo insieme? Una frase, nessun tool, poi ascolta."]]); self.changed?()
         }
     }
