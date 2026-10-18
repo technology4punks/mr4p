@@ -111,6 +111,6 @@ Diagnostica solo nei controlli: FPS scena/camera separati, formato camera richie
 
 ### Validazione revisione 4
 
-Build/test iOS su macOS in corso per la branch. Test aggiunti su vera posa iniziale/import asincrono, tracking limitato, target invalidi, copia depth con stride e lifetime, snapshot/pose, finestre di scansione e notifiche audio. Risultati finali da aggiornare dopo la CI. `npm run check`: lint, typecheck, build, scansione bundle e **223 test passati**. Suite browser in corso.
+Build/test iOS su macOS in corso per la branch: simulatore Debug e build arm64 iPhone Release senza firma. Run da Xcode è ora Release; versione 0.1.1, build 4 nei controlli. Test aggiunti su vera posa iniziale/import asincrono, tracking limitato, target invalidi, copia depth con stride e lifetime, snapshot/pose, finestre di scansione e notifiche audio. Risultati finali da aggiornare dopo la CI. `npm run check`: lint, typecheck, build, scansione bundle e **223 test passati**. Suite browser in corso.
 
 Per provare le correzioni è necessario **aggiornare `codex/my-personal-neo` e ricompilare/installare da Xcode**. Il sito/backend già pubblicato non aggiorna l’app installata; non è stato effettuato upload TestFlight. FPS, memoria residente, continuità audio/camera e termica sul 14 Pro restano da misurare con la nuova build.

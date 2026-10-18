@@ -13,7 +13,7 @@ open ios/MyPersonalNeo.xcodeproj
 ```
 
 1. Lascia risolvere **stasel/WebRTC 155.0.0**. Scegli il tuo team Apple Developer in Signing & Capabilities; Automatic Signing. Nessun certificato o team nel progetto.
-2. Collega l’iPhone, autorizza il Mac e abilita Modalità sviluppatore nelle Impostazioni iOS. Scegli il dispositivo e premi Run. Se hai già installato una revisione, aggiorna la branch e ricompila: il sito non aggiorna il binario iOS.
+2. Collega l’iPhone, autorizza il Mac e abilita Modalità sviluppatore nelle Impostazioni iOS. Scegli il dispositivo e premi Run: lo schema usa **Release** per provare le prestazioni, mentre i test restano Debug. Nei controlli verifica **build 4 / versione 0.1.1**. Se hai già installato una revisione, aggiorna la branch e ricompila: il sito non aggiorna il binario iOS.
 3. Scegli **Donna, Uomo o Cane**, poi **Entra con NEO**. Camera e microfono richiedono consenso. Scansiona lentamente il pavimento senza camminare: il compagno appare a circa 1,3 m su superficie misurata. Un tocco singolo riposiziona sul pavimento.
 4. La voce si avvia con l’esperienza e ascolta anche durante le risposte. Prova «Cosa vedi?», «Indica la sedia», «Avvicinati alla sedia», «Cerca il manuale di [marca/modello]».
 5. **Nessun HUD o pannello automatico**: doppio tocco a due dita, oppure «apri i controlli», per menu, stato voce, diagnostica, fonti e sospensione. Gli indicatori privacy iOS restano. Background sospende camera e voce; ripresa esplicita.
@@ -80,6 +80,6 @@ Il vecchio convertitore Rocketbox è conservato come `convert-rocketbox.py` per 
 
 ## Verifica e distribuzione
 
-`MyPersonalNeoTests` esercita import reale di tutti e tre i rig, un solo materiale/mesh, texture, proporzioni, pose/camminata, geometria tastiera/calibrazione, proiezione foto/depth, filtro rumore/turni e budget adattivo. CI macOS/Xcode senza firma. Dettagli e risultati finali in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
+`MyPersonalNeoTests` esercita import reale di tutti e tre i rig, un solo materiale/mesh, texture, proporzioni, pose/camminata, geometria tastiera/calibrazione, proiezione foto/depth, filtro rumore/turni e budget adattivo. CI macOS/Xcode: build simulatore/test Debug e app iPhone Release senza firma. Dettagli e risultati finali in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
 
 Test fisico necessario su **iPhone 14 Pro**: ricompilare dalla branch aggiornata e provare ogni compagno. Per almeno 3 minuti muovere lentamente la camera; controllare passaggio acquisizione→esplorazione dopo 6 s, assenza di T-pose, età/gap camera e voce. Chiedere «cosa vedi?» più volte, anche con rete lenta: una sola osservazione in corso e camera sempre libera. Poi riscansione, dieci turni voce/rumori/interruzioni, Bluetooth/chiamata, background/ripresa e calibrazioni. Annotare iOS, commit/build, FPS camera/scena, massimi gap/update, latenza e termica. Non sono stati creati certificati, provisioning o upload TestFlight/App Store. Per TestFlight usare il proprio team, scheda App Store Connect, Product→Archive→Distribute App e verifica privacy/provider.
