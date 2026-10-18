@@ -24,7 +24,10 @@ for (const file of ["README.md", "AGENTS.md", "SPEC.md", "ASSET_CREDITS.md"])
   await cp(file, resolve(root, file));
 await rm(resolve(root, "docs"), { recursive: true, force: true });
 await cp("docs", resolve(root, "docs"), { recursive: true });
+await rm(resolve(root,"ios"),{recursive:true,force:true});
 await cp("ios", resolve(root, "ios"), {recursive:true});
+await rm(resolve(root,"public/models/personal-neo"),{recursive:true,force:true});
+await cp("public/models/personal-neo",resolve(root,"public/models/personal-neo"),{recursive:true});
 await mkdir(resolve(root, "tests"), { recursive: true });
 // Existing backend-specific tests stay in the Site; copy only browser/shared engines.
 for (const file of [
