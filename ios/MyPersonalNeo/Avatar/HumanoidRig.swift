@@ -145,7 +145,7 @@ final class HumanoidRig {
         if mode != poseMode {previousPose=pose;blendTime=0;poseMode=mode}
         motion.sample("idle",time:time,into:&pose)
         if walking>0.001 {
-            walkTime += elapsed*0.6
+            walkTime += elapsed*AvatarMotion.speed/motion.walkSpeed
             motion.sample("walk",time:walkTime,into:&walkingPose)
             for i in pose.indices {pose[i]=AvatarMotionLibrary.blend(pose[i],walkingPose[i],min(1,walking*1.8))}
         }

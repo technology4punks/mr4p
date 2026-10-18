@@ -69,6 +69,25 @@ final class GuidedSetupTests:XCTestCase {
             }
         }
     }
+    @MainActor func testWalkingCadenceKeepsStanceFeetFromSlidingAtActualTravelSpeed() throws {
+        for profile in AvatarProfile.allCases {
+            let rig=HumanoidRig();try rig.load(profile);rig.walkAmount=1
+            let model=try XCTUnwrap(rig.models.first),names=model.jointNames
+            let footName=profile.isHuman ? "Foot_L" : "IKFrontLeg_L"
+            let foot=try XCTUnwrap(names.firstIndex {$0.split(separator:"/").last.map(String.init)==footName})
+            let library=try AvatarMotionLibrary(profile:profile,joints:names),clip=try XCTUnwrap(library.clips["walk"])
+            let ground=try XCTUnwrap(clip.frames.map {globalPose($0,names:names)[foot].y}.min())+0.025
+            var previous=globalPose(model.jointTransforms,names:names)[foot],previousWorld=model.convert(position:previous,to:nil),residual:[Float]=[]
+            for step in 0..<360 {
+                rig.root.position.z += AvatarMotion.speed/30;rig.update(delta:1.0/30)
+                let local=globalPose(model.jointTransforms,names:names)[foot],world=model.convert(position:local,to:nil)
+                if step>60,local.y<ground,previous.y<ground,local.z<previous.z {residual.append(abs(world.z-previousWorld.z)*30)}
+                previous=local;previousWorld=world
+            }
+            XCTAssertGreaterThan(residual.count,10)
+            residual.sort();if !residual.isEmpty {XCTAssertLessThan(residual[residual.count/2],0.1,"Stance foot should remain nearly still while the avatar advances: \(profile)")}
+        }
+    }
     @MainActor func testSeatedOverlayKeepsIndependentFeetAttachedToShins() throws {
         for profile in [AvatarProfile.man,.woman] {
             let rig=HumanoidRig();try rig.load(profile)

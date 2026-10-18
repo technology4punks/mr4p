@@ -7,9 +7,10 @@ import simd
 struct AvatarMotionLibrary {
     struct Clip { let duration:Float; let frames:[[Transform]] }
     let clips:[String:Clip]
+    let walkSpeed:Float
     private struct File:Decodable {
         struct RawClip:Decodable {let duration:Float;let frames:[[Float]]}
-        let version:Int;let joints:[String];let bindTranslations:[Float];let clips:[String:RawClip]
+        let version:Int;let walkSpeed:Float;let joints:[String];let bindTranslations:[Float];let clips:[String:RawClip]
     }
     init(profile:AvatarProfile,joints:[String],bindPose:[Transform]? = nil) throws {
         guard let url=Bundle.main.url(forResource:profile.resource+".motion",withExtension:"json") else {throw NeoFailure("Animazioni del compagno assenti.")}
@@ -38,7 +39,8 @@ struct AvatarMotionLibrary {
             clips[name]=Clip(duration:raw.duration,frames:frames)
         }
         guard ["idle","walk","wave","interact"].allSatisfy({clips[$0] != nil}) else {throw NeoFailure("Animazioni essenziali mancanti.")}
-        self.clips=clips
+        guard file.walkSpeed.isFinite,(0.1...3).contains(file.walkSpeed) else {throw NeoFailure("Cadenza animazione non valida.")}
+        self.walkSpeed=file.walkSpeed;self.clips=clips
     }
     func sample(_ name:String,time:Float,loop:Bool=true,into pose:inout [Transform]) {
         guard let clip=clips[name],time.isFinite else {return}

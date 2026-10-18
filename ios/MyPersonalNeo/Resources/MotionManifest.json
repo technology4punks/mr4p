@@ -1,12 +1,13 @@
 [
   {
     "asset": "NeoMan",
+    "nominalWalkSpeedMetersPerSecond": 1.2566574718420556,
     "author": "Quaternius",
     "license": "CC0-1.0",
     "sourceSha256": "6c89fbb31b96c1a63ad94e3dee0942bd7b34bc789a5d39fd6a6a1738a9214fb3",
     "motionFile": "NeoMan.motion.json",
-    "bytes": 521834,
-    "sha256": "2a5d6819fe03fc1648791b158f0a9f1de9486ba76324ac5654bcd22658f00296",
+    "bytes": 521855,
+    "sha256": "149bb3066102e09fd3761ff089e787b2cf92ec04848642769220cd91a297cf89",
     "clips": [
       {
         "clip": "idle",
@@ -44,12 +45,13 @@
   },
   {
     "asset": "NeoWoman",
+    "nominalWalkSpeedMetersPerSecond": 0.9655477913118978,
     "author": "Quaternius",
     "license": "CC0-1.0",
     "sourceSha256": "937d5c8d08fb5570f6a4e1dd79a3878335444d175aae3b0e9e2babdac36a17f7",
     "motionFile": "NeoWoman.motion.json",
-    "bytes": 656168,
-    "sha256": "00b119dcb6747a884a64cf3a6863bd4c736ce6d87c85c7fc57787f6c191c755d",
+    "bytes": 656189,
+    "sha256": "7ac1fdf995b12aad0ce53459bda6d13c9d14182c07d59e5580651d5888023427",
     "clips": [
       {
         "clip": "idle",
@@ -87,12 +89,13 @@
   },
   {
     "asset": "NeoDog",
+    "nominalWalkSpeedMetersPerSecond": 0.5068672973864163,
     "author": "Quaternius",
     "license": "CC0-1.0",
     "sourceSha256": "3236979b94a840eb72d9ce091b1361da327a96f5ce068e666680297480f30f6b",
     "motionFile": "NeoDog.motion.json",
-    "bytes": 626354,
-    "sha256": "9acc19939c9ec5e11b8b155bd36d0e5e94aeebfb5627201349e0ce430f9af2fb",
+    "bytes": 626375,
+    "sha256": "8bae023cdcbc173871c62b49055c7db08bec1d71b9392759c89c7116956323b1",
     "clips": [
       {
         "clip": "idle",
