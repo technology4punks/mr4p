@@ -38,17 +38,71 @@ final class NeoCoreTests: XCTestCase {
         XCTAssertFalse(gate.mayUseTools);XCTAssertFalse(gate.user("…"));XCTAssertFalse(gate.user("1"))
         XCTAssertTrue(gate.user("No"));XCTAssertTrue(gate.mayUseTools);XCTAssertEqual(gate.turn,1)
         gate.complete();gate.begin();XCTAssertTrue(gate.user("Guarda il tavolo"));XCTAssertEqual(gate.turn,2)
-        gate.complete();gate.mayAuthorizeAudio();XCTAssertEqual(gate.turn,3)
+        gate.complete();gate.mayAuthorizeAudio();XCTAssertEqual(gate.turn,3);XCTAssertFalse(gate.mayUseTools)
         gate.reset();XCTAssertFalse(gate.responseActive);XCTAssertFalse(gate.mayUseTools)
     }
-    @MainActor func testPackagedUSDLoadsAnimatedFortyEightJointRig() async throws {
-        let rig=HumanoidRig();try rig.load()
-        XCTAssertTrue(rig.isLoaded);XCTAssertFalse(rig.models.isEmpty) // RealityKit may merge compatible USD mesh parts.
-        XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == 48 && $0.jointTransforms.count == 48 })
-        let before = rig.models[0].jointTransforms
-        rig.play("wave");rig.update(delta:0.03)
-        XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.999 }, "Wave must change the real USD joint pose, including underscore-normalized names")
-        rig.seated=true;rig.stop(stand:false);XCTAssertTrue(rig.seated)
-        XCTAssertTrue(rig.models.flatMap(\.jointTransforms).allSatisfy { $0.translation.x.isFinite && $0.rotation.real.isFinite })
+    func testBriefNoiseCannotInterruptButPhrasesAndStopCan() {
+        XCTAssertFalse(VoiceTurnGate.meaningful("eh",duration:1,overlapping:true))
+        XCTAssertFalse(VoiceTurnGate.meaningful("Guarda il tavolo",duration:0.1,overlapping:true))
+        XCTAssertFalse(VoiceTurnGate.meaningful("tavolo",duration:0.5,overlapping:true))
+        XCTAssertTrue(VoiceTurnGate.meaningful("aspetta",duration:0.2,overlapping:true))
+        XCTAssertTrue(VoiceTurnGate.meaningful("no",duration:0.2,overlapping:true))
+        XCTAssertTrue(VoiceTurnGate.meaningful("guarda qui",duration:0.4,overlapping:true))
+        XCTAssertTrue(VoiceTurnGate.meaningful("Andrea",duration:0.4,overlapping:false))
+        var evidence=SpeechEvidence(started:Date(timeIntervalSince1970:1),overlapping:true)
+        evidence.duration=0.25
+        XCTAssertEqual(evidence.seconds(at:Date(timeIntervalSince1970:100)),0.25) // ASR delay is not speech duration.
+    }
+    @MainActor func testVoiceAcceptsSuccessiveTurnsAndIgnoresBriefNoise() throws {
+        let voice=NeoVoice()
+        func emit(_ event:[String:Any]) throws { voice.receive(try JSONSerialization.data(withJSONObject:event)) }
+        try emit(["type":"response.created","response":["id":"greeting"]])
+        try emit(["type":"output_audio_buffer.started"])
+        try emit(["type":"input_audio_buffer.speech_started","item_id":"noise","audio_start_ms":0])
+        try emit(["type":"input_audio_buffer.speech_stopped","item_id":"noise","audio_end_ms":1100])
+        try emit(["type":"conversation.item.input_audio_transcription.completed","item_id":"noise","transcript":"Guarda qui"])
+        XCTAssertEqual(voice.state,.speaking);XCTAssertEqual(voice.heard,"")
+        try emit(["type":"input_audio_buffer.speech_started","item_id":"one","audio_start_ms":2000])
+        try emit(["type":"input_audio_buffer.speech_stopped","item_id":"one","audio_end_ms":3500])
+        try emit(["type":"conversation.item.input_audio_transcription.completed","item_id":"one","transcript":"Guarda il tavolo"])
+        try emit(["type":"response.done"])
+        try emit(["type":"output_audio_buffer.cleared"])
+        XCTAssertEqual(voice.heard,"Guarda il tavolo")
+        try emit(["type":"response.created","response":["id":"answer"]])
+        try emit(["type":"response.done"])
+        try emit(["type":"input_audio_buffer.speech_started","item_id":"two","audio_start_ms":4000])
+        try emit(["type":"input_audio_buffer.speech_stopped","item_id":"two","audio_end_ms":5400])
+        try emit(["type":"conversation.item.input_audio_transcription.completed","item_id":"two","transcript":"Mi chiamo Andrea"])
+        XCTAssertEqual(voice.heard,"Mi chiamo Andrea");XCTAssertFalse(voice.muted)
+        voice.stop()
+    }
+    func testWalkingRejectsUnknownFloorObstaclesAndLargeSteps() throws {
+        let step=try XCTUnwrap(AvatarMotion.step(from:.zero,to:[1,0,0],delta:2))
+        XCTAssertLessThanOrEqual(step.x,0.0211)
+        XCTAssertFalse(AvatarMotion.permitted(candidate:step,measuredFloor:nil,blocked:false))
+        XCTAssertFalse(AvatarMotion.permitted(candidate:step,measuredFloor:step,blocked:true))
+        XCTAssertFalse(AvatarMotion.permitted(candidate:step,measuredFloor:step+[0,0.2,0],blocked:false))
+        XCTAssertTrue(AvatarMotion.permitted(candidate:step,measuredFloor:step,blocked:false))
+        XCTAssertNil(AvatarMotion.step(from:.zero,to:[0,0.3,1],delta:0.02))
+        XCTAssertNil(AvatarMotion.step(from:.zero,to:[10,0,0],delta:0.02))
+        XCTAssertNil(AvatarMotion.step(from:.zero,to:[.nan,0,0],delta:0.02))
+    }
+    @MainActor func testThreePackagedHumansLoadAndAnimateActualSkin() async throws {
+        let rig=HumanoidRig()
+        for profile in AvatarProfile.allCases {
+            try rig.load(profile)
+            XCTAssertTrue(rig.isLoaded);XCTAssertFalse(rig.models.isEmpty)
+            XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == 80 && $0.jointTransforms.count == 80 })
+            rig.update(delta:0.03);let before=rig.models[0].jointTransforms
+            rig.play("wave");rig.update(delta:0.03)
+            XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.999 }, "Wave must move real skin for \(profile)")
+            rig.stop();rig.walkAmount=1;rig.update(delta:0.04)
+            XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.9999 })
+            rig.seated=true;rig.stop(stand:false);XCTAssertTrue(rig.seated)
+            XCTAssertTrue(rig.models.flatMap(\.jointTransforms).allSatisfy { $0.translation.x.isFinite && $0.rotation.real.isFinite })
+            XCTAssertNotNil(Bundle.main.url(forResource:profile.resource,withExtension:"jpg"))
+            // Import must retain real skin/clothing textures, not a flat-colour proxy.
+            XCTAssertTrue(rig.models.flatMap { $0.model?.materials ?? [] }.contains { ($0 as? PhysicallyBasedMaterial)?.baseColor.texture != nil })
+        }
     }
 }

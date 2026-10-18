@@ -1,14 +1,68 @@
-{
-  "asset": "NeoHumanoid.usdz",
-  "source": "https://poly.pizza/m/BwjA6Thdzd",
-  "author": "joney_lol",
-  "license": "CC-BY-3.0",
-  "sourceSha256": "8860f2259019f793a5be198dd70b2dbd301f1b0d30c3484d8bd510afa517fc7f",
-  "sha256": "74e1c89781487c9318dfba8be34167aeef99ba756d71498014ecff5f8f287448",
-  "joints": 48,
-  "skinnedMeshes": 6,
-  "triangles": 18299,
-  "heightMeters": 1.6,
-  "bytes": 540181,
-  "modifications": "Existing repaired skin weights; converted GLB to USD Skel, normalized to 1.6 metres, PBR colors retained. Runtime poses/IK authored in Swift; no downloaded animations."
-}
+[
+  {
+    "asset": "NeoSofia.usdz",
+    "person": "Female_Adult_01",
+    "source": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_01",
+    "license": "MIT",
+    "sha256": "ebb51769493dd5361140bb24c284c9d1247f86bb6f2ab3d8843a69031fdb7ab0",
+    "sourceHashes": {
+      "Assets/Avatars/Adults/Female_Adult_01/Export/Female_Adult_01.fbx": "8cbaf86576004b96469bc80df123b97fef788f4a7bb3f3eaa616fcfaf55698a3",
+      "Assets/Avatars/Adults/Female_Adult_01/Textures/f001_body_color.tga": "c038b01c5d05831c3f4e8c6daa18394e8a4851372acd3fcbdf30e7ee53c56cae",
+      "Assets/Avatars/Adults/Female_Adult_01/Textures/f001_body_normal.tga": "86b9b5a5aa73bd97244b35f97f3799c31b3db70426d7d607cbdc2dd271ace346",
+      "Assets/Avatars/Adults/Female_Adult_01/Textures/f001_head_color.tga": "0d3153c59c54908d5f5194ffe3a7d882351f0dd74f9ef44ab3a2f164a3bf9d8e",
+      "Assets/Avatars/Adults/Female_Adult_01/Textures/f001_head_normal.tga": "522f3372283ea4161ed56d85471be15e02628df73a966447e4456bc169d310b2",
+      "Assets/Avatars/Adults/Female_Adult_01/Textures/f001_opacity_color.tga": "12c9c366814e665687fe64056421213686b50a972a5ad47295f247d6a8ff7369"
+    },
+    "joints": 80,
+    "triangles": 8732,
+    "skinnedMeshes": 3,
+    "maxTexture": 1024,
+    "bytes": 5914705,
+    "heightMeters": 1.68,
+    "modifications": "FBX via Assimp 5.4.3; Y-up metres; topological joints with world-aligned rest axes; skin weights remapped; diffuse/normal textures 1024px PNG; hair alpha cutout. Local Swift animation, no downloaded motion clips."
+  },
+  {
+    "asset": "NeoLuca.usdz",
+    "person": "Male_Adult_01",
+    "source": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Male_Adult_01",
+    "license": "MIT",
+    "sha256": "2cf7e5b86ffe578a8400a3a3819a034f4f58b238dda50f1700ed8e42c3a0fe93",
+    "sourceHashes": {
+      "Assets/Avatars/Adults/Male_Adult_01/Export/Male_Adult_01.fbx": "8d1edb51b4dc3427ae2456f4407fc105532c145dd019e53cd42bab31cc948a29",
+      "Assets/Avatars/Adults/Male_Adult_01/Textures/m002_body_color.tga": "6a048a6b2140a1f5293798ca286be64fd0de6d79572e1273ff5765bd578f463f",
+      "Assets/Avatars/Adults/Male_Adult_01/Textures/m002_body_normal.tga": "c9892e80c56890f6f5365627835286c2d4d2cc34cc473f6788fe3d560a52fb69",
+      "Assets/Avatars/Adults/Male_Adult_01/Textures/m002_head_color.tga": "f5b64e4894930d438f7c419c3c9d0bba1f95fa4de9af078b762ea55bfca1ab85",
+      "Assets/Avatars/Adults/Male_Adult_01/Textures/m002_head_normal.tga": "5ef5ae404c9276f17641e392d0d4bdbe5fb23e94f28238b23a381e6a357c42ea",
+      "Assets/Avatars/Adults/Male_Adult_01/Textures/m002_opacity_color.tga": "53818d3f45519451edd2bc60d6e59cd4057ecd381827463c5503da0439d0a5cf"
+    },
+    "joints": 80,
+    "triangles": 7440,
+    "skinnedMeshes": 3,
+    "maxTexture": 1024,
+    "bytes": 5610896,
+    "heightMeters": 1.78,
+    "modifications": "FBX via Assimp 5.4.3; Y-up metres; topological joints with world-aligned rest axes; skin weights remapped; diffuse/normal textures 1024px PNG; hair alpha cutout. Local Swift animation, no downloaded motion clips."
+  },
+  {
+    "asset": "NeoElena.usdz",
+    "person": "Female_Adult_02",
+    "source": "https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Adults/Female_Adult_02",
+    "license": "MIT",
+    "sha256": "8b5fbca603d5acd96aa354f995e5a9bce6838c66f3560f56f07444308402aec5",
+    "sourceHashes": {
+      "Assets/Avatars/Adults/Female_Adult_02/Export/Female_Adult_02.fbx": "71a9d3495d06e42e33f9276795bd75fea9d4779c5ad47f65490f049ae2b7eaa9",
+      "Assets/Avatars/Adults/Female_Adult_02/Textures/f002_body_color.tga": "94577d184374270beef531394253c864483b9b9cb2c58e30ecd9364e8baa9f29",
+      "Assets/Avatars/Adults/Female_Adult_02/Textures/f002_body_normal.tga": "02946f0f65850d58da08f9ed25b5b274089dfa4b2c27f171189d134cf50f6a08",
+      "Assets/Avatars/Adults/Female_Adult_02/Textures/f002_head_color.tga": "a258f150c9a185d0335b74bd16acb8f4c18eabf469e2e2ea97066e20aa475a66",
+      "Assets/Avatars/Adults/Female_Adult_02/Textures/f002_head_normal.tga": "9ae08c26e7c51524cceaa21c6a5d299b905b2af62291f896e438feeaa838f59a",
+      "Assets/Avatars/Adults/Female_Adult_02/Textures/f002_opacity_color.tga": "6f6bde560371ac39cd65f8f1f26e0e7db8b8c7d6224c4139844a21593c962d45"
+    },
+    "joints": 80,
+    "triangles": 8940,
+    "skinnedMeshes": 3,
+    "maxTexture": 1024,
+    "bytes": 6610954,
+    "heightMeters": 1.65,
+    "modifications": "FBX via Assimp 5.4.3; Y-up metres; topological joints with world-aligned rest axes; skin weights remapped; diffuse/normal textures 1024px PNG; hair alpha cutout. Local Swift animation, no downloaded motion clips."
+  }
+]

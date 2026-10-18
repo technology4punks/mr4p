@@ -6,6 +6,9 @@ import AVFoundation
 @MainActor
 final class NeoSession: ObservableObject {
     @Published var active = false
+    @Published var controlsVisible = false
+    @Published var avatar = AvatarProfile(rawValue: UserDefaults.standard.string(forKey:"neo.avatar") ?? "") ?? .sofia
+    private var observedAt = Date.distantPast
     @Published var busy = false
     @Published private(set) var assistedObservation = false
     private var observationLoop: Task<Void,Never>?
@@ -27,8 +30,6 @@ final class NeoSession: ObservableObject {
     private var notes: [PianoNote] = []
     private var playTime: Double = 0
     private var nextNote = 0
-    private var marker: ModelEntity?
-    private var markers: [Entity] = []
     private var work: Task<Void,Never>?
     private var observationID = UUID()
     var calibrationPrompt: String {
@@ -40,6 +41,7 @@ final class NeoSession: ObservableObject {
             if !self.room.trackingNormal && self.playing { self.stopPerformance(); self.message = "Tracking perso: musica e contatto virtuale sospesi. Riallinea e riavvia." }
             self.objectWillChange.send()
         }
+        room.revealControls = { [weak self] in self?.controlsVisible.toggle() }
         room.tick = { [weak self] delta in self?.tick(delta) }
         voice.changed = { [weak self] in self?.room.rig.talking = self?.voice.state == .speaking; self?.objectWillChange.send() }
         voice.onTool = { [weak self] name,args in guard let self else { return ["accepted":false,"reason":"Sessione chiusa."] }; return await self.tool(name,args) }
@@ -47,12 +49,17 @@ final class NeoSession: ObservableObject {
     func start() async {
         let allowed = await AVCaptureDevice.requestAccess(for:.video)
         guard allowed else { message = "Consenti la fotocamera nelle Impostazioni per avviare la scansione AR."; return }
-        do { try room.start(); active = true; message = "Scansiona lentamente la stanza, poi tocca il pavimento per posizionare NEO." }
+        do {
+            try room.start(profile:avatar); UserDefaults.standard.set(avatar.rawValue,forKey:"neo.avatar")
+            active = true; controlsVisible = false; message = "Scansiona lentamente il pavimento: NEO apparirà davanti a te."
+            await voice.start(backend:backend)
+            if voice.state == .error { controlsVisible = true }
+        }
         catch { message = error.localizedDescription }
     }
     func suspend() {
         setAssistedObservation(false)
-        work?.cancel(); observationID = UUID(); busy = false
+        work?.cancel(); observationID = UUID(); busy = false; controlsVisible = false; showDetails = false
         stopPerformance(); voice.stop(message:"App sospesa. Riprendi scansione e voce quando torni."); room.stop(); active = false
     }
     func startVoice() { Task { await voice.start(backend:backend) } }
@@ -80,9 +87,8 @@ final class NeoSession: ObservableObject {
             try Task.checkCancellation(); guard observationID == id, active, room.trackingNormal else { throw NeoFailure("Scansione cambiata: ripeti l’osservazione con tracking stabile.") }
             objects = SceneFusion.locate(reply.objects ?? [],frame:capture.frame,orientation:capture.orientation,session:room.view.session)
             voice.updateContext(["objects":objects.map(\.summary),"pianoCalibrated":pianoReady,"tracking":room.trackingNormal])
-            markers.forEach { $0.removeFromParent() }; markers.removeAll()
-            for object in objects { if let p = object.position { let dot = ModelEntity(mesh:.generateSphere(radius:0.012),materials:[UnlitMaterial(color:.cyan)]);dot.position=p;room.world.addChild(dot);markers.append(dot) } }
-            answer = reply.text; sources = reply.sources; if interactive { showDetails = true }; message = "Osservazione aggiornata · geometria e significato restano distinti"
+            observedAt = Date()
+            answer = reply.text; sources = reply.sources;  message = "Osservazione aggiornata · geometria e significato restano distinti"
             return ["accepted":true,"text":reply.text,"objects":objects.map(\.summary),"note":"Posizioni stimate al momento della foto, non garanzia di comprensione completa. Il pianoforte richiede calibrazione tasti."]
         } catch { if observationID == id { message = error.localizedDescription }; return ["accepted":false,"reason":error is CancellationError ? "Osservazione annullata dalla nuova richiesta." : error.localizedDescription] }
     }
@@ -90,21 +96,21 @@ final class NeoSession: ObservableObject {
         busy = true; message = "Consulto le istruzioni sul web…"; defer { busy = false }
         do {
             let reply = try await backend.instructions(query:query); try Task.checkCancellation()
-            answer = reply.text; sources = reply.sources; showDetails = true
+            answer = reply.text; sources = reply.sources
             message = reply.searched ? "Fonti consultate · verifica marca e modello" : "Nessuna ricerca verificata disponibile"
             return ["accepted":true,"text":reply.text,"searched":reply.searched,"sources":reply.sources.map {["title":$0.title,"url":$0.url]}]
         } catch { message = error.localizedDescription; return ["accepted":false,"reason":error is CancellationError ? "Ricerca annullata." : error.localizedDescription] }
     }
     func beginPiano() throws {
         guard active,room.trackingNormal else { throw NeoFailure("Attiva la scansione con tracking stabile.") }
-        stopPerformance(); piano = nil; pianoReady = false; calibrationPoints.removeAll(); calibrationStep = 1; selectingSeat = false
+        room.stopWalking(); stopPerformance(); piano = nil; pianoReady = false; calibrationPoints.removeAll(); calibrationStep = 1; selectingSeat = false
         room.tap = { [weak self] point in self?.calibrate(point) }; message = calibrationPrompt
     }
     func beginSeat() throws {
         guard active,room.trackingNormal else { throw NeoFailure("Attiva la scansione con tracking stabile.") }
-        stopPerformance(); calibrationStep = 0; selectingSeat = true; message = "Tocca una superficie orizzontale misurata all’altezza della seduta."
+        room.stopWalking(); stopPerformance(); calibrationStep = 0; selectingSeat = true; message = "Tocca una superficie orizzontale misurata all’altezza della seduta."
         room.tap = { [weak self] point in
-            guard let self else { return }; self.room.place(at:point-[0,self.room.rig.seatedHipHeight,0]);self.room.rig.seated=true;self.room.tap=nil;self.selectingSeat=false;self.message="Seduta virtuale calibrata · controlla l’allineamento alla sedia reale."
+            guard let self else { return }; self.room.place(at:point-[0,self.room.rig.seatedHipHeight,0]);self.room.rig.seated=true;self.room.tap=nil;self.selectingSeat=false;self.message="Seduta virtuale calibrata · controlla l’allineamento alla sedia reale.";self.voice.announce(self.message)
         }
     }
     func cancelCalibration() { calibrationStep = 0; selectingSeat = false; calibrationPoints.removeAll();room.tap=nil;message="Selezione annullata." }
@@ -113,7 +119,7 @@ final class NeoSession: ObservableObject {
         if calibrationPoints.count == 3 {
             do { piano = try PianoCalibration(low:calibrationPoints[0],high:calibrationPoints[1],back:calibrationPoints[2]); pianoReady = true; voice.updateContext(["pianoCalibrated":true,"tracking":room.trackingNormal]); calibrationStep = 0; room.tap = nil; message = "Tastiera calibrata. Puoi chiedere a NEO di sedersi e suonare." }
             catch { calibrationPoints.removeAll();calibrationStep=1;message=error.localizedDescription+" "+calibrationPrompt }
-        } else { calibrationStep += 1; message=calibrationPrompt }
+        } else { calibrationStep += 1; message=calibrationPrompt };voice.announce(message)
     }
     func sitAtPiano() throws {
         guard let piano,room.trackingNormal else { throw NeoFailure("Prima calibra la tastiera e attendi tracking stabile.") }
@@ -123,13 +129,12 @@ final class NeoSession: ObservableObject {
         guard piano != nil,let score=PianoScore.notes(piece) else { throw NeoFailure("Calibra una tastiera a 88 tasti e scegli una melodia disponibile.") }
         stopPerformance();try sitAtPiano();notes=score;nextNote=0;playTime=0;playing=true
     }
-    func stopPerformance() { playing=false;notes.removeAll();sound.stop();marker?.removeFromParent();marker=nil;room.rig.target=nil }
+    func stopPerformance() { playing=false;notes.removeAll();sound.stop();room.rig.target=nil }
     private func tick(_ delta: Float) {
         guard playing,let piano else { return };playTime += Double(delta)
         if nextNote < notes.count,playTime >= notes[nextNote].beat {
             let note=notes[nextNote];sound.note(note.midi);room.rig.rightHand=note.midi>=60;room.rig.target=piano.key(note.midi)
-            if marker == nil {let dot=ModelEntity(mesh:.generateSphere(radius:0.008),materials:[UnlitMaterial(color:.cyan)]);room.world.addChild(dot);marker=dot}
-            marker?.position=piano.key(note.midi) ?? piano.middle;nextNote+=1
+            nextNote+=1
         }
         if let last=notes.last,playTime>last.beat+last.duration+0.5 {stopPerformance();message="Dimostrazione conclusa · il pianoforte reale non è stato azionato."}
     }
@@ -144,9 +149,14 @@ final class NeoSession: ObservableObject {
             case "calibrate_seat":try beginSeat();return ["accepted":true,"pending":true,"reason":message]
             case "sit_at_piano": try sitAtPiano()
             case "play_piano":guard let piece=args["piece"] as? String else {throw NeoFailure("Melodia mancante.")};try playPiano(piece)
-            case "point_at_object":guard room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
+            case "move_near_object":
+                guard Date().timeIntervalSince(observedAt)<30,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position else { throw NeoFailure("Osserva di nuovo l’oggetto per localizzarlo.") }
+                stopPerformance();try room.walkNear(target);message="Mi avvicino sul pavimento misurato; mi fermo se il percorso non è libero."
+            case "follow_user": room.followUser=true;room.stopWalking();message="Ti resto vicino se il pavimento misurato è libero."
+            case "show_controls": controlsVisible=true;message="Controlli aperti. Doppio tocco con due dita per nasconderli."
+            case "point_at_object":guard room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};room.stopWalking();let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
             case "demonstrate":guard let id=args["animation"] as? String,["wave","explain","judo_rei","judo_tai_sabaki"].contains(id),room.rig.root.isEnabled,room.trackingNormal,!room.rig.seated else {throw NeoFailure("Posiziona NEO e scegli una dimostrazione disponibile.")};demo(id)
-            case "stop_demonstration":stopPerformance();room.rig.stop(stand:false)
+            case "stop_demonstration":stopPerformance();room.stopWalking();room.followUser=false;room.rig.stop(stand:false)
             default:throw NeoFailure("Azione non disponibile.")
             }
             return ["accepted":true,"reason":message,"calibratedPiano":pianoReady,"tracking":room.trackingNormal]
