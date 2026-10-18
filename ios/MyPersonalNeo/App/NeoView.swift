@@ -27,8 +27,8 @@ struct NeoView: View {
                 VStack(alignment:.leading,spacing:22) {
                     Text("MY PERSONAL NEO").font(.caption.weight(.semibold)).tracking(4).foregroundStyle(mint)
                     Text("Il mondo reale.\nIn compagnia.").font(.system(size:42,weight:.light,design:.serif))
-                    Text("Scegli l’aspetto di NEO").font(.headline)
-                    Picker("Avatar umano",selection:$neo.avatar) { ForEach(AvatarProfile.allCases) { p in Text(p.title).tag(p) } }.pickerStyle(.segmented)
+                    Text("Scegli il tuo compagno").font(.headline)
+                    Picker("Compagno",selection:$neo.avatar) { ForEach(AvatarProfile.allCases) { p in Text(p.title).tag(p) } }.pickerStyle(.segmented)
                     if let url=Bundle.main.url(forResource:neo.avatar.resource,withExtension:"jpg"), let image=UIImage(contentsOfFile:url.path) {
                         Image(uiImage:image).resizable().scaledToFit().frame(maxHeight:220).clipShape(RoundedRectangle(cornerRadius:24))
                     }
@@ -55,7 +55,10 @@ struct NeoView: View {
                 }
                 Section("Spazio") {
                     Text(neo.room.status).font(.caption)
-                    Text(neo.room.supportsLiDAR ? "LiDAR · \(neo.room.meshCount) mesh" : "ARKit · senza LiDAR").font(.caption)
+                    Text(String(format:"%.0f FPS · animazione %.0f Hz",neo.room.performance.fps,neo.room.performance.animationHz)).font(.caption.monospacedDigit())
+                    Toggle("Scansione mesh dettagliata",isOn:Binding(get:{neo.room.detailedMesh},set:{neo.room.setDetailedMesh($0)})).disabled(!neo.room.supportsLiDAR)
+                    Text("La modalità leggera usa superfici e profondità LiDAR. La mesh dettagliata aumenta il carico e resta opzionale.").font(.caption)
+                    Text(neo.room.supportsLiDAR ? "LiDAR depth · \(neo.room.meshCount) mesh opzionali" : "ARKit · senza LiDAR").font(.caption)
                     Toggle("NEO mi resta vicino",isOn:Binding(get:{neo.room.followUser},set:{neo.room.followUser=$0;neo.room.stopWalking()}))
                     Button("Osserva l’ambiente") {neo.look();neo.controlsVisible=false}.disabled(neo.busy || !neo.room.trackingNormal)
                     Toggle("Osservazione assistita · foto ogni 15 s",isOn:Binding(get:{neo.assistedObservation},set:{neo.setAssistedObservation($0)}))
@@ -84,8 +87,8 @@ struct NeoView: View {
                     ForEach(neo.sources) {source in if let url=source.safeURL {Link(source.title,destination:url)}}
                 }
                 Section("Avatar") {
-                    Text("Tre persone virtuali Microsoft Rocketbox · MIT. Aspetto realistico con texture fotografiche, rig e animazioni locali.").font(.caption)
-                    Link("Fonte e licenza",destination:URL(string:"https://github.com/microsoft/Microsoft-Rocketbox")!)
+                    Text("Uomo, donna e Shiba Inu · Quaternius CC0. Una mesh e una palette 64 px per avatar; movimento locale.").font(.caption)
+                    Link("Fonte e licenza",destination:URL(string:"https://quaternius.com")!)
                 }
             }.navigationTitle("Osservazioni").toolbar {ToolbarItem(placement:.topBarTrailing){Button("Chiudi"){neo.showDetails=false}}}
         }.presentationDetents([.medium,.large]).presentationCornerRadius(30)

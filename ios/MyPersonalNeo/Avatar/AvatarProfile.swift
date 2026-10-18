@@ -1,11 +1,10 @@
 import Foundation
 
 enum AvatarProfile: String, CaseIterable, Identifiable {
-    case sofia, luca, elena
+    case woman, man, dog
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
-    var resource: String { "Neo" + title }
-    var sourceName: String {
-        switch self { case .sofia: return "Female_Adult_01"; case .luca: return "Male_Adult_01"; case .elena: return "Female_Adult_02" }
-    }
+    var title: String { switch self {case .woman:return "Donna";case .man:return "Uomo";case .dog:return "Cane"} }
+    var resource: String { "Neo" + rawValue.capitalized }
+    var isHuman: Bool { self != .dog }
+    var expectedJoints: Int { self == .dog ? 46 : 62 }
 }

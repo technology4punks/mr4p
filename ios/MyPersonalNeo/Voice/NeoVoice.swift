@@ -160,7 +160,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         send(["type":"response.create","response":["tool_choice":"none","max_output_tokens":140,"instructions":"Pronuncia solo questa indicazione dell’app, poi ascolta: " + text]])
     }
     func updateContext(_ context: [String:Any]) {
-        self.context = context
+        self.context.merge(context) {_,new in new}
         guard let data = try? JSONSerialization.data(withJSONObject:context), let text=String(data:data,encoding:.utf8) else { return }
         send(["type":"conversation.item.create","item":["type":"message","role":"system","content":[["type":"input_text","text":"Stato spaziale corrente dell'app: "+text+". Non è un turno utente e non autorizza iniziative o tool. Aspetta la richiesta."]]]])
     }

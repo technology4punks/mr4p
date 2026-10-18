@@ -6,6 +6,7 @@ import simd
 final class HumanoidRig {
     let root = Entity()
     private(set) var models: [ModelEntity] = []
+    private var jointIndex: [String:Int] = [:]
     private var names: [String] = []
     private var parents: [Int?] = []
     private var rest: [Transform] = []
@@ -24,7 +25,7 @@ final class HumanoidRig {
     var target: SIMD3<Float>?
     var rightHand = true
     var isLoaded: Bool { !rest.isEmpty }
-    func load(_ profile: AvatarProfile = .sofia) throws {
+    func load(_ profile: AvatarProfile = .woman) throws {
         guard let url = Bundle.main.url(forResource: profile.resource, withExtension: "usdz") else { throw NeoFailure("Modello umanoide assente dal bundle.") }
         let entity = try Entity.load(contentsOf: url)
         models.removeAll(); root.children.removeAll(); root.addChild(entity); self.profile = profile
@@ -33,15 +34,16 @@ final class HumanoidRig {
             node.children.forEach { collect($0) }
         }
         collect(entity)
-        guard let first = models.first, first.jointNames.count >= 70, first.jointTransforms.count == first.jointNames.count else { throw NeoFailure("Scheletro umanoide non disponibile.") }
+        guard let first = models.first, first.jointNames.count >= 20, first.jointTransforms.count == first.jointNames.count else { throw NeoFailure("Scheletro umanoide non disponibile.") }
         names = first.jointNames; rest = first.jointTransforms; pose = rest
+        jointIndex=Dictionary(uniqueKeysWithValues:names.enumerated().map { ($0.element.split(separator:"/").last.map(String.init) ?? $0.element,$0.offset) })
         parents = names.map { name in
             let parts = name.split(separator: "/").dropLast()
             return parts.isEmpty ? nil : names.firstIndex(of: parts.joined(separator: "/"))
         }
         if let hip = index("thighL") { seatedHipHeight = matrices()[hip].columns.3.y - 0.04 }
         relaxed = rest
-        for side in ["L", "R"] {
+        for side in profile.isHuman ? ["L", "R"] : [] {
             if let arm = index("upper_arm" + side), let elbow = index("forearm" + side) {
                 relaxed[arm].rotation = simd_quatf(from: simd_normalize(rest[elbow].translation), to: [0,-1,0])
             }
@@ -50,10 +52,10 @@ final class HumanoidRig {
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
     func stop(stand: Bool = true) { demo = nil; target = nil; smoothedTarget = nil; if stand { seated = false } }
+    private static let humanAliases=["thighL":"UpperLeg_L","thighR":"UpperLeg_R","shinL":"LowerLeg_L","shinR":"LowerLeg_R","footL":"Foot_L","footR":"Foot_R","spine002":"Torso","spine003":"Chest","head":"Head","upper_armL":"UpperArm_L","upper_armR":"UpperArm_R","forearmL":"LowerArm_L","forearmR":"LowerArm_R","handL":"Wrist_L","handR":"Wrist_R","f_index02L":"Index3_L","f_index02R":"Index3_R"]
+    private static let dogAliases=["head":"Head","spine003":"Torso3","spine002":"Torso2","thighL":"BackUpperLeg_L","thighR":"BackUpperLeg_R","shinL":"BackLowerLeg_L","shinR":"BackLowerLeg_R"]
     private func index(_ suffix: String) -> Int? {
-        let map = ["thighL":"Bip01_L_Thigh", "thighR":"Bip01_R_Thigh", "shinL":"Bip01_L_Calf", "shinR":"Bip01_R_Calf", "footL":"Bip01_L_Foot", "footR":"Bip01_R_Foot", "spine002":"Bip01_Spine1", "spine003":"Bip01_Spine2", "head":"Bip01_Head", "jaw":"Bip01_MJaw", "upper_armL":"Bip01_L_UpperArm", "upper_armR":"Bip01_R_UpperArm", "forearmL":"Bip01_L_Forearm", "forearmR":"Bip01_R_Forearm", "handL":"Bip01_L_Hand", "handR":"Bip01_R_Hand", "f_index02L":"Bip01_L_Finger12", "f_index02R":"Bip01_R_Finger12"]
-        let key = map[suffix] ?? suffix
-        return names.firstIndex { $0.split(separator:"/").last.map(String.init) == key }
+        return jointIndex[(profile?.isHuman == false ? Self.dogAliases : Self.humanAliases)[suffix] ?? suffix]
     }
     private func rotate(_ name: String, angle: Float, axis: SIMD3<Float> = [1,0,0]) {
         guard let i = index(name) else { return }
@@ -68,7 +70,7 @@ final class HumanoidRig {
         let side = right ? "R" : "L"
         guard let tip = index("f_index02" + side), let first = models.first else { return }
         let target = first.convert(position: world, from: nil)
-        for _ in 0..<5 {
+        for _ in 0..<2 {
             for name in ["hand", "forearm", "upper_arm"] {
                 guard let joint = index(name + side) else { continue }
                 let globals = matrices(), origin = SIMD3<Float>(globals[joint].columns.3.x, globals[joint].columns.3.y, globals[joint].columns.3.z)
@@ -81,10 +83,20 @@ final class HumanoidRig {
             }
         }
     }
+    private func updateDog() {
+        let phase=sin(time*6.5)*min(1,walkAmount)
+        rotate("FrontUpperLeg_L",angle:phase*0.35);rotate("FrontUpperLeg_R",angle:-phase*0.35)
+        rotate("thighL",angle:-phase*0.3);rotate("thighR",angle:phase*0.3)
+        rotate("FrontLowerLeg_L",angle:max(0,-phase)*0.3);rotate("FrontLowerLeg_R",angle:max(0,phase)*0.3)
+        rotate("Tail1",angle:sin(time*(talking ? 6 : 2.5))*0.3,axis:[0,1,0])
+        rotate("spine003",angle:sin(time*1.5)*0.01)
+    }
     func update(delta: Float) {
         time += min(0.05, delta); pose = relaxed
         guard !pose.isEmpty else { return }
-        if seated {
+        if profile?.isHuman == false {
+            updateDog()
+        } else if seated {
             rotate("thighL", angle: -1.35); rotate("thighR", angle: -1.35)
             rotate("shinL", angle: 1.30); rotate("shinR", angle: 1.30)
             rotate("forearmL", angle: -0.6); rotate("forearmR", angle: -0.6)
@@ -99,7 +111,7 @@ final class HumanoidRig {
             rotate("shinL", angle: max(0,-stride) * 0.5); rotate("shinR", angle: max(0,stride) * 0.5)
             if walkAmount > 0.05 { rotate("forearmL", angle: -stride*0.18-0.10); rotate("forearmR", angle: stride*0.18-0.10) }
         }
-        if let name = demo {
+        if profile?.isHuman != false, let name = demo {
             let t = time - demoStarted
             switch name {
             case "judo_rei": rotate("spine003", angle: -sin(min(t/6,1) * .pi) * 0.38); if t > 6 { demo = nil }
@@ -119,7 +131,7 @@ final class HumanoidRig {
             let pitch = max(-0.3,min(0.3,-atan2(direction.y,max(0.1,simd_length(SIMD2<Float>(direction.x,direction.z))))))
             pose[head].rotation = simd_quatf(angle:yaw,axis:[0,1,0]) * simd_quatf(angle:pitch,axis:[1,0,0])
         }
-        if let target {
+        if profile?.isHuman != false, let target {
             let start = smoothedTarget ?? target
             let point = start + (target-start) * min(1,delta*14)
             smoothedTarget = point

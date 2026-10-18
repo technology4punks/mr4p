@@ -12,6 +12,11 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     let world = AnchorEntity(world: .zero)
     var revealControls: (() -> Void)?
     var followUser = true
+    private(set) var performance=ScenePerformance()
+    private var animationElapsed: Float=0
+    private(set) var detailedMesh=false
+    private var occluders: [UUID:ModelEntity]=[:]
+    private var lastPlaneUpdate=Date.distantPast
     private var destination: SIMD3<Float>?
     private var lastGeometryCheck = Date.distantPast
     private var checkedPosition: SIMD3<Float>?
@@ -40,28 +45,43 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         tap.require(toFail:recall); view.addGestureRecognizer(recall); view.addGestureRecognizer(tap)
         update = view.scene.subscribe(to: SceneEvents.Update.self) { [weak self] event in
             MainActor.assumeIsolated {
-                guard let self, self.running, self.trackingNormal else { return }
-                self.updateMotion(Float(event.deltaTime))
-                self.rig.update(delta: Float(event.deltaTime)); self.tick?(Float(event.deltaTime))
+                guard let self, self.running else { return }
+                if self.performance.observe(event.deltaTime) {self.changed?()}
+                guard self.trackingNormal else {return}
+                self.animationElapsed += Float(event.deltaTime)
+                guard self.animationElapsed >= Float(1/self.performance.animationHz) else {return}
+                let delta=min(0.05,self.animationElapsed);self.animationElapsed=0
+                self.updateMotion(delta);self.rig.update(delta:delta);self.tick?(delta)
             }
         }
     }
-    func start(profile: AvatarProfile = .sofia) throws {
+    func start(profile: AvatarProfile = .woman) throws {
         guard ARWorldTrackingConfiguration.isSupported else { throw NeoFailure("ARKit richiede un iPhone compatibile; il simulatore non vede la stanza.") }
         if !rig.isLoaded || rig.profile != profile { try rig.load(profile) }
-        let config = ARWorldTrackingConfiguration()
-        config.planeDetection = [.horizontal, .vertical]
-        config.environmentTexturing = .automatic
-        supportsLiDAR = ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification)
-        if supportsLiDAR {
-            config.sceneReconstruction = .meshWithClassification
-            view.environment.sceneUnderstanding.options.insert(.occlusion)
-            view.environment.sceneUnderstanding.options.insert(.physics)
-        }
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) { config.frameSemantics.insert(.sceneDepth) }
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) { config.frameSemantics.insert(.personSegmentationWithDepth) }
-        trackingNormal = false; view.session.run(config); running = true; status = "Muovi lentamente l’iPhone per rilevare pavimento e superfici."; changed?()
+        configure()
     }
+    func setDetailedMesh(_ enabled: Bool) {
+        detailedMesh=enabled && supportsLiDAR
+        if running {stopWalking();configure()}
+    }
+    private func configure() {
+        let config=ARWorldTrackingConfiguration();config.planeDetection=[.horizontal,.vertical]
+        config.environmentTexturing = .none
+        supportsLiDAR=ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth)
+        // Baseline: LiDAR depth + measured planes, no continuous mesh classification,
+        // physics cooking, person segmentation, environment cubemap or post-processing.
+        view.renderOptions.formUnion([.disableMotionBlur,.disableDepthOfField,.disableCameraGrain,.disablePersonOcclusion,.disableGroundingShadows])
+        view.environment.sceneUnderstanding.options=[]
+        if supportsLiDAR {config.frameSemantics.insert(.sceneDepth)}
+        if detailedMesh && ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+            config.sceneReconstruction = .mesh
+            view.environment.sceneUnderstanding.options.insert(.occlusion)
+        }
+        occluders.values.forEach {$0.isEnabled = !detailedMesh}
+        trackingNormal=false;performance=ScenePerformance();view.session.run(config);running=true;animationElapsed=0
+        status="Scansiona lentamente il pavimento · modalità leggera";changed?()
+    }
+
     func stop() { stopWalking(); view.session.pause(); running = false; trackingNormal = false; rig.stop(stand:false); status = "Scansione sospesa · riprendi per riallineare"; changed?() }
     func place(at position: SIMD3<Float>) {
         guard trackingNormal else { return }
@@ -89,22 +109,15 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         let v = hit.worldTransform.columns.3; return [v.x,v.y,v.z]
     }
     private func blocked(from p: SIMD3<Float>, toward q: SIMD3<Float>) -> Bool {
-        let v = q-p, distance = simd_length(v)
-        guard distance > 0 else { return false }
-        let direction = v/distance, side = SIMD3<Float>(direction.z,0,-direction.x)*AvatarMotion.radius
-        // Three parallel casts at ankle, waist and shoulder height. No avatar collider is
-        // generated, so the scene-reconstruction physics mesh is the only collision source.
-        for offset in [-side,SIMD3<Float>.zero,side] {
-            for height in [Float(0.18),0.85,1.45] {
-                if !view.scene.raycast(origin:p+offset+[0,height,0],direction:direction,length:distance+AvatarMotion.radius,query:.nearest,mask:.all,relativeTo:nil).isEmpty { return true }
-            }
-        }
-        // Without LiDAR, unclassified horizontal planes above the floor count as furniture.
+        // Measured coarse planes, no per-frame triangle-mesh physics casts.
         for anchor in view.session.currentFrame?.anchors ?? [] {
-            guard let plane = anchor as? ARPlaneAnchor, plane.alignment == .horizontal else { continue }
-            let local = simd_inverse(plane.transform) * SIMD4<Float>(q.x,q.y+0.8,q.z,1)
-            let h = plane.transform.columns.3.y + plane.center.y
-            if h > p.y+0.15, h < p.y+1.65, abs(local.x-plane.center.x) < plane.extent.x/2+AvatarMotion.radius, abs(local.z-plane.center.z) < plane.extent.z/2+AvatarMotion.radius { return true }
+            guard let plane=anchor as? ARPlaneAnchor else {continue}
+            let local=simd_inverse(plane.transform)*SIMD4<Float>(q.x,q.y+0.75,q.z,1)
+            let center=plane.transform*SIMD4<Float>(plane.center.x,plane.center.y,plane.center.z,1)
+            let radius=AvatarMotion.radius
+            if plane.alignment == .horizontal {
+                if center.y>p.y+0.15,center.y<p.y+1.65,abs(local.x-plane.center.x)<plane.extent.x/2+radius,abs(local.z-plane.center.z)<plane.extent.z/2+radius {return true}
+            } else if abs(local.y-plane.center.y)<radius,abs(local.x-plane.center.x)<plane.extent.x/2+radius,abs(local.z-plane.center.z)<plane.extent.z/2+0.5 {return true}
         }
         return false
     }
@@ -182,13 +195,31 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             if message != self.lastReport { self.status = message; self.lastReport = message; self.changed?() }
         }
     }
-    nonisolated func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { summarize(anchors, removed: false) }
+    nonisolated func session(_ session: ARSession, didAdd anchors: [ARAnchor]) { summarize(anchors, removed: false);updatePlanes(anchors) }
+    nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {updatePlanes(anchors)}
+    nonisolated private func updatePlanes(_ anchors: [ARAnchor]) {
+        let planes=anchors.compactMap {$0 as? ARPlaneAnchor}
+        guard !planes.isEmpty else {return}
+        Task { @MainActor [weak self] in
+            guard let self,self.running,Date().timeIntervalSince(self.lastPlaneUpdate)>0.5 else {return}
+            self.lastPlaneUpdate=Date()
+            for plane in planes.prefix(24) {
+                guard self.occluders[plane.identifier] != nil || self.occluders.count<24 else {continue}
+                let w=max(0.01,plane.extent.x),d=max(0.01,plane.extent.z)
+                let model=self.occluders[plane.identifier] ?? ModelEntity()
+                model.model=ModelComponent(mesh:.generateBox(width:w,height:0.01,depth:d),materials:[OcclusionMaterial()])
+                model.transform=Transform(matrix:plane.transform);model.position += model.orientation.act(plane.center)
+                model.isEnabled = !self.detailedMesh
+                if self.occluders[plane.identifier] == nil {self.world.addChild(model);self.occluders[plane.identifier]=model}
+            }
+        }
+    }
     nonisolated func session(_ session: ARSession, didRemove anchors: [ARAnchor]) { summarize(anchors, removed: true) }
     nonisolated private func summarize(_ anchors: [ARAnchor], removed: Bool) {
         let p = anchors.compactMap { $0 is ARPlaneAnchor ? $0.identifier : nil }, m = anchors.compactMap { $0 is ARMeshAnchor ? $0.identifier : nil }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            for id in p { if removed { self.planes.remove(id) } else { self.planes.insert(id) } }
+            for id in p { if removed { self.planes.remove(id);self.occluders.removeValue(forKey:id)?.removeFromParent() } else { self.planes.insert(id) } }
             for id in m { if removed { self.meshes.remove(id) } else { self.meshes.insert(id) } }
             self.planeCount = self.planes.count; self.meshCount = self.meshes.count; self.changed?()
         }

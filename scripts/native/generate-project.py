@@ -7,7 +7,7 @@ def q(s):return '"'+str(s).replace('"','\\"')+'"'
 objects={}
 def obj(name,text):objects[uid(name)]=text;return uid(name)
 swifts=sorted((ios/'MyPersonalNeo').rglob('*.swift'));tests=sorted((ios/'MyPersonalNeoTests').glob('*.swift'))
-resources=sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.usdz'))+sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.jpg'))+[ios/'MyPersonalNeo/Resources/Rocketbox-MIT.txt',ios/'MyPersonalNeo/Resources/AvatarManifest.json',ios/'MyPersonalNeo/Resources/PrivacyInfo.xcprivacy',ios/'MyPersonalNeo/Resources/Assets.xcassets']
+resources=sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.usdz'))+sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.jpg'))+[ios/'MyPersonalNeo/Resources/Quaternius-CC0.txt',ios/'MyPersonalNeo/Resources/AvatarManifest.json',ios/'MyPersonalNeo/Resources/PrivacyInfo.xcprivacy',ios/'MyPersonalNeo/Resources/Assets.xcassets']
 refs=[];builds={}
 for path in swifts+tests+resources:
  key=str(path.relative_to(ios));typ='sourcecode.swift' if path.suffix=='.swift' else 'folder.assetcatalog' if path.suffix=='.xcassets' else 'text.xml' if path.suffix=='.xcprivacy' else 'file'

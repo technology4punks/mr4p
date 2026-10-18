@@ -87,24 +87,35 @@ final class NeoCoreTests: XCTestCase {
         XCTAssertNil(AvatarMotion.step(from:.zero,to:[10,0,0],delta:0.02))
         XCTAssertNil(AvatarMotion.step(from:.zero,to:[.nan,0,0],delta:0.02))
     }
-    @MainActor func testThreePackagedHumansLoadAndAnimateActualSkin() async throws {
+    func testPerformanceBudgetDropsJointRateAfterSustainedSlowFrames() {
+        var policy=ScenePerformance()
+        for _ in 0..<65 {_=policy.observe(1.0/30)}
+        XCTAssertEqual(policy.animationHz,20)
+        XCTAssertEqual(policy.fps,30,accuracy:0.1)
+        for _ in 0..<130 {_=policy.observe(1.0/60)}
+        XCTAssertEqual(policy.animationHz,30)
+        XCTAssertEqual(policy.fps,60,accuracy:0.1)
+    }
+    @MainActor func testThreeLightweightCompanionsLoadAndAnimateActualSkin() async throws {
         let rig=HumanoidRig()
         for profile in AvatarProfile.allCases {
             try rig.load(profile)
             XCTAssertTrue(rig.isLoaded);XCTAssertFalse(rig.models.isEmpty)
-            XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == 80 && $0.jointTransforms.count == 80 })
+            XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == profile.expectedJoints && $0.jointTransforms.count == profile.expectedJoints })
             let bounds=rig.root.visualBounds(relativeTo:rig.root).extents
-            XCTAssertGreaterThan(bounds.y,1.5);XCTAssertLessThan(bounds.y,1.9)
-            XCTAssertLessThan(bounds.x,1.5);XCTAssertLessThan(bounds.z,0.7)
+            XCTAssertGreaterThan(bounds.y,profile.isHuman ? 1.5 : 0.5);XCTAssertLessThan(bounds.y,profile.isHuman ? 1.9 : 0.7)
+            XCTAssertLessThan(bounds.x,1.6);XCTAssertLessThan(bounds.z,profile.isHuman ? 0.8 : 1.4)
             rig.update(delta:0.03);let before=rig.models[0].jointTransforms
-            rig.play("wave");rig.update(delta:0.03)
-            XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.999 }, "Wave must move real skin for \(profile)")
+            rig.play("wave");rig.update(delta:0.15)
+            XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < (profile.isHuman ? 0.999 : 0.9999) }, "Wave must move real skin for \(profile)")
             rig.stop();rig.walkAmount=1;rig.update(delta:0.04)
             XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.9999 })
             rig.seated=true;rig.stop(stand:false);XCTAssertTrue(rig.seated)
             XCTAssertTrue(rig.models.flatMap(\.jointTransforms).allSatisfy { $0.translation.x.isFinite && $0.rotation.real.isFinite })
             XCTAssertNotNil(Bundle.main.url(forResource:profile.resource,withExtension:"jpg"))
-            // Import must retain real skin/clothing textures, not a flat-colour proxy.
+            XCTAssertEqual(rig.models.count,1)
+            XCTAssertEqual(rig.models.first?.model?.materials.count,1)
+            // One shared palette texture instead of full body/face/normal maps.
             XCTAssertTrue(rig.models.flatMap { $0.model?.materials ?? [] }.contains { ($0 as? PhysicallyBasedMaterial)?.baseColor.texture != nil })
         }
     }
