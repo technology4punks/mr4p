@@ -1,0 +1,14 @@
+{
+  "asset": "NeoHumanoid.usdz",
+  "source": "https://poly.pizza/m/BwjA6Thdzd",
+  "author": "joney_lol",
+  "license": "CC-BY-3.0",
+  "sourceSha256": "8860f2259019f793a5be198dd70b2dbd301f1b0d30c3484d8bd510afa517fc7f",
+  "sha256": "74e1c89781487c9318dfba8be34167aeef99ba756d71498014ecff5f8f287448",
+  "joints": 48,
+  "skinnedMeshes": 6,
+  "triangles": 18299,
+  "heightMeters": 1.6,
+  "bytes": 540181,
+  "modifications": "Existing repaired skin weights; converted GLB to USD Skel, normalized to 1.6 metres, PBR colors retained. Runtime poses/IK authored in Swift; no downloaded animations."
+}

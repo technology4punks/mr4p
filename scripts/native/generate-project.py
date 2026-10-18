@@ -1,0 +1,41 @@
+"""Generate the checked-in Xcode project without requiring XcodeGen or a Mac."""
+from pathlib import Path
+from hashlib import sha1
+r=Path(__file__).resolve().parents[2];ios=r/'ios'
+def uid(s):return sha1(s.encode()).hexdigest()[:24].upper()
+def q(s):return '"'+str(s).replace('"','\\"')+'"'
+objects={}
+def obj(name,text):objects[uid(name)]=text;return uid(name)
+swifts=sorted((ios/'MyPersonalNeo').rglob('*.swift'));tests=sorted((ios/'MyPersonalNeoTests').glob('*.swift'))
+resources=[ios/'MyPersonalNeo/Resources/NeoHumanoid.usdz',ios/'MyPersonalNeo/Resources/CC-BY-3.0.txt',ios/'MyPersonalNeo/Resources/AvatarManifest.json',ios/'MyPersonalNeo/Resources/PrivacyInfo.xcprivacy',ios/'MyPersonalNeo/Resources/Assets.xcassets']
+refs=[];builds={}
+for path in swifts+tests+resources:
+ key=str(path.relative_to(ios));typ='sourcecode.swift' if path.suffix=='.swift' else 'folder.assetcatalog' if path.suffix=='.xcassets' else 'text.xml' if path.suffix=='.xcprivacy' else 'file'
+ ref=obj('file'+key,f'{{isa = PBXFileReference; lastKnownFileType = {typ}; path = {q(key)}; sourceTree = "<group>";}}');refs.append(ref);builds[key]=obj('build'+key,f'{{isa = PBXBuildFile; fileRef = {ref};}}')
+app=obj('appproduct','{isa = PBXFileReference; explicitFileType = wrapper.application; path = MyPersonalNeo.app; sourceTree = BUILT_PRODUCTS_DIR;}');testprod=obj('testproduct','{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = MyPersonalNeoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR;}')
+products=obj('products',f'{{isa = PBXGroup; children = ({app},{testprod},); name = Products; sourceTree = "<group>";}}')
+group=obj('root',f'{{isa = PBXGroup; children = ({",".join(refs)},{products},); sourceTree = "<group>";}}')
+package=obj('webrtcpackage','{isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/stasel/WebRTC.git"; requirement = {kind = exactVersion; version = 155.0.0;};}')
+productdep=obj('webrtcproduct',f'{{isa = XCSwiftPackageProductDependency; package = {package}; productName = WebRTC;}}');webbuild=obj('webrtcbuild',f'{{isa = PBXBuildFile; productRef = {productdep};}}')
+def phase(name,kind,ids):return obj(name,f'{{isa = {kind}; buildActionMask = 2147483647; files = ({",".join(ids)},); runOnlyForDeploymentPostprocessing = 0;}}')
+source=phase('source','PBXSourcesBuildPhase',[builds[str(p.relative_to(ios))] for p in swifts]);res=phase('resources','PBXResourcesBuildPhase',[builds[str(p.relative_to(ios))] for p in resources]);framework=phase('framework','PBXFrameworksBuildPhase',[webbuild]);testsource=phase('testsource','PBXSourcesBuildPhase',[builds[str(p.relative_to(ios))] for p in tests]);testframe=phase('testframe','PBXFrameworksBuildPhase',[])
+common={'SWIFT_VERSION':'5.0','IPHONEOS_DEPLOYMENT_TARGET':'17.0','SDKROOT':'iphoneos','CLANG_ENABLE_MODULES':'YES','ENABLE_USER_SCRIPT_SANDBOXING':'YES','TARGETED_DEVICE_FAMILY':'1','CODE_SIGN_STYLE':'Automatic'}
+def configs(prefix,extra):
+ ids=[]
+ for mode in ['Debug','Release']:
+  s={**common,**extra,'SWIFT_OPTIMIZATION_LEVEL':'-Onone' if mode=='Debug' else '-O','DEBUG_INFORMATION_FORMAT':'dwarf' if mode=='Debug' else 'dwarf-with-dsym','ENABLE_TESTABILITY':'YES' if mode=='Debug' else 'NO'}
+  if mode=='Debug':s['SWIFT_ACTIVE_COMPILATION_CONDITIONS']='DEBUG'
+  ids.append(obj(prefix+mode,'{isa = XCBuildConfiguration; buildSettings = {'+''.join(q(k)+' = '+q(v)+';' for k,v in s.items())+'}; name = '+mode+';}'))
+ return obj(prefix+'list',f'{{isa = XCConfigurationList; buildConfigurations = ({",".join(ids)},); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;}}')
+appconf=configs('app',{'PRODUCT_BUNDLE_IDENTIFIER':'com.technology4punks.MyPersonalNeo','PRODUCT_NAME':'$(TARGET_NAME)','INFOPLIST_FILE':'MyPersonalNeo/Resources/Info.plist','MARKETING_VERSION':'0.1.0','CURRENT_PROJECT_VERSION':'1','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'})
+testconf=configs('test',{'PRODUCT_BUNDLE_IDENTIFIER':'com.technology4punks.MyPersonalNeoTests','PRODUCT_NAME':'$(TARGET_NAME)','GENERATE_INFOPLIST_FILE':'YES','BUNDLE_LOADER':'$(TEST_HOST)','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/MyPersonalNeo.app/MyPersonalNeo','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks @loader_path/Frameworks'})
+projectconf=configs('project',{})
+apptarget=obj('apptarget',f'{{isa = PBXNativeTarget; buildConfigurationList = {appconf}; buildPhases = ({source},{framework},{res},); buildRules = (); dependencies = (); name = MyPersonalNeo; packageProductDependencies = ({productdep},); productName = MyPersonalNeo; productReference = {app}; productType = "com.apple.product-type.application";}}')
+proxy=obj('targetproxy',f'{{isa = PBXContainerItemProxy; containerPortal = {uid("project")}; proxyType = 1; remoteGlobalIDString = {apptarget}; remoteInfo = MyPersonalNeo;}}');dependency=obj('targetdependency',f'{{isa = PBXTargetDependency; target = {apptarget}; targetProxy = {proxy};}}')
+testtarget=obj('testtarget',f'{{isa = PBXNativeTarget; buildConfigurationList = {testconf}; buildPhases = ({testsource},{testframe},); buildRules = (); dependencies = ({dependency},); name = MyPersonalNeoTests; productName = MyPersonalNeoTests; productReference = {testprod}; productType = "com.apple.product-type.bundle.unit-test";}}')
+project=obj('project',f'{{isa = PBXProject; attributes = {{BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 1640; TargetAttributes = {{{apptarget} = {{CreatedOnToolsVersion = 16.4;}}; {testtarget} = {{CreatedOnToolsVersion = 16.4; TestTargetID = {apptarget};}};}};}}; buildConfigurationList = {projectconf}; compatibilityVersion = "Xcode 14.0"; developmentRegion = it; hasScannedForEncodings = 0; knownRegions = (it,en,Base,); mainGroup = {group}; packageReferences = ({package},); productRefGroup = {products}; projectDirPath = ""; projectRoot = ""; targets = ({apptarget},{testtarget},);}}')
+(ios/'MyPersonalNeo.xcodeproj/project.pbxproj').write_text('// !$*UTF8*$!\n{archiveVersion = 1; classes = {}; objectVersion = 56; objects = {\n'+''.join(k+' = '+v+';\n' for k,v in objects.items())+'}; rootObject = '+project+';}\n')
+ref=lambda id,name,buildable:f'<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{id}" BuildableName="{buildable}" BlueprintName="{name}" ReferencedContainer="container:MyPersonalNeo.xcodeproj"/>'
+(ios/'MyPersonalNeo.xcodeproj/xcshareddata/xcschemes/MyPersonalNeo.xcscheme').write_text(f'''<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="1640" version="1.3"><BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES"><BuildActionEntries><BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">{ref(apptarget,'MyPersonalNeo','MyPersonalNeo.app')}</BuildActionEntry></BuildActionEntries></BuildAction><TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES"><Testables><TestableReference skipped="NO">{ref(testtarget,'MyPersonalNeoTests','MyPersonalNeoTests.xctest')}</TestableReference></Testables></TestAction><LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref(apptarget,'MyPersonalNeo','MyPersonalNeo.app')}</BuildableProductRunnable></LaunchAction><ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES"><BuildableProductRunnable runnableDebuggingMode="0">{ref(apptarget,'MyPersonalNeo','MyPersonalNeo.app')}</BuildableProductRunnable></ProfileAction><AnalyzeAction buildConfiguration="Debug"/><ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/></Scheme>''')
+print('Generated Xcode project with',len(swifts),'Swift files and',len(tests),'test files')

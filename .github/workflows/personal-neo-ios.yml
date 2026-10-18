@@ -1,0 +1,33 @@
+name: My Personal Neo iOS
+on:
+  push:
+    branches: [codex/my-personal-neo]
+    paths: ['ios/**', 'scripts/native/**', '.github/workflows/personal-neo-ios.yml']
+  pull_request:
+    branches: [main]
+    paths: ['ios/**', 'scripts/native/**', '.github/workflows/personal-neo-ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test on available iPhone simulator
+        shell: bash
+        run: |
+          xcodebuild -version
+          xcrun simctl list devices available -j > /tmp/neo-simulators.json
+          NEO_SIMULATOR_ID=$(python3 -c 'import json; d=json.load(open("/tmp/neo-simulators.json")); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')
+          xcodebuild test -project ios/MyPersonalNeo.xcodeproj -scheme MyPersonalNeo -destination "platform=iOS Simulator,id=$NEO_SIMULATOR_ID" -resultBundlePath /tmp/NeoTests.xcresult CODE_SIGNING_ALLOWED=NO
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: personal-neo-ios-test-results
+          path: /tmp/NeoTests.xcresult
+          if-no-files-found: ignore
