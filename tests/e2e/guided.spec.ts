@@ -33,6 +33,8 @@ test("guided visit enters after optional greeting, returns by the deadline and l
   await expect(
     page.getByRole("button", { name: "Saluta", exact: true }),
   ).toHaveCount(0);
+  // Rendered invitation precedes the next narrative interval; let its clock begin.
+  await page.clock.runFor(250);
   await page.clock.fastForward(18000);
   await page.clock.fastForward(2000);
   await page.clock.fastForward(4000);
@@ -169,6 +171,8 @@ test("a failed recording backend does not block the timed return or goodbye", as
   await page
     .getByRole("button", { name: "Entra nell’osservatorio", exact: true })
     .waitFor({ timeout: 20000 });
+  // Rendered invitation precedes the next narrative interval; let its clock begin.
+  await page.clock.runFor(250);
   await page.clock.fastForward(18000);
   await page.clock.fastForward(2000);
   await page.clock.fastForward(4000);

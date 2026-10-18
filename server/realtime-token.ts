@@ -2,6 +2,8 @@ import { turnDetection } from "../src/audio/turnDetection.js";
 import type { RequestHandler } from "express";
 import { storyInstructions, storyTools } from "./story-config.js";
 
+import { personalInstructions, personalTools } from "./personal/config.js";
+
 export const instructions = storyInstructions;
 export type ServerConfig = {
   databasePath?: string;
@@ -10,6 +12,8 @@ export type ServerConfig = {
   apiKey?: string;
   model?: string;
   voice?: string;
+  visionModel?: string;
+  searchModel?: string;
   origin?: string;
   production?: boolean;
   requireProxyAuth?: boolean;
@@ -21,6 +25,7 @@ export type ServerConfig = {
 export function tokenHandler(
   config: ServerConfig,
   fetcher: typeof fetch = fetch,
+  personal = false,
 ): RequestHandler {
   return async (_req, res) => {
     if (!config.apiKey) {
@@ -45,8 +50,8 @@ export function tokenHandler(
             session: {
               type: "realtime",
               model: config.model || "gpt-realtime-2.1-mini",
-              instructions,
-              tools: storyTools,
+              instructions: personal ? personalInstructions : instructions,
+              tools: personal ? personalTools : storyTools,
               tool_choice: "auto",
               output_modalities: ["audio"],
               audio: {

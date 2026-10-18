@@ -19,7 +19,7 @@ private struct NeoAppRoot: View {
     var body: some View {
         NeoView().environmentObject(session).preferredColorScheme(.dark)
             .onChange(of: scenePhase) { _, phase in
-                if phase != .active { session.suspend() }
+                if phase == .background { session.suspend() }
             }
     }
 }

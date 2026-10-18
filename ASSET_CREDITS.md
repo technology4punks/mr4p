@@ -51,3 +51,6 @@ Non sono stati scaricati nuovi asset esterni per la V4: avatar e materiali/model
 ## Riordino spaziale · 13 ottobre 2026
 
 Nessun asset esterno aggiunto. Pianta, lotti e percorsi sono originali e deterministici; le geometrie instanziate, i materiali PBR e gli asset locali già attribuiti sono riutilizzati. [Documentazione della pianta](docs/CITY_LAYOUT.md).
+
+## My Personal Neo iPhone · 18 ottobre 2026
+Il modello riggato joney_lol già presente viene usato nella nuova app, convertito in USD Skel: 48 joint, 6 mesh, 18.299 triangoli. CC BY 3.0 e attribuzione incluse nell’app. Conversione riproducibile in `scripts/native/convert-humanoid.py`, manifest e hash in `ios/MyPersonalNeo/Resources/AvatarManifest.json`. Pose/IK e icona geometrica originali. Non cambia l’avatar Robot Buddy. WebRTC iOS da stasel/WebRTC, package binario upstream con avvisi/licenza propri.

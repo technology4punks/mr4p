@@ -80,7 +80,7 @@ struct NeoView: View {
                 Button("Suona Inno alla gioia") {do{try neo.playPiano("ode_to_joy");menu=false}catch{neo.message=error.localizedDescription}}
             }
             Button("Mostra un saluto di judo") {neo.demo("judo_rei");menu=false}
-            Button("Ferma dimostrazione") {neo.stopPerformance();neo.room.rig.stop()}
+            Button("Ferma dimostrazione") {neo.stopPerformance();neo.room.rig.stop(stand:false)}
             Button("Termina voce") {neo.voice.stop()}
             Button("Sospendi scansione") {neo.suspend();menu=false}
         }.font(.subheadline).padding(18).frame(maxWidth:.infinity,alignment:.leading).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:22))

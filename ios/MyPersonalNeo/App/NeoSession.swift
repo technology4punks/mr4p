@@ -66,7 +66,7 @@ final class NeoSession: ObservableObject {
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(15)) } catch { return }
                 guard let self, self.active, self.assistedObservation else { return }
-                guard self.room.trackingNormal, !self.busy, self.voice.state != .speaking, self.voice.state != .thinking else { continue }
+                guard self.room.trackingNormal, !self.busy, self.voice.state != .speaking, self.voice.state != .thinking, self.voice.state != .connecting else { continue }
                 _ = await self.inspect("Aggiorna gli oggetti utili e ciò che è cambiato. Descrivi solo elementi visibili, senza azioni autonome.", interactive:false)
             }
         }
@@ -133,7 +133,7 @@ final class NeoSession: ObservableObject {
         }
         if let last=notes.last,playTime>last.beat+last.duration+0.5 {stopPerformance();message="Dimostrazione conclusa · il pianoforte reale non è stato azionato."}
     }
-    func demo(_ name: String) {stopPerformance();room.rig.play(name);message=name.hasPrefix("judo") ? "Illustrazione semplificata: osserva il modello, pratica con un istruttore." : "Dimostrazione sullo scheletro umanoide."}
+    func demo(_ name: String) {guard room.rig.root.isEnabled,room.trackingNormal,!room.rig.seated else {message="Tocca prima il pavimento per posizionare NEO in piedi.";return};stopPerformance();room.rig.play(name);message=name.hasPrefix("judo") ? "Illustrazione semplificata: osserva il modello, pratica con un istruttore." : "Dimostrazione sullo scheletro umanoide."}
     private func tool(_ name: String,_ raw: String) async -> [String:Any] {
         guard let data=raw.data(using:.utf8),let args=try? JSONSerialization.jsonObject(with:data) as? [String:Any] else {return ["accepted":false,"reason":"Argomenti non validi."]}
         do {
@@ -145,8 +145,8 @@ final class NeoSession: ObservableObject {
             case "sit_at_piano": try sitAtPiano()
             case "play_piano":guard let piece=args["piece"] as? String else {throw NeoFailure("Melodia mancante.")};try playPiano(piece)
             case "point_at_object":guard room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
-            case "demonstrate":guard let id=args["animation"] as? String,["wave","explain","judo_rei","judo_tai_sabaki"].contains(id),room.rig.root.isEnabled,room.trackingNormal else {throw NeoFailure("Posiziona NEO e scegli una dimostrazione disponibile.")};demo(id)
-            case "stop_demonstration":stopPerformance();room.rig.stop()
+            case "demonstrate":guard let id=args["animation"] as? String,["wave","explain","judo_rei","judo_tai_sabaki"].contains(id),room.rig.root.isEnabled,room.trackingNormal,!room.rig.seated else {throw NeoFailure("Posiziona NEO e scegli una dimostrazione disponibile.")};demo(id)
+            case "stop_demonstration":stopPerformance();room.rig.stop(stand:false)
             default:throw NeoFailure("Azione non disponibile.")
             }
             return ["accepted":true,"reason":message,"calibratedPiano":pianoReady,"tracking":room.trackingNormal]

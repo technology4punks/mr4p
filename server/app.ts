@@ -8,6 +8,8 @@ import { timingSafeEqual } from "node:crypto";
 import { resolve } from "node:path";
 import { tokenHandler, type ServerConfig } from "./realtime-token.js";
 
+import { getKnowledge, KnowledgeError } from "./personal/knowledge.js";
+
 export function createApp(
   config: ServerConfig = {},
   fetcher: typeof fetch = fetch,
@@ -45,11 +47,11 @@ export function createApp(
     next();
   });
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
-  app.use("/api/realtime-token", (_req, res, next) => {
+  app.use(["/api/realtime-token", "/api/personal-neo/token", "/api/personal-neo/knowledge"], (_req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
     next();
   });
-  app.all("/api/realtime-token", (req, res, next) => {
+  app.all(["/api/realtime-token", "/api/personal-neo/token", "/api/personal-neo/knowledge"], (req, res, next) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", "POST");
       res.status(405).json({ error: "Metodo non consentito." });
@@ -104,6 +106,12 @@ export function createApp(
     rateLimit({ ...limitOptions, limit: config.perMinute ?? 5 }),
     tokenHandler(config, fetcher),
   );
+  app.post("/api/personal-neo/token", rateLimit({...limitOptions,limit:config.globalPerMinute ?? 30,keyGenerator:()=>"personal-token"}), tokenHandler(config,fetcher,true));
+  app.post("/api/personal-neo/knowledge", rateLimit({...limitOptions,limit:12,keyGenerator:()=>"personal-knowledge"}),express.json({limit:"800kb"}),async(req,res)=>{
+    res.setHeader("Cache-Control","no-store");
+    try {res.json(await getKnowledge(req.body,config,fetcher))}
+    catch(e){res.status(e instanceof KnowledgeError?e.status:502).json({error:e instanceof KnowledgeError?e.message:"Servizio di comprensione non disponibile."})}
+  });
   app.use(
     "/api/future-sessions",
     express.json({ limit: "16kb" }),
@@ -286,7 +294,7 @@ export function createApp(
       res.status(503).json({ error: "Archivio non disponibile." });
     }
   });
-  app.get("/control-room", (_req, res) =>
+  app.get(["/control-room", "/personal-neo"], (_req, res) =>
     res.sendFile(resolve("dist/index.html")),
   );
   app.use("/api", (_req, res) =>

@@ -4,7 +4,9 @@ import { detectCapabilities, type Capabilities } from "./xr/capabilities";
 import { levers, optionsFor, interventions } from "./decision/catalog";
 import { ControlRoom } from "./admin/ControlRoom";
 import { voicePresentation } from "./audio/voicePresentation";
+import { NativePortal } from "./personal/NativePortal";
 export default function App() {
+  if (location.pathname === "/personal-neo") return <NativePortal />;
   return location.pathname.startsWith("/control-room") ? (
     <ControlRoom />
   ) : (
@@ -659,7 +661,7 @@ function ExperienceApp() {
       )}
       <footer>
         <span>Quest Pro · Android · iPhone · Desktop</span>
-        <span>Scenari ipotetici, senza punteggi morali.</span>
+        <span>Scenari ipotetici, senza punteggi morali. <a href="/personal-neo">My Personal Neo · iPhone ↗</a></span>
       </footer>
     </div>
   );

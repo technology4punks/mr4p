@@ -52,7 +52,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) { config.frameSemantics.insert(.personSegmentationWithDepth) }
         trackingNormal = false; view.session.run(config); running = true; status = "Muovi lentamente l’iPhone per rilevare pavimento e superfici."; changed?()
     }
-    func stop() { view.session.pause(); running = false; trackingNormal = false; rig.stop(); status = "Scansione sospesa · riprendi per riallineare"; changed?() }
+    func stop() { view.session.pause(); running = false; trackingNormal = false; rig.stop(stand:false); status = "Scansione sospesa · riprendi per riallineare"; changed?() }
     func place(at position: SIMD3<Float>) {
         guard trackingNormal else { return }
         rig.stop(); rig.root.position = position

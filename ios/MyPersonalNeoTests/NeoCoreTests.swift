@@ -41,13 +41,14 @@ final class NeoCoreTests: XCTestCase {
         gate.complete();gate.mayAuthorizeAudio();XCTAssertEqual(gate.turn,3)
         gate.reset();XCTAssertFalse(gate.responseActive);XCTAssertFalse(gate.mayUseTools)
     }
-    @MainActor func testPackagedUSDLoadsFortyEightJointsAndSixSkinnedParts() async throws {
+    @MainActor func testPackagedUSDLoadsAnimatedFortyEightJointRig() async throws {
         let rig=HumanoidRig();try rig.load()
-        XCTAssertTrue(rig.isLoaded);XCTAssertEqual(rig.models.count,6)
+        XCTAssertTrue(rig.isLoaded);XCTAssertFalse(rig.models.isEmpty) // RealityKit may merge compatible USD mesh parts.
         XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == 48 && $0.jointTransforms.count == 48 })
         let before = rig.models[0].jointTransforms
         rig.play("wave");rig.update(delta:0.03)
         XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.999 }, "Wave must change the real USD joint pose, including underscore-normalized names")
+        rig.seated=true;rig.stop(stand:false);XCTAssertTrue(rig.seated)
         XCTAssertTrue(rig.models.flatMap(\.jointTransforms).allSatisfy { $0.translation.x.isFinite && $0.rotation.real.isFinite })
     }
 }

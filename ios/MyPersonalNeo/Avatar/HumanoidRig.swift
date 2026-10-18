@@ -38,7 +38,7 @@ final class HumanoidRig {
         if let hip = index("thighL") { seatedHipHeight = matrices()[hip].columns.3.y - 0.04 }
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
-    func stop() { demo = nil; target = nil; smoothedTarget = nil; seated = false }
+    func stop(stand: Bool = true) { demo = nil; target = nil; smoothedTarget = nil; if stand { seated = false } }
     private func index(_ suffix: String) -> Int? {
         let key = suffix.filter { $0.isLetter || $0.isNumber }
         return names.firstIndex { ($0.split(separator:"/").last.map(String.init) ?? "").filter { $0.isLetter || $0.isNumber } == key }
