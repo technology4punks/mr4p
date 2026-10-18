@@ -31,11 +31,11 @@ struct GuidedRoomSetup {
         guard tracking,let point=Self.support(camera:camera,forward:forward,planes:planes,halfExtent:halfExtent) else {
             stage = .findFloor;position=nil;candidate=nil;stableSince=nil;progress=0;return
         }
-        if let candidate,simd_distance(candidate,point)<0.12 {
+        if let candidate,abs(candidate.y-point.y)<0.02,simd_distance(candidate,point)<0.12 {
             progress=min(1,max(0,(now-(stableSince ?? now))/1.5))
         } else {candidate=point;stableSince=now;progress=0}
         stage=progress>=1 ? .ready : .holdStill
-        position=progress>=1 ? candidate : nil
+        position=progress>=1 ? point : nil
     }
     static func support(camera:SIMD3<Float>,forward:SIMD3<Float>,planes:[ScenePlaneSnapshot],halfExtent:Float=0.3) -> SIMD3<Float>? {
         guard camera.x.isFinite,camera.y.isFinite,camera.z.isFinite,

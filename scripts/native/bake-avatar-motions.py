@@ -53,14 +53,14 @@ def bake(name,height):
  footMask=(np.isin(ji,footIds)*w).sum(1)>.5
  if not footMask.any():footMask=pts[:,1]<height*.12
  animations={a['name']:a for a in g['animations']};selected={'idle':'Idle_Neutral' if name!='NeoDog' else 'Idle','walk':'Walk','wave':'Wave' if name!='NeoDog' else 'Idle_2','interact':'Interact' if name!='NeoDog' else 'Idle_2'}
- clips={};report=[];walkSpeed=None
+ clips={};report=[];walkSpeed=None;walkGround={}
  for target,source in selected.items():
   a=animations[source];channels=[]
   for ch in a['channels']:
    s=a['samplers'][ch['sampler']];assert s.get('interpolation','LINEAR') in ('LINEAR','STEP')
    channels.append((ch['target']['node'],ch['target']['path'],acc(s['input']).flatten(),acc(s['output']),s.get('interpolation','LINEAR')))
-  duration=float(max(c[2][-1] for c in channels));count=max(2,round(duration*24)+1);frames=[];reference=None;groundErrors=[];maxExtent=0;walkPositions=[]
-  for t in np.linspace(0,duration,count):
+  duration=float(max(c[2][-1] for c in channels));count=max(2,round(duration*24)+1);frames=[];groundErrors=[];maxExtent=0;walkPositions=[]
+  def sampled_pose(t):
    values={}
    for node,prop,times,samples,interpolation in channels:
     idx=min(len(times)-2,max(0,int(np.searchsorted(times,t,side='right')-1)));u=float(np.clip((t-times[idx])/max(1e-8,times[idx+1]-times[idx]),0,1)) if interpolation!='STEP' else 0
@@ -69,9 +69,11 @@ def bake(name,height):
     value=aa*(1-u)+bb*u
     if prop=='rotation':value/=np.linalg.norm(value)
     values[(node,prop)]=value
-   wm=worlds(values);P=np.array([N@wm(j)@C[j] for j in joints])
-   if reference is None:reference=P[0,:3,3].copy()
-   horizontal=P[0,:3,3]-reference;horizontal[1]=0;P[:,:3,3]-=horizontal
+   wm=worlds(values);return np.array([N@wm(j)@C[j] for j in joints])
+  # Remove net travel while retaining any authored periodic torso sway.
+  travel=sampled_pose(duration)[0,:3,3]-sampled_pose(0)[0,:3,3];travel[1]=0
+  for t in np.linspace(0,duration,count):
+   P=sampled_pose(t);P[:,:3,3]-=travel*(t/duration)
    deformed=(np.einsum('nkij,nj->nki',(P@invB)[ji],pts)[:,:,:3]*w[:,:,None]).sum(1)
    ground=float(deformed[footMask,1].min());P[:,1,3]-=ground;deformed[:,1]-=ground
    assert np.isfinite(deformed).all();assert deformed[:,1].max()<height*1.2
@@ -93,10 +95,12 @@ def bake(name,height):
     y=samples[:,j,1];stance=y<y.min()+.035;v=-np.diff(samples[:,j,2])/dt
     speeds.extend(v[stance[1:]&stance[:-1]&(v>.05)])
    walkSpeed=float(np.median(speeds));assert .1<walkSpeed<3
+   orderedFeet=[p.split('/')[-1] for p in paths if p.split('/')[-1] in footNames]
+   walkGround={foot:round(float(samples[:,i,1].min()),6) for i,foot in enumerate(orderedFeet)}
   clips[target]={'duration':round(duration,6),'frames':frames}
   report.append({'clip':target,'source':source,'frames':count,'seconds':duration,'maxExtentMeters':maxExtent,'maxSoleGroundErrorMeters':max(abs(x) for x in groundErrors)})
  bindRest=[np.linalg.inv(B[lookup[parents[j]]])@b if parents.get(j) in lookup else b for j,b in zip(joints,B)]
- output=OUT/(name+'.motion.json');output.write_text(json.dumps({'version':1,'walkSpeed':round(walkSpeed,6),'joints':paths,'bindTranslations':np.round(np.array([r[:3,3] for r in bindRest]),6).flatten().tolist(),'clips':clips},separators=(',',':'))+'\n')
+ output=OUT/(name+'.motion.json');output.write_text(json.dumps({'version':1,'walkSpeed':round(walkSpeed,6),'walkGround':walkGround,'joints':paths,'bindTranslations':np.round(np.array([r[:3,3] for r in bindRest]),6).flatten().tolist(),'clips':clips},separators=(',',':'))+'\n')
  return {'asset':name,'nominalWalkSpeedMetersPerSecond':walkSpeed,'author':'Quaternius','license':'CC0-1.0','sourceSha256':hashlib.sha256(path.read_bytes()).hexdigest(),'motionFile':output.name,'bytes':output.stat().st_size,'sha256':hashlib.sha256(output.read_bytes()).hexdigest(),'clips':report}
 report=[bake(*s) for s in [('NeoMan',1.72),('NeoWoman',1.66),('NeoDog',.6)]]
 (OUT/'MotionManifest.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

@@ -12,6 +12,10 @@ final class HumanoidRig {
     private var globalPose: [simd_float4x4] = []
     private var bindGlobal:[simd_float4x4]=[]
     private var footChains:[(Int,Int)]=[]
+    private var footPlants:[SIMD3<Float>?]=[]
+    private var previousFeet:[SIMD3<Float>?]=[]
+    private var footGround:[Float]=[]
+    var isDemonstrating:Bool {demo != nil}
     private var names: [String] = []
     private var parents: [Int?] = []
     private var rest: [Transform] = []
@@ -63,6 +67,8 @@ final class HumanoidRig {
         for (semantic, source) in profile.isHuman ? Self.humanAliases : Self.dogAliases { jointIndex[semantic]=importedNames[source] }
         let footNames=profile.isHuman ? [("shinL","footL"),("shinR","footR")] : [("BackLowerLeg_L","IKBackLeg_L"),("BackLowerLeg_R","IKBackLeg_R"),("FrontLowerLeg_L","IKFrontLeg_L"),("FrontLowerLeg_R","IKFrontLeg_R")]
         footChains=footNames.compactMap {a,b in guard let shin=jointIndex[a],let foot=jointIndex[b] else {return nil};return (shin,foot)}
+        footPlants=Array(repeating:nil,count:footChains.count);previousFeet=footPlants
+        footGround=footChains.map {_,foot in loadedMotion.walkGround[names[foot].split(separator:"/").last.map(String.init) ?? ""] ?? 0}
         animatedModels=models.filter { $0.jointNames == names }
         globalPose=Array(repeating: matrix_identity_float4x4, count: names.count)
         parents = names.map { name in
@@ -125,6 +131,42 @@ final class HumanoidRig {
             }
         }
     }
+    private func plantFeet(walking:Bool) {
+        guard let model=models.first else {return}
+        for (number,pair) in footChains.enumerated() {
+            let (shin,foot)=pair
+            updateHierarchy()
+            let s=globalPose[foot].columns.3,source=SIMD3<Float>(s.x,s.y,s.z),previous=previousFeet[number]
+            previousFeet[number]=source
+            // Plant only during low, backward stance; release during lift/forward swing.
+            guard walking,!seated,source.y<footGround[number]+0.025,
+                  previous.map({source.z<$0.z+0.0002}) ?? true,
+                  let upper=parents[shin] else {footPlants[number]=nil;continue}
+            let world=model.convert(position:source,to:nil)
+            let plant=footPlants[number] ?? world
+            let target=model.convert(position:[plant.x,world.y,plant.z],from:nil)
+            let h=globalPose[upper].columns.3,k=globalPose[shin].columns.3
+            let hip=SIMD3<Float>(h.x,h.y,h.z),knee=SIMD3<Float>(k.x,k.y,k.z)
+            let a=SIMD3<Float>(bindGlobal[shin].columns.3.x,bindGlobal[shin].columns.3.y,bindGlobal[shin].columns.3.z)-SIMD3<Float>(bindGlobal[upper].columns.3.x,bindGlobal[upper].columns.3.y,bindGlobal[upper].columns.3.z)
+            let b=SIMD3<Float>(bindGlobal[foot].columns.3.x,bindGlobal[foot].columns.3.y,bindGlobal[foot].columns.3.z)-SIMD3<Float>(bindGlobal[shin].columns.3.x,bindGlobal[shin].columns.3.y,bindGlobal[shin].columns.3.z)
+            let l1=simd_length(a),l2=simd_length(b),offset=target-hip,d=simd_length(offset)
+            guard d.isFinite,d>abs(l1-l2)+0.003,d<l1+l2-0.003 else {footPlants[number]=nil;continue}
+            let axis=offset/d,projection=(l1*l1-l2*l2+d*d)/(2*d)
+            let bend=(knee-hip)-axis*simd_dot(knee-hip,axis)
+            guard simd_length(bend)>0.0001,simd_length(knee-hip)>0.0001 else {footPlants[number]=nil;continue}
+            let desiredKnee=hip+axis*projection+simd_normalize(bend)*sqrt(max(0,l1*l1-projection*projection))
+            let upperDelta=simd_quatf(from:simd_normalize(knee-hip),to:simd_normalize(desiredKnee-hip))
+            let parent=parents[upper].map {Transform(matrix:globalPose[$0]).rotation} ?? simd_quatf()
+            pose[upper].rotation=safe(parent.inverse*upperDelta*parent*pose[upper].rotation,fallback:pose[upper].rotation)
+            updateHierarchy()
+            let endpoint=globalPose[shin]*SIMD4<Float>(b,1),origin=globalPose[shin].columns.3
+            let start=SIMD3<Float>(origin.x,origin.y,origin.z),from=SIMD3<Float>(endpoint.x,endpoint.y,endpoint.z)-start
+            guard simd_length(from)>0.0001,simd_length(target-start)>0.0001 else {footPlants[number]=nil;continue}
+            let lowerDelta=simd_quatf(from:simd_normalize(from),to:simd_normalize(target-start)),upperRotation=Transform(matrix:globalPose[upper]).rotation
+            pose[shin].rotation=safe(upperRotation.inverse*lowerDelta*upperRotation*pose[shin].rotation,fallback:pose[shin].rotation)
+            footPlants[number]=plant
+        }
+    }
     private func stabilizeFeet() {
         // Independent foot controls must stay attached to the shin endpoints even
         // while interpolating between clips. Otherwise a crossfade stretches ankles.
@@ -182,6 +224,7 @@ final class HumanoidRig {
         } else { smoothedTarget = nil }
         blendTime=min(1,blendTime+elapsed/0.25)
         if blendTime<1 {for i in pose.indices {pose[i]=AvatarMotionLibrary.blend(previousPose[i],pose[i],blendTime)}}
+        plantFeet(walking:walking>0.3 && demo == nil && spatialTracking)
         stabilizeFeet()
         applyPose()
     }

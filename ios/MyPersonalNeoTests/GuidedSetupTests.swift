@@ -31,6 +31,15 @@ final class GuidedSetupTests:XCTestCase {
         guide.observe(now:3,tracking:true,camera:[0.3,1.6,0],forward:[0,0,-1],planes:[floor])
         XCTAssertFalse(guide.canPlace);XCTAssertEqual(guide.progress,0)
     }
+    func testHeightRefinementRestartsStabilityAndUsesTheCurrentFloorElevation() {
+        var guide=GuidedRoomSetup();guide.start()
+        guide.observe(now:1,tracking:true,camera:[0,1.6,0],forward:[0,0,-1],planes:[floor])
+        let refined=ScenePlaneSnapshot(transform:matrix_identity_float4x4,center:[0,0.05,-1.3],extent:[3,3],kind:.floor)
+        guide.observe(now:3,tracking:true,camera:[0,1.6,0],forward:[0,0,-1],planes:[refined])
+        XCTAssertFalse(guide.canPlace)
+        guide.observe(now:4.6,tracking:true,camera:[0,1.6,0],forward:[0,0,-1],planes:[refined])
+        XCTAssertTrue(guide.canPlace);XCTAssertEqual(guide.position?.y ?? -1,0.05,accuracy:0.0001)
+    }
     func testKnownFurnitureBlocksInitialPlacementEvenWithFloorBehindIt() {
         let table=ScenePlaneSnapshot(transform:matrix_identity_float4x4,center:[0,0.7,-1.3],extent:[1.2,1.2],kind:.other)
         XCTAssertTrue(GuidedRoomSetup.obstructed(at:[0,0,-1.3],planes:[floor,table]))

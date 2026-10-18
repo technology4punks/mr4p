@@ -182,6 +182,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         // Coarse cached planes are not live obstacle sensing. Never translate on stale measurements.
         if rig.seated || tap != nil { stopWalking(); return }
         let geometryFresh=ProcessInfo.processInfo.systemUptime-lastMeasuredAt<20
+        if rig.isDemonstrating {stopWalking()}
         if !geometryFresh {
             stopWalking()
             let now=ProcessInfo.processInfo.systemUptime
@@ -190,7 +191,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             }
         }
         let p = rig.root.position, toCamera = SIMD3<Float>(camera.x-p.x,0,camera.z-p.z)
-        if geometryFresh, destination == nil, followUser, simd_length(toCamera)>1.9, Date().timeIntervalSince(lastFollow)>1 {
+        if geometryFresh,!rig.isDemonstrating, destination == nil, followUser, simd_length(toCamera)>1.9, Date().timeIntervalSince(lastFollow)>1 {
             lastFollow=Date(); let direction=simd_normalize(toCamera), side=SIMD3<Float>(direction.z,0,-direction.x)
             destination = SIMD3<Float>(camera.x,p.y,camera.z)-direction*1.2+side*0.4
         }
