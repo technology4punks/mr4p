@@ -13,7 +13,8 @@ struct NeoView: View {
     var body: some View {
         ZStack {
             ARSceneView(room:neo.room).ignoresSafeArea()
-            if !neo.active { welcome }
+            if !neo.active {welcome}
+            else if neo.room.setup.isVisible {roomSetup}
         }
         .statusBarHidden(neo.active && !neo.controlsVisible)
         .persistentSystemOverlays(neo.active && !neo.controlsVisible ? .hidden : .automatic)
@@ -32,15 +33,33 @@ struct NeoView: View {
                     if let url=Bundle.main.url(forResource:neo.avatar.resource,withExtension:"jpg"), let image=UIImage(contentsOfFile:url.path) {
                         Image(uiImage:image).resizable().scaledToFit().frame(maxHeight:220).clipShape(RoundedRectangle(cornerRadius:24))
                     }
-                    Text("Scansiona il pavimento: NEO si posiziona davanti a te. Parlagli liberamente, anche mentre risponde.").foregroundStyle(.secondary)
-                    Button { Task { await neo.start() } } label: { Label(neo.starting ? "Preparo NEO…" : "Entra con NEO",systemImage:"sparkles").frame(maxWidth:.infinity).padding(.vertical,10) }.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black).disabled(neo.starting)
+                    Text("Prima una breve preparazione guidata del pavimento. Poi inserisci NEO e parlagli liberamente, anche mentre risponde.").foregroundStyle(.secondary)
+                    Button { Task { await neo.start() } } label: { Label(neo.starting ? "Preparo NEO…" : "Prepara la stanza",systemImage:"sparkles").frame(maxWidth:.infinity).padding(.vertical,10) }.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black).disabled(neo.starting)
                     Label("Doppio tocco con due dita per i controlli",systemImage:"hand.tap").font(.callout).foregroundStyle(mint)
                     Text("Durante l’esperienza lo schermo mostra solo camera e avatar. Per i controlli puoi anche dire “apri i controlli”. Rimani fermo mentre scansioni, senza seguire l’avatar.").font(.caption).foregroundStyle(.secondary)
-                    Text("Entra attiva camera e microfono. L’audio viene inviato a OpenAI; singole foto solo quando chiedi di osservare o abiliti la modalità assistita. Non archiviamo foto o dialoghi nel backend. Puoi sospendere tutto dai controlli o portando l’app in background.").font(.caption).foregroundStyle(.secondary)
+                    Text("La preparazione richiede i permessi e usa la camera. Quando inserisci NEO parte la voce. L’audio viene inviato a OpenAI; singole foto solo quando chiedi di osservare o abiliti la modalità assistita. Non archiviamo foto o dialoghi nel backend. Puoi sospendere tutto dai controlli o portando l’app in background.").font(.caption).foregroundStyle(.secondary)
                     Text(neo.message).font(.footnote).foregroundStyle(mint)
                 }.padding(28)
             }
         }
+    }
+    private var roomSetup: some View {
+        VStack {
+            HStack {Text("PREPARA LA STANZA").font(.caption.weight(.semibold)).tracking(2);Spacer();Button("Annulla"){neo.suspend()}}.padding(20)
+            Spacer()
+            VStack(alignment:.leading,spacing:16) {
+                Image(systemName:neo.room.setup.canPlace ? "checkmark.circle.fill" : "viewfinder").font(.system(size:32)).foregroundStyle(mint)
+                Text(neo.room.setup.canPlace ? "Un appoggio stabile." : "Prima, il pavimento.").font(.system(size:30,weight:.light,design:.serif))
+                Text(neo.room.setup.message).font(.body)
+                ProgressView(value:neo.room.setup.progress).tint(mint).accessibilityLabel("Stabilità del pavimento")
+                Text("Una zona libera davanti a te è sufficiente. Restiamo fermi: non serve percorrere la stanza.").font(.caption).foregroundStyle(.secondary)
+                if neo.room.setup.stage == .retry {
+                    Button("Ripeti la scansione"){neo.room.rescan()}.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black)
+                } else {
+                    Button("Inserisci NEO"){neo.finishRoomSetup()}.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black).disabled(!neo.room.setup.canPlace)
+                }
+            }.padding(24).background(.ultraThinMaterial,in:RoundedRectangle(cornerRadius:28)).padding(20)
+        }.background(.black.opacity(0.08))
     }
     private var controls: some View {
         NavigationStack {
@@ -58,8 +77,8 @@ struct NeoView: View {
                     Text(String(format:"Scena %.0f FPS · camera %.0f FPS (richiesti %d) · rig %.0f Hz",neo.room.performance.fps,neo.room.cameraCadence.fps,neo.room.cameraTargetFPS,neo.room.performance.animationHz)).font(.caption.monospacedDigit())
                     Text(neo.room.sensingLabel).font(.caption)
                     Text(String(format:"Età frame %.2f s · gap camera massimo %.0f ms · update CPU massimo %.1f ms",neo.room.cameraAge,neo.room.cameraCadence.largestGap*1000,neo.room.longestUpdateMS)).font(.caption.monospacedDigit())
-                    Button("Riscansiona superfici · 6 secondi") {neo.room.rescan()}.disabled(neo.busy)
-                    Text("Dopo l’acquisizione iniziale la scansione continua è sospesa. Le osservazioni richiedono una breve misura; i piani conservati non rilevano ostacoli mobili. NEO smette di camminare dopo 20 s senza nuove misure.").font(.caption)
+                    Button("Riscansiona superfici") {neo.room.rescan()}.disabled(neo.busy)
+                    Text("Dopo l’acquisizione iniziale la scansione continua è sospesa. Le osservazioni richiedono una breve misura; i piani conservati non rilevano ostacoli mobili. NEO si ferma su appoggi scaduti e tenta una breve verifica se deve seguirti. Inquadra il pavimento per consentirla.").font(.caption)
                     Text("\(neo.room.planeCount) superfici in memoria · \(neo.room.supportsLiDAR ? "profondità LiDAR disponibile" : "senza LiDAR")").font(.caption)
                     Toggle("NEO mi resta vicino",isOn:Binding(get:{neo.room.followUser},set:{neo.room.followUser=$0;neo.room.stopWalking()}))
                     Button("Osserva l’ambiente") {neo.look();neo.controlsVisible=false}.disabled(neo.busy || !neo.room.trackingNormal)

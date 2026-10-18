@@ -9,9 +9,9 @@ struct RoomScanPolicy {
     var needsDepth: Bool { phase == .scanning || phase == .measuring }
     var needsPlanes: Bool { needsDepth }
 
-    mutating func start(now: Double) {
+    mutating func start(now: Double, duration:Double = 6) {
         guard valid(now) else { return }
-        phase = .scanning; deadline = now + 6
+        phase = .scanning; deadline = now + max(1,min(30,duration))
     }
     mutating func rescan(now: Double) {
         guard phase != .paused else { return }
@@ -25,6 +25,10 @@ struct RoomScanPolicy {
         guard valid(now), let deadline, now >= deadline,
               phase == .scanning || phase == .measuring else { return false }
         phase = .exploring; self.deadline = nil; return true
+    }
+    mutating func finishScan() {
+        guard phase == .scanning else {return}
+        phase = .exploring;deadline=nil
     }
     mutating func endMeasurement() {
         guard phase == .measuring else { return }

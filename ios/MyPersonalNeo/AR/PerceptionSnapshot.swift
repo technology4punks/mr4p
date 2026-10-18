@@ -102,6 +102,8 @@ struct DepthSnapshot {
 /// A plane measured at capture time, with its copied polygon in local X/Z coordinates.
 /// Fallback intersections use that same snapshot rather than the later, moving AR session.
 struct ScenePlaneSnapshot {
+    enum Kind {case floor,other,unknown}
+    let kind:Kind
     let id: UUID
     let isHorizontal: Bool
     let transform: simd_float4x4
@@ -110,7 +112,8 @@ struct ScenePlaneSnapshot {
     let boundary: [SIMD2<Float>]
     private let inverse: simd_float4x4
 
-    init(id: UUID = UUID(), isHorizontal: Bool = true, transform: simd_float4x4, center: SIMD3<Float>, extent: SIMD2<Float>, boundary: [SIMD2<Float>] = []) {
+    init(id: UUID = UUID(), isHorizontal: Bool = true, transform: simd_float4x4, center: SIMD3<Float>, extent: SIMD2<Float>, boundary: [SIMD2<Float>] = [], kind:Kind = .unknown) {
+        self.kind=kind
         self.id = id; self.isHorizontal = isHorizontal
         self.transform = transform; self.center = center; self.extent = extent
         self.boundary = Array(boundary.prefix(512)); inverse = simd_inverse(transform)
@@ -119,8 +122,10 @@ struct ScenePlaneSnapshot {
     init(anchor: ARPlaneAnchor) {
         let geometry = anchor.geometry
         let boundary = geometry.boundaryVertices.prefix(512).map { p -> SIMD2<Float> in [p.x,p.z] }
+        let kind:Kind
+        switch anchor.classification {case .floor:kind = .floor;case .table,.seat,.ceiling:kind = .other;default:kind = .unknown}
         self.init(id:anchor.identifier,isHorizontal:anchor.alignment == .horizontal,
-                  transform: anchor.transform, center: anchor.center, extent: [anchor.extent.x, anchor.extent.z], boundary: boundary)
+                  transform: anchor.transform, center: anchor.center, extent: [anchor.extent.x, anchor.extent.z], boundary: boundary,kind:kind)
     }
 
     init(_ anchor: ARPlaneAnchor) { self.init(anchor:anchor) }

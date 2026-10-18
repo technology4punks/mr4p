@@ -33,6 +33,12 @@ final class RoomScanPolicyTests: XCTestCase {
         policy.start(now: .nan); XCTAssertEqual(policy.phase, .paused)
     }
 
+    func testExplicitPlacementEndsGuidedAcquisitionBeforeItsMaximumBudget() {
+        var policy=RoomScanPolicy();policy.start(now:10,duration:30)
+        XCTAssertEqual(policy.deadline,40);XCTAssertTrue(policy.needsPlanes)
+        policy.finishScan();XCTAssertEqual(policy.phase,.exploring);XCTAssertFalse(policy.needsDepth)
+        XCTAssertFalse(policy.advance(now:100))
+    }
     func testCaptureCadenceRejectsBacklogAndTracksActualCaptureGaps() {
         var cadence = CaptureCadence()
         for i in 0...30 { _ = cadence.record(1 + Double(i) / 30) }

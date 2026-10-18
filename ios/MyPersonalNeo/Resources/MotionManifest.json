@@ -1,0 +1,131 @@
+[
+  {
+    "asset": "NeoMan",
+    "author": "Quaternius",
+    "license": "CC0-1.0",
+    "sourceSha256": "6c89fbb31b96c1a63ad94e3dee0942bd7b34bc789a5d39fd6a6a1738a9214fb3",
+    "motionFile": "NeoMan.motion.json",
+    "bytes": 521834,
+    "sha256": "2a5d6819fe03fc1648791b158f0a9f1de9486ba76324ac5654bcd22658f00296",
+    "clips": [
+      {
+        "clip": "idle",
+        "source": "Idle_Neutral",
+        "frames": 41,
+        "seconds": 1.6666666269302368,
+        "maxExtentMeters": 1.7127314544216317,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "walk",
+        "source": "Walk",
+        "frames": 33,
+        "seconds": 1.3333333730697632,
+        "maxExtentMeters": 1.7178492855283696,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "wave",
+        "source": "Wave",
+        "frames": 41,
+        "seconds": 1.6666666269302368,
+        "maxExtentMeters": 1.777833239186842,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "interact",
+        "source": "Interact",
+        "frames": 31,
+        "seconds": 1.2666666507720947,
+        "maxExtentMeters": 1.698813085846519,
+        "maxSoleGroundErrorMeters": 0.0
+      }
+    ]
+  },
+  {
+    "asset": "NeoWoman",
+    "author": "Quaternius",
+    "license": "CC0-1.0",
+    "sourceSha256": "937d5c8d08fb5570f6a4e1dd79a3878335444d175aae3b0e9e2babdac36a17f7",
+    "motionFile": "NeoWoman.motion.json",
+    "bytes": 656168,
+    "sha256": "00b119dcb6747a884a64cf3a6863bd4c736ce6d87c85c7fc57787f6c191c755d",
+    "clips": [
+      {
+        "clip": "idle",
+        "source": "Idle_Neutral",
+        "frames": 51,
+        "seconds": 2.0833332538604736,
+        "maxExtentMeters": 1.6537679910122705,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "walk",
+        "source": "Walk",
+        "frames": 41,
+        "seconds": 1.6666666269302368,
+        "maxExtentMeters": 1.6492361389455126,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "wave",
+        "source": "Wave",
+        "frames": 51,
+        "seconds": 2.0833332538604736,
+        "maxExtentMeters": 1.7139383864598816,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "interact",
+        "source": "Interact",
+        "frames": 39,
+        "seconds": 1.5833333730697632,
+        "maxExtentMeters": 1.6377527302649362,
+        "maxSoleGroundErrorMeters": 0.0
+      }
+    ]
+  },
+  {
+    "asset": "NeoDog",
+    "author": "Quaternius",
+    "license": "CC0-1.0",
+    "sourceSha256": "3236979b94a840eb72d9ce091b1361da327a96f5ce068e666680297480f30f6b",
+    "motionFile": "NeoDog.motion.json",
+    "bytes": 626354,
+    "sha256": "9acc19939c9ec5e11b8b155bd36d0e5e94aeebfb5627201349e0ce430f9af2fb",
+    "clips": [
+      {
+        "clip": "idle",
+        "source": "Idle",
+        "frames": 81,
+        "seconds": 3.3333332538604736,
+        "maxExtentMeters": 0.8081500135592918,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "walk",
+        "source": "Walk",
+        "frames": 27,
+        "seconds": 1.0666667222976685,
+        "maxExtentMeters": 0.813009464873555,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "wave",
+        "source": "Idle_2",
+        "frames": 81,
+        "seconds": 3.3333332538604736,
+        "maxExtentMeters": 0.8084417776808087,
+        "maxSoleGroundErrorMeters": 0.0
+      },
+      {
+        "clip": "interact",
+        "source": "Idle_2",
+        "frames": 81,
+        "seconds": 3.3333332538604736,
+        "maxExtentMeters": 0.8084417776808087,
+        "maxSoleGroundErrorMeters": 0.0
+      }
+    ]
+  }
+]

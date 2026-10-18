@@ -59,6 +59,12 @@ final class SnapshotTests: XCTestCase {
         XCTAssertNil(triangle.intersection(origin:[0.8,-0.8,0],direction:[0,0,-1]))
     }
 
+    func testCurrentDepthProjectionRejectsBehindCameraAndOffscreenPoints() throws {
+        let p=try XCTUnwrap(SceneProjection.rawProjection(world:[0,0,-2],cameraTransform:matrix_identity_float4x4,intrinsics:intrinsics,resolution:CGSize(width:100,height:100)))
+        XCTAssertEqual(p.uv,SIMD2<Float>(0.5,0.5));XCTAssertEqual(p.depth,2)
+        XCTAssertNil(SceneProjection.rawProjection(world:[0,0,2],cameraTransform:matrix_identity_float4x4,intrinsics:intrinsics,resolution:CGSize(width:100,height:100)))
+        XCTAssertNil(SceneProjection.rawProjection(world:[10,0,-1],cameraTransform:matrix_identity_float4x4,intrinsics:intrinsics,resolution:CGSize(width:100,height:100)))
+    }
     private var intrinsics: simd_float3x3 {
         simd_float3x3(SIMD3<Float>(100,0,0),SIMD3<Float>(0,100,0),SIMD3<Float>(50,50,1))
     }

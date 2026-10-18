@@ -10,11 +10,18 @@ final class HumanoidRig {
     private var jointIndex: [String:Int] = [:]
     private var animatedModels: [ModelEntity] = []
     private var globalPose: [simd_float4x4] = []
+    private var bindGlobal:[simd_float4x4]=[]
     private var names: [String] = []
     private var parents: [Int?] = []
     private var rest: [Transform] = []
     private var pose: [Transform] = []
     private var relaxed: [Transform] = []
+    private var motion:AvatarMotionLibrary?
+    private var walkingPose:[Transform]=[]
+    private var previousPose:[Transform]=[]
+    private var poseMode="idle"
+    private var blendTime:Float=1
+    private var walkTime:Float=0
     private(set) var profile: AvatarProfile?
     var walkAmount: Float = 0
     var gaze: SIMD3<Float>?
@@ -47,6 +54,7 @@ final class HumanoidRig {
         }
         collect(entity)
         guard let first = importedModels.first, first.jointNames.count >= 20, first.jointTransforms.count == first.jointNames.count else { throw NeoFailure("Scheletro umanoide non disponibile.") }
+        let loadedMotion=try AvatarMotionLibrary(profile:profile,joints:first.jointNames,bindPose:first.jointTransforms)
         models=importedModels;root.children.removeAll();root.addChild(entity);self.profile=profile
         names = first.jointNames; rest = first.jointTransforms; pose = rest
         let importedNames=Dictionary(uniqueKeysWithValues:names.enumerated().map { ($0.element.split(separator:"/").last.map(String.init) ?? $0.element,$0.offset) })
@@ -58,18 +66,11 @@ final class HumanoidRig {
             let parts = name.split(separator: "/").dropLast()
             return parts.isEmpty ? nil : names.firstIndex(of: parts.joined(separator: "/"))
         }
-        updateHierarchy()
+        updateHierarchy();bindGlobal=globalPose
         if let hip = index("thighL") { seatedHipHeight = globalPose[hip].columns.3.y - 0.04 }
-        relaxed = rest
-        for side in profile.isHuman ? ["L", "R"] : [] {
-            if let arm = index("upper_arm" + side), let elbow = index("forearm" + side) {
-                let direction=rest[elbow].translation
-                if finite(direction), simd_length_squared(direction)>0.000001 { relaxed[arm].rotation = safe(simd_quatf(from: simd_normalize(direction), to: [0,-1,0]), fallback:rest[arm].rotation) }
-            }
-        }
-        pose = relaxed; time=0; walkAmount=0; gaze=nil; talking=false; stop()
-        // Bind geometry is a T pose. Apply the relaxed skin immediately, even before
-        // AR tracking becomes normal or the first scene-update callback arrives.
+        motion=loadedMotion
+        relaxed=rest;motion?.sample("idle",time:0,into:&relaxed)
+        pose=relaxed;walkingPose=relaxed;previousPose=relaxed;time=0;walkTime=0;walkAmount=0;gaze=nil;talking=false;poseMode="idle";blendTime=1;stop()
         applyPose()
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
@@ -82,7 +83,7 @@ final class HumanoidRig {
     private func rotate(_ name: String, angle: Float, axis: SIMD3<Float> = [1,0,0]) {
         guard let i = index(name) else { return }
         guard angle.isFinite else { return }
-        pose[i].rotation = safe(relaxed[i].rotation * simd_quatf(angle: angle, axis: axis), fallback:relaxed[i].rotation)
+        pose[i].rotation = safe(pose[i].rotation * simd_quatf(angle: angle, axis: axis), fallback:pose[i].rotation)
     }
     private func updateHierarchy() {
         for i in pose.indices { globalPose[i] = (parents[i].map { globalPose[$0] } ?? matrix_identity_float4x4) * pose[i].matrix }
@@ -102,6 +103,10 @@ final class HumanoidRig {
         guard finite(world) else { return }
         let target = first.convert(position: world, from: nil)
         guard finite(target) else { return }
+        updateHierarchy()
+        guard let shoulder=index("upper_arm"+side) else {return}
+        let s=globalPose[shoulder].columns.3,origin=SIMD3<Float>(s.x,s.y,s.z)
+        guard target.z>origin.z-0.1,simd_distance(target,origin)<0.65 else {return}
         // Six bounded CCD steps, using one reusable hierarchy buffer.
         for _ in 0..<2 {
             for name in ["hand", "forearm", "upper_arm"] {
@@ -117,56 +122,56 @@ final class HumanoidRig {
             }
         }
     }
-    private func updateDog(walking: Float) {
-        let phase=sin(time*6.5)*min(1,walking)
-        rotate("FrontUpperLeg_L",angle:phase*0.35);rotate("FrontUpperLeg_R",angle:-phase*0.35)
-        rotate("thighL",angle:-phase*0.3);rotate("thighR",angle:phase*0.3)
-        rotate("FrontLowerLeg_L",angle:max(0,-phase)*0.3);rotate("FrontLowerLeg_R",angle:max(0,phase)*0.3)
-        rotate("Tail1",angle:sin(time*(talking ? 6 : 2.5))*0.3,axis:[0,1,0])
-        rotate("spine003",angle:sin(time*1.5)*0.01)
+    private func reconnectSeatedFeet() {
+        // In the source rig feet are independent root children, not shin children.
+        // An explicit seated overlay must move those controls along with the shins.
+        for side in ["L","R"] {
+            guard let shin=index("shin"+side),let foot=index("foot"+side) else {continue}
+            updateHierarchy()
+            let a=bindGlobal[shin].columns.3,b=bindGlobal[foot].columns.3
+            let endpoint=globalPose[shin]*SIMD4<Float>(b.x-a.x,b.y-a.y,b.z-a.z,1)
+            var footWorld=globalPose[foot];footWorld.columns.3=endpoint
+            pose[foot]=Transform(matrix:(parents[foot].map {simd_inverse(globalPose[$0])} ?? matrix_identity_float4x4)*footWorld)
+        }
     }
     func update(delta: Float, spatialTracking: Bool = true) {
         guard delta.isFinite, delta>0 else { return }
-        let elapsed=min(0.05,delta), walking=spatialTracking && walkAmount.isFinite ? max(0,walkAmount) : 0
-        time += elapsed; pose = relaxed
-        guard !pose.isEmpty else { return }
-        if profile?.isHuman == false {
-            updateDog(walking:walking)
-        } else if seated {
-            rotate("thighL", angle: -1.35); rotate("thighR", angle: -1.35)
-            rotate("shinL", angle: 1.30); rotate("shinR", angle: 1.30)
-            rotate("forearmL", angle: -0.6); rotate("forearmR", angle: -0.6)
-        } else {
-            rotate("spine003", angle: sin(time * 1.4) * 0.012)
-            if talking {
-                rotate("forearmR", angle: sin(time * 2) * 0.12 - 0.18)
-                rotate("jaw", angle: max(0,sin(time*13)) * 0.045)
-            }
-            let stride = sin(time * 6.5) * min(1,walking)
-            rotate("thighL", angle: stride * 0.36); rotate("thighR", angle: -stride * 0.36)
-            rotate("shinL", angle: max(0,-stride) * 0.5); rotate("shinR", angle: max(0,stride) * 0.5)
-            if walking > 0.05 { rotate("forearmL", angle: -stride*0.18-0.10); rotate("forearmR", angle: stride*0.18-0.10) }
+        let elapsed=min(0.05,delta),walking=spatialTracking && walkAmount.isFinite ? max(0,min(1,walkAmount)) : 0
+        time += elapsed
+        guard !pose.isEmpty,let motion else {return}
+        let demoTime=time-demoStarted
+        if let demo, demoTime>(demo.hasPrefix("judo") ? 6 : (motion.clips[demo == "wave" ? "wave" : "interact"]?.duration ?? 2)) {self.demo=nil}
+        let mode=seated ? "seated" : (demo ?? (walking>0.03 ? "walk" : talking ? "talk" : "idle"))
+        if mode != poseMode {previousPose=pose;blendTime=0;poseMode=mode}
+        motion.sample("idle",time:time,into:&pose)
+        if walking>0.001 {
+            walkTime += elapsed*0.6
+            motion.sample("walk",time:walkTime,into:&walkingPose)
+            for i in pose.indices {pose[i]=AvatarMotionLibrary.blend(pose[i],walkingPose[i],min(1,walking*1.8))}
         }
-        if profile?.isHuman != false, let name = demo {
-            let t = time - demoStarted
-            switch name {
-            case "judo_rei": rotate("spine003", angle: -sin(min(t/6,1) * .pi) * 0.38); if t > 6 { demo = nil }
-            case "judo_tai_sabaki":
-                let phase = sin(min(t/9,1) * .pi * 2)
-                rotate("thighL", angle: phase * 0.12); rotate("thighR", angle: -phase * 0.12)
-                rotate("shinL", angle: abs(phase) * 0.1); rotate("shinR", angle: abs(phase) * 0.1)
-                rotate("spine002", angle: phase * 0.3, axis: [0,1,0]); if t > 9 { demo = nil }
-            case "wave": rotate("upper_armR", angle: -0.85, axis: [0,0,1]); rotate("forearmR", angle: sin(t*5)*0.35-0.5); if t > 4 { demo = nil }
-            default: rotate("forearmR", angle: sin(t*2)*0.2-0.3); if t > 5 { demo = nil }
-            }
+        if !seated, let demo {
+            motion.sample(demo == "wave" ? "wave" : "interact",time:demoTime,loop:demo.hasPrefix("judo"),into:&pose)
+            // Martial arts remain small illustrative local gestures, never physical instruction.
+            if demo == "judo_rei" {rotate("spine003",angle:-sin(min(demoTime/6,1) * .pi)*0.18)}
+        } else if talking,walking<0.03,!seated {
+            motion.sample("interact",time:time,into:&walkingPose)
+            for i in pose.indices {pose[i]=AvatarMotionLibrary.blend(pose[i],walkingPose[i],0.3)}
+        }
+        if seated,profile?.isHuman != false {
+            rotate("thighL",angle:-1.35);rotate("thighR",angle:-1.35)
+            rotate("shinL",angle:1.3);rotate("shinR",angle:1.3)
+            rotate("forearmL",angle:-0.4);rotate("forearmR",angle:-0.4)
+            reconnectSeatedFeet()
         }
         if spatialTracking, let gaze, finite(gaze), let head = index("head"), let model = models.first {
             let local = model.convert(position: gaze, from: nil)
             updateHierarchy()
             let p = globalPose[head].columns.3, direction = local - SIMD3<Float>(p.x,p.y,p.z)
-            let yaw = max(-0.7,min(0.7,atan2(direction.x,direction.z)))
-            let pitch = max(-0.3,min(0.3,-atan2(direction.y,max(0.1,simd_length(SIMD2<Float>(direction.x,direction.z))))))
-            pose[head].rotation = safe(simd_quatf(angle:yaw,axis:[0,1,0]) * simd_quatf(angle:pitch,axis:[1,0,0]), fallback:relaxed[head].rotation)
+            let yaw = max(-0.3,min(0.3,atan2(direction.x,max(0.1,direction.z))))
+            let pitch = max(-0.15,min(0.15,-atan2(direction.y,max(0.1,simd_length(SIMD2<Float>(direction.x,direction.z))))))
+            let parent=parents[head].map {Transform(matrix:globalPose[$0]).rotation} ?? simd_quatf()
+            let overlay=simd_quatf(angle:yaw,axis:[0,1,0])*simd_quatf(angle:pitch,axis:[1,0,0])
+            pose[head].rotation=safe(parent.inverse*overlay*parent*pose[head].rotation,fallback:pose[head].rotation)
         }
         if spatialTracking, profile?.isHuman != false, let target, finite(target) {
             let start = smoothedTarget ?? target
@@ -174,6 +179,9 @@ final class HumanoidRig {
             smoothedTarget = point
             reach(world: point, right: rightHand)
         } else { smoothedTarget = nil }
+        blendTime=min(1,blendTime+elapsed/0.25)
+        if blendTime<1 {for i in pose.indices {pose[i]=AvatarMotionLibrary.blend(previousPose[i],pose[i],blendTime)}}
+        if seated,profile?.isHuman != false {reconnectSeatedFeet()}
         applyPose()
     }
 }

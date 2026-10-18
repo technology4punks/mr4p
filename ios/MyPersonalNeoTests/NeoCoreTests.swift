@@ -106,9 +106,9 @@ final class NeoCoreTests: XCTestCase {
             XCTAssertGreaterThan(bounds.y,profile.isHuman ? 1.5 : 0.5);XCTAssertLessThan(bounds.y,profile.isHuman ? 1.9 : 0.7)
             XCTAssertLessThan(bounds.x,1.6);XCTAssertLessThan(bounds.z,profile.isHuman ? 0.8 : 1.4)
             rig.update(delta:0.03);let before=rig.models[0].jointTransforms
-            rig.play("wave");rig.update(delta:0.15)
+            rig.play("wave");for _ in 0..<30 {rig.update(delta:1.0/30)}
             XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < (profile.isHuman ? 0.999 : 0.9999) }, "Wave must move real skin for \(profile)")
-            rig.stop();rig.walkAmount=1;rig.update(delta:0.04)
+            rig.stop();rig.walkAmount=1;for _ in 0..<30 {rig.update(delta:1.0/30)}
             XCTAssertTrue(zip(before,rig.models[0].jointTransforms).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector)) < 0.9999 })
             rig.seated=true;rig.stop(stand:false);XCTAssertTrue(rig.seated)
             XCTAssertTrue(rig.models.flatMap(\.jointTransforms).allSatisfy { $0.translation.x.isFinite && $0.rotation.real.isFinite })

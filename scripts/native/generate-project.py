@@ -7,7 +7,7 @@ def q(s):return '"'+str(s).replace('"','\\"')+'"'
 objects={}
 def obj(name,text):objects[uid(name)]=text;return uid(name)
 swifts=sorted((ios/'MyPersonalNeo').rglob('*.swift'));tests=sorted((ios/'MyPersonalNeoTests').glob('*.swift'))
-resources=sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.usdz'))+sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.jpg'))+[ios/'MyPersonalNeo/Resources/Quaternius-CC0.txt',ios/'MyPersonalNeo/Resources/AvatarManifest.json',ios/'MyPersonalNeo/Resources/PrivacyInfo.xcprivacy',ios/'MyPersonalNeo/Resources/Assets.xcassets']
+resources=sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.motion.json'))+[ios/'MyPersonalNeo/Resources/MotionManifest.json']+sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.usdz'))+sorted((ios/'MyPersonalNeo/Resources').glob('Neo*.jpg'))+[ios/'MyPersonalNeo/Resources/Quaternius-CC0.txt',ios/'MyPersonalNeo/Resources/AvatarManifest.json',ios/'MyPersonalNeo/Resources/PrivacyInfo.xcprivacy',ios/'MyPersonalNeo/Resources/Assets.xcassets']
 refs=[];builds={}
 for path in swifts+tests+resources:
  key=str(path.relative_to(ios));typ='sourcecode.swift' if path.suffix=='.swift' else 'folder.assetcatalog' if path.suffix=='.xcassets' else 'text.xml' if path.suffix=='.xcprivacy' else 'file'
@@ -27,7 +27,7 @@ def configs(prefix,extra):
   if mode=='Debug':s['SWIFT_ACTIVE_COMPILATION_CONDITIONS']='DEBUG'
   ids.append(obj(prefix+mode,'{isa = XCBuildConfiguration; buildSettings = {'+''.join(q(k)+' = '+q(v)+';' for k,v in s.items())+'}; name = '+mode+';}'))
  return obj(prefix+'list',f'{{isa = XCConfigurationList; buildConfigurations = ({",".join(ids)},); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;}}')
-appconf=configs('app',{'PRODUCT_BUNDLE_IDENTIFIER':'com.technology4punks.MyPersonalNeo','PRODUCT_NAME':'$(TARGET_NAME)','INFOPLIST_FILE':'MyPersonalNeo/Resources/Info.plist','MARKETING_VERSION':'0.1.1','CURRENT_PROJECT_VERSION':'4','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'})
+appconf=configs('app',{'PRODUCT_BUNDLE_IDENTIFIER':'com.technology4punks.MyPersonalNeo','PRODUCT_NAME':'$(TARGET_NAME)','INFOPLIST_FILE':'MyPersonalNeo/Resources/Info.plist','MARKETING_VERSION':'0.1.2','CURRENT_PROJECT_VERSION':'5','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','SUPPORTED_PLATFORMS':'iphoneos iphonesimulator','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks'})
 testconf=configs('test',{'PRODUCT_BUNDLE_IDENTIFIER':'com.technology4punks.MyPersonalNeoTests','PRODUCT_NAME':'$(TARGET_NAME)','GENERATE_INFOPLIST_FILE':'YES','BUNDLE_LOADER':'$(TEST_HOST)','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/MyPersonalNeo.app/MyPersonalNeo','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/Frameworks @loader_path/Frameworks'})
 projectconf=configs('project',{})
 apptarget=obj('apptarget',f'{{isa = PBXNativeTarget; buildConfigurationList = {appconf}; buildPhases = ({source},{framework},{res},); buildRules = (); dependencies = (); name = MyPersonalNeo; packageProductDependencies = ({productdep},); productName = MyPersonalNeo; productReference = {app}; productType = "com.apple.product-type.application";}}')

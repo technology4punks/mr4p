@@ -54,9 +54,9 @@ final class NeoSession: ObservableObject {
                 self.voice.updateContext(["tracking":self.room.trackingNormal])
             }
             if !self.room.trackingNormal && self.playing { self.stopPerformance(); self.message = "Tracking perso: musica e contatto virtuale sospesi. Riallinea e riavvia." }
-            if self.controlsVisible || !self.active {self.objectWillChange.send()}
+            if self.controlsVisible || !self.active || self.room.setup.isVisible {self.objectWillChange.send()}
         }
-        room.revealControls = { [weak self] in self?.controlsVisible.toggle() }
+        room.revealControls = { [weak self] in guard let self,!self.room.setup.isVisible else {return};self.controlsVisible.toggle() }
         room.tick = { [weak self] delta in self?.tick(delta) }
         voice.changed = { [weak self] in self?.room.rig.talking = self?.voice.state == .speaking; if self?.controlsVisible == true {self?.objectWillChange.send()} }
         voice.onTool = { [weak self] name,args in guard let self else { return ["accepted":false,"reason":"Sessione chiusa."] }; return await self.tool(name,args) }
@@ -79,12 +79,16 @@ final class NeoSession: ObservableObject {
             try await room.start(profile:chosenAvatar)
             guard startID == id, UIApplication.shared.applicationState != .background else {return}
             UserDefaults.standard.set(chosenAvatar.rawValue,forKey:"neo.avatar")
-            active = true; controlsVisible = false; message = "Scansiona lentamente il pavimento: NEO apparirà davanti a te."
+            active = true; controlsVisible = false; message = "Prepariamo prima un appoggio stabile per NEO."
             voice.updateContext(["avatarKind":chosenAvatar.rawValue,"hasHands":chosenAvatar.isHuman])
-            await voice.start(backend:backend)
-            if startID == id, active, voice.state == .error { message=voice.message }
+            // Conversation starts after explicit placement, without talking over the scan guide.
         }
         catch { if startID == id, !(error is CancellationError) {message = error.localizedDescription} }
+    }
+    func finishRoomSetup() {
+        guard active,room.confirmSetup() else {return}
+        objectWillChange.send();message="NEO è pronto. Puoi parlargli."
+        startVoice()
     }
     func suspend() {
         startID=UUID();starting=false
@@ -93,7 +97,7 @@ final class NeoSession: ObservableObject {
         stopPerformance(); cancelCalibration(); piano=nil; pianoReady=false; objects=[]; observedAt = .distantPast
         voice.stop(message:"App sospesa. Riprendi scansione e voce quando torni."); room.stop(); active = false
     }
-    func startVoice() { Task { await voice.start(backend:backend) } }
+    func startVoice() {guard active,room.hasAvatar else {return};Task {await voice.start(backend:backend)}}
     func look() { work?.cancel(); work = Task { _ = await inspect("Descrivi l’ambiente e gli oggetti con cui possiamo interagire.") } }
     func search(_ query: String) { work?.cancel(); work = Task { _ = await research(query) } }
     func setAssistedObservation(_ enabled: Bool) {
@@ -161,7 +165,7 @@ final class NeoSession: ObservableObject {
     func sitAtPiano() throws {
         guard avatar.isHuman else {throw NeoFailure("Il cane non può sedersi o suonare come un avatar umano.")}
         guard let piano,room.trackingNormal else { throw NeoFailure("Prima calibra la tastiera e attendi tracking stabile.") }
-        room.place(at:piano.seat-piano.up*room.rig.seatedHipHeight); room.rig.root.orientation=simd_quatf(from:[0,0,1],to:piano.depthAxis);room.rig.seated=true;message="NEO è alla tastiera · dita virtuali e audio sintetico."
+        room.place(at:piano.seat-piano.up*room.rig.seatedHipHeight); room.rig.root.orientation=AvatarHeading.facing(piano.depthAxis) ?? room.rig.root.orientation;room.rig.seated=true;message="NEO è alla tastiera · dita virtuali e audio sintetico."
     }
     func playPiano(_ piece: String) throws {
         guard piano != nil,let score=PianoScore.notes(piece) else { throw NeoFailure("Calibra una tastiera a 88 tasti e scegli una melodia disponibile.") }

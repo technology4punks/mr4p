@@ -58,8 +58,7 @@ final class RigRegressionTests: XCTestCase {
         // play clears a previous reach target. Supply one to prove limited
         // tracking skips world-space IK while preserving the same local gesture.
         rig.target=[0.5,1.2,0.5]
-        rig.update(delta:0.04,spatialTracking:false)
-        reference.update(delta:0.04,spatialTracking:false)
+        for _ in 0..<30 {rig.update(delta:1.0/30,spatialTracking:false);reference.update(delta:1.0/30,spatialTracking:false)}
         let after=try XCTUnwrap(rig.models.first).jointTransforms
         XCTAssertTrue(zip(before,after).contains { abs(simd_dot($0.rotation.vector,$1.rotation.vector))<0.99 })
         let expected=try XCTUnwrap(reference.models.first).jointTransforms

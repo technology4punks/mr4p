@@ -20,6 +20,11 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     private(set) var longestUpdateMS: Double = 0
     private(set) var spatialEpoch = UUID()
     private var startID = UUID()
+    private(set) var setup=GuidedRoomSetup()
+    private var lastSetupTick:Double=0
+    private var lastSpatialRefresh:Double=0
+    private var lastDepthValidation:Double=0
+    var hasAvatar:Bool {placed}
     private var measuredPlanes: [UUID:ScenePlaneSnapshot] = [:]
     private var lastMeasuredAt: Double = 0
     private var planeTimes: [UUID:Double] = [:]
@@ -29,7 +34,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     var sensingLabel: String {
         switch sensing.phase {
         case .paused: return "Sospesa"
-        case .scanning: return "Acquisizione iniziale · 6 s"
+        case .scanning: return setup.isVisible ? "Preparazione guidata del pavimento" : "Riscansione superfici"
         case .exploring: return "Esplorazione · nessuna scansione continua"
         case .measuring: return "Misura su richiesta · massimo 1 s"
         }
@@ -65,14 +70,14 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             MainActor.assumeIsolated {
                 guard let self, self.running else { return }
                 let began = ProcessInfo.processInfo.systemUptime
-                if self.sensing.advance(now:began) { self.applyConfiguration() }
+                if self.sensing.advance(now:began) {if self.setup.isVisible {self.setup.expire()};self.applyConfiguration()}
                 if self.performance.observe(event.deltaTime) { self.changed?() }
                 self.animationElapsed += Float(event.deltaTime)
                 if self.animationElapsed >= Float(1/self.performance.animationHz) {
                     let delta=min(0.05,self.animationElapsed); self.animationElapsed=0
-                    if self.trackingNormal { self.updateMotion(delta); self.tick?(delta) }
-                    // Tracking limits world interaction, never the relaxed pose, breathing or gestures.
-                    self.rig.update(delta:delta,spatialTracking:self.trackingNormal)
+                    if self.setup.isVisible {self.updateSetup(now:began)}
+                    if self.trackingNormal,self.placed {self.updateMotion(delta);self.tick?(delta)}
+                    if self.placed {self.rig.update(delta:delta,spatialTracking:self.trackingNormal)}
                 }
                 self.longestUpdateMS=max(self.longestUpdateMS,(ProcessInfo.processInfo.systemUptime-began)*1000)
             }
@@ -91,12 +96,29 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         performance=ScenePerformance(); cameraCadence.reset(); longestUpdateMS=0; animationElapsed=0
         view.renderOptions.formUnion([.disableMotionBlur,.disableDepthOfField,.disableCameraGrain,.disablePersonOcclusion,.disableGroundingShadows])
         view.environment.sceneUnderstanding.options=[]
-        sensing.start(now:ProcessInfo.processInfo.systemUptime); running=true
+        setup.start(halfExtent:rig.profile == .dog ? 0.45 : 0.3);lastSetupTick=0;sensing.start(now:ProcessInfo.processInfo.systemUptime,duration:30); running=true
         applyConfiguration(reset:true)
     }
     func rescan() {
         guard running, !captureInFlight else { return }
-        stopWalking(); sensing.rescan(now:ProcessInfo.processInfo.systemUptime); applyConfiguration()
+        stopWalking()
+        if !placed {setup.start(halfExtent:rig.profile == .dog ? 0.45 : 0.3);sensing.start(now:ProcessInfo.processInfo.systemUptime,duration:30)}
+        else {sensing.rescan(now:ProcessInfo.processInfo.systemUptime)}
+        applyConfiguration()
+    }
+    private func updateSetup(now:Double) {
+        guard now-lastSetupTick>0.15 else {return};lastSetupTick=now
+        guard let frame=view.session.currentFrame else {return}
+        let c=frame.camera.transform.columns.3,f=frame.camera.transform.columns.2
+        setup.observe(now:frame.timestamp,tracking:trackingNormal && now-frame.timestamp<0.6,camera:[c.x,c.y,c.z],forward:[-f.x,-f.y,-f.z],planes:Array(measuredPlanes.values))
+        changed?()
+    }
+    @discardableResult func confirmSetup() -> Bool {
+        lastSetupTick=0;updateSetup(now:ProcessInfo.processInfo.systemUptime)
+        guard running,trackingNormal,setup.canPlace,let point=setup.position else {return false}
+        setup.complete();place(at:point);rig.play("wave")
+        sensing.finishScan()
+        applyConfiguration();return true
     }
     private func applyConfiguration(reset: Bool = false) {
         guard running else { return }
@@ -118,17 +140,17 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     }
 
     func stop() {
-        startID=UUID(); spatialEpoch=UUID(); stopWalking(); running=false; sensing.stop()
+        startID=UUID(); spatialEpoch=UUID(); stopWalking(); running=false; sensing.stop();setup.stop()
         view.session.pause(); trackingNormal=false; rig.stop(stand:false)
         status="Sessione sospesa · riprendi per riallineare"; changed?()
     }
     func place(at position: SIMD3<Float>) {
-        guard trackingNormal else { return }
+        guard trackingNormal,!setup.isVisible else {return}
         stopWalking(); rig.stop(); rig.root.position = position
         if let frame = view.session.currentFrame {
             let camera = SIMD3<Float>(frame.camera.transform.columns.3.x,position.y,frame.camera.transform.columns.3.z)
             let direction = camera-position
-            if simd_length(direction) > 0.05 { rig.root.orientation = simd_quatf(from: [0,0,1], to: simd_normalize(direction)) }
+            if let heading=AvatarHeading.facing(direction) {rig.root.orientation=heading}
         }
         rig.root.isEnabled = true; placed = true
     }
@@ -150,34 +172,23 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             $0.intersection(origin:p+[0,0.3,0],direction:[0,-1,0],maxDistance:0.5)
         }.min { simd_distance($0,p)<simd_distance($1,p) }
     }
-    private func blocked(from p: SIMD3<Float>, toward q: SIMD3<Float>) -> Bool {
-        for plane in measuredPlanes.values {
-            let local=simd_inverse(plane.transform)*SIMD4<Float>(q.x,q.y+0.75,q.z,1)
-            let center=plane.transform*SIMD4<Float>(plane.center,1)
-            let radius=AvatarMotion.radius
-            if plane.isHorizontal {
-                if center.y>p.y+0.15,center.y<p.y+1.65,abs(local.x-plane.center.x)<plane.extent.x/2+radius,abs(local.z-plane.center.z)<plane.extent.y/2+radius {return true}
-            } else if abs(local.y-plane.center.y)<radius,abs(local.x-plane.center.x)<plane.extent.x/2+radius,abs(local.z-plane.center.z)<plane.extent.y/2+0.5 {return true}
-        }
-        return false
+    private func blocked(from p:SIMD3<Float>,toward q:SIMD3<Float>)->Bool {
+        GuidedRoomSetup.obstructed(at:q,planes:Array(measuredPlanes.values),radius:AvatarMotion.radius)
     }
     private func updateMotion(_ delta: Float) {
         guard let frame = view.session.currentFrame else { return }
         let c = frame.camera.transform.columns.3, camera = SIMD3<Float>(c.x,c.y,c.z)
-        if !placed, tap == nil {
-            let front = -SIMD3<Float>(frame.camera.transform.columns.2.x,0,frame.camera.transform.columns.2.z)
-            if simd_length(front)>0.1 {
-                let p = camera+simd_normalize(front)*1.3
-                if let point=measuredPlanes.values.lazy.filter(\.isHorizontal).compactMap({$0.intersection(origin:p,direction:[0,-1,0],maxDistance:2.2)}).max(by:{$0.y<$1.y}), camera.y-point.y>0.8 {
-                    place(at:point); rig.play("wave")
-                }
-            }
-        }
         guard placed else { return }; let interest=Date()<attentionUntil ? attention : nil;rig.gaze=interest ?? camera
         // Coarse cached planes are not live obstacle sensing. Never translate on stale measurements.
         if rig.seated || tap != nil { stopWalking(); return }
         let geometryFresh=ProcessInfo.processInfo.systemUptime-lastMeasuredAt<20
-        if !geometryFresh {stopWalking()}
+        if !geometryFresh {
+            stopWalking()
+            let now=ProcessInfo.processInfo.systemUptime
+            if followUser,simd_distance(camera,rig.root.position)>1.9,now-lastSpatialRefresh>8,sensing.phase == .exploring {
+                lastSpatialRefresh=now;sensing.measure(now:now);applyConfiguration()
+            }
+        }
         let p = rig.root.position, toCamera = SIMD3<Float>(camera.x-p.x,0,camera.z-p.z)
         if geometryFresh, destination == nil, followUser, simd_length(toCamera)>1.9, Date().timeIntervalSince(lastFollow)>1 {
             lastFollow=Date(); let direction=simd_normalize(toCamera), side=SIMD3<Float>(direction.z,0,-direction.x)
@@ -194,7 +205,8 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
                 var permitted=cached
                 if !cached {
                     let side=SIMD3<Float>(0.15,0,0)
-                    permitted = [-side,SIMD3<Float>.zero,side].allSatisfy { AvatarMotion.permitted(candidate:candidate+$0,measuredFloor:floor(at:candidate+$0),blocked:false) } && !blocked(from:p,toward:candidate)
+                    let offsets:[SIMD3<Float>]=rig.profile == .dog ? [[-0.17,0,-0.35],[0.17,0,-0.35],[-0.17,0,0.35],[0.17,0,0.35]] : [-side,.zero,side]
+                    permitted = offsets.map {rig.root.orientation.act($0)}.allSatisfy { AvatarMotion.permitted(candidate:candidate+$0,measuredFloor:floor(at:candidate+$0),blocked:false) } && !blocked(from:p,toward:candidate)
                     if permitted { checkedPosition=candidate;lastGeometryCheck=Date() }
                 }
                 if permitted {
@@ -203,11 +215,11 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             } else { stopWalking() }
         } else { rig.walkAmount=max(0,rig.walkAmount-delta*5) }
         if simd_length(facing)>0.1 {
-            let desired=simd_quatf(from:SIMD3<Float>(0,0,1),to:simd_normalize(facing))
-            rig.root.orientation=simd_slerp(rig.root.orientation,desired,min(1,delta*3))
+            if let desired=AvatarHeading.facing(facing) {rig.root.orientation=simd_slerp(rig.root.orientation,desired,min(1,delta*3))}
         }
     }
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
+        guard !setup.isVisible else {return}
         guard trackingNormal else { status = "Tracking non stabile: attendi prima di selezionare."; changed?(); return }
         let point = gesture.location(in: view)
         guard let result = view.raycast(from: point, allowing: .existingPlaneGeometry, alignment: .horizontal).first else { status = "Nessuna superficie orizzontale misurata qui. Scansiona e riprova."; changed?(); return }
@@ -259,6 +271,18 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             return (image,snapshot,frame.timestamp)
         }
     }
+    private func validateCurrentFloor(_ frame:ARFrame) {
+        guard frame.timestamp-lastDepthValidation>0.3,let data=frame.sceneDepth,let depth=DepthSnapshot(copying:data) else {return}
+        lastDepthValidation=frame.timestamp
+        let p=rig.root.position
+        guard let projection=SceneProjection.rawProjection(world:p,cameraTransform:frame.camera.transform,intrinsics:frame.camera.intrinsics,resolution:frame.camera.imageResolution),
+              let measured=depth.sample(at:projection.uv),abs(measured-projection.depth)<0.12 else {return}
+        for plane in measuredPlanes.values where plane.isHorizontal {
+            if let point=plane.intersection(origin:p+[0,0.2,0],direction:[0,-1,0],maxDistance:0.3),abs(point.y-p.y)<0.05 {
+                planeTimes[plane.id]=frame.timestamp;lastMeasuredAt=frame.timestamp
+            }
+        }
+    }
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
         // delegateQueue is explicitly main. Process small values inline; do not enqueue a task per frame.
         MainActor.assumeIsolated {
@@ -267,6 +291,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
             switch frame.camera.trackingState {case .normal:normal=true;default:normal=false}
             if trackingNormal && !normal {spatialEpoch=UUID();stopWalking();planeTimes.removeAll();lastMeasuredAt=0}
             trackingNormal=normal
+            if normal,sensing.phase == .measuring,placed {validateCurrentFloor(frame)}
             if cameraCadence.record(frame.timestamp) {changed?()}
             let message=normal ? sensingLabel : "Tracking limitato · interazioni spaziali sospese"
             if message != lastReport {status=message;lastReport=message;changed?()}
