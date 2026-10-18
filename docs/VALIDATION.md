@@ -1,3 +1,11 @@
+# My Personal Neo iPhone · 18 ottobre 2026
+
+Nuovo target nativo separato: [progetto, prove e limiti](MY_PERSONAL_NEO.md). Backend Node/client: lint, typecheck, build, **223 test** e bundle scan passati. Sites: typecheck, **209 test** e build passati. Tutti i **33 casi browser** verificati fra suite e ritest mirati, inclusi portale separato, percorso Buddy e control room. WebKit inizialmente bloccato da librerie host mancanti: dipendenze caricate in directory temporanea e tutti gli 11 casi ripassati; stabilizzato l’avvio del clock del test guidato.
+
+Versione Sites 24 pubblicata; API personali live voce/visione/web search **200**, sorgenti consultabili, control room anonima **401**, Buddy pubblico invariato. Visione provata su immagine sintetica; browser audio simulato/negato. Build nativa app/test e test sul simulatore passati su macOS/Xcode 16.4 per il codice Swift e6fa330; pipeline e dettagli in MY_PERSONAL_NEO.md. Nessun iPhone o Quest fisico, allineamento dita/tasti, latenza voce, misura termica/FPS hardware o upload firmato verificato.
+
+---
+
 # Visita guidata e control room · 13 ottobre 2026
 
 `npm run check` passato: lint, typecheck, build Node/client, **217 test** e verifica segreti nel bundle. Sites: typecheck, **206 test** e build Vinext passati. **30 test browser passati in un’unica esecuzione (9,6 minuti)** su desktop Chromium, Android emulato e iPhone WebKit. Nuove regressioni: ingresso dopo saluto facoltativo, deadline, frase conclusiva, consenso esplicito, backend indisponibile, coda seriale/ack, revoca prima di un invio tardivo, retention e allowlist backend. I test precedenti verificano anche il percorso libero e tre turni audio simulati.

@@ -40,7 +40,7 @@ Il contatto dita/tasti, la posa seduta e la geometria vanno validati su iPhone/p
 
 Lo schema **MyPersonalNeo** comprende `MyPersonalNeoTests`: mapping tasti e rotazione, calibrazioni non valide, coordinate immagine/depth, autorizzazione dei turni e caricamento effettivo del rig USDZ. La pipeline `.github/workflows/personal-neo-ios.yml` esegue `xcodebuild test` su macOS con simulatore iPhone senza firma. Il simulatore non può verificare ARKit/LiDAR fisici. I risultati verificati sono in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
 
-Per distribuire via TestFlight: dopo il test dispositivo, imposta bundle ID/team/versione, crea la scheda App Store Connect, seleziona **Any iOS Device → Product → Archive → Distribute App → App Store Connect**. Aggiungi tester e compila le dichiarazioni privacy, inclusa la trasmissione a OpenAI e le eventuali conservazioni del provider. Non è stato eseguito alcun upload né creata una distribuzione TestFlight; non servono certificati per leggere o testare il progetto nel simulatore.
+Per distribuire via TestFlight: dopo il test dispositivo, imposta bundle ID/team/versione, crea la scheda App Store Connect, seleziona **Any iOS Device → Product → Archive → Distribute App → App Store Connect**. Aggiungi tester e verifica le dichiarazioni privacy (il manifest include foto/video, audio e contenuti utente inviati all’AI per funzionalità dell’app, senza tracking o identificativo utente allegato), inclusa la trasmissione a OpenAI e le eventuali conservazioni del provider. Non è stato eseguito alcun upload né creata una distribuzione TestFlight; non servono certificati per leggere o testare il progetto nel simulatore.
 
 ## Asset e riproducibilità
 

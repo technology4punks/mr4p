@@ -1,0 +1,17 @@
+{
+  "version": 24,
+  "portal": "passed",
+  "nativeToken": 200,
+  "ephemeralValid": true,
+  "vision": 200,
+  "visionStructured": true,
+  "visionObjects": 1,
+  "webSearch": 200,
+  "searched": true,
+  "sourceCount": 1,
+  "controlRoomAnonymous": 401,
+  "buddyPublicEntry": "passed",
+  "pageErrors": [],
+  "voice": "No microphone/live conversation tested",
+  "scene": "Synthetic illustration only; no physical iPhone environment tested"
+}
