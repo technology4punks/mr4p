@@ -9,6 +9,7 @@ final class NeoSession: ObservableObject {
     @Published private(set) var starting = false
     private var startID = UUID()
     private var perceptionInFlight = false
+    private var knownSpatialEpoch: UUID?
     @Published var controlsVisible = false
     @Published var avatar = AvatarProfile(rawValue: UserDefaults.standard.string(forKey:"neo.avatar") ?? "") ?? .woman
     private var observedAt = Date.distantPast
@@ -41,6 +42,12 @@ final class NeoSession: ObservableObject {
     init() {
         room.changed = { [weak self] in
             guard let self else { return }
+            if self.knownSpatialEpoch != self.room.spatialEpoch {
+                self.knownSpatialEpoch=self.room.spatialEpoch
+                self.objects=[]; self.observedAt = .distantPast
+                self.piano=nil; self.pianoReady=false; self.cancelCalibration(); self.stopPerformance()
+                self.voice.updateContext(["objects":[],"pianoCalibrated":false,"tracking":self.room.trackingNormal])
+            }
             if !self.room.trackingNormal && self.playing { self.stopPerformance(); self.message = "Tracking perso: musica e contatto virtuale sospesi. Riallinea e riavvia." }
             if self.controlsVisible || !self.active {self.objectWillChange.send()}
         }
@@ -64,7 +71,7 @@ final class NeoSession: ObservableObject {
             active = true; controlsVisible = false; message = "Scansiona lentamente il pavimento: NEO apparirà davanti a te."
             voice.updateContext(["avatarKind":chosenAvatar.rawValue,"hasHands":chosenAvatar.isHuman])
             await voice.start(backend:backend)
-            if startID == id, active, voice.state == .error { controlsVisible = true }
+            if startID == id, active, voice.state == .error { message=voice.message }
         }
         catch { if startID == id, !(error is CancellationError) {message = error.localizedDescription} }
     }
@@ -104,7 +111,7 @@ final class NeoSession: ObservableObject {
                   ProcessInfo.processInfo.systemUptime-capture.capturedAt<30 else {throw NeoFailure("Osservazione superata o tracking cambiato: ripeti l’osservazione.")}
             objects = SceneFusion.locate(reply.objects ?? [],snapshot:capture.snapshot)
             voice.updateContext(["objects":objects.map(\.summary),"pianoCalibrated":pianoReady,"tracking":room.trackingNormal])
-            observedAt = Date()
+            observedAt = Date(timeIntervalSinceNow: -(ProcessInfo.processInfo.systemUptime-capture.capturedAt))
             answer = reply.text; sources = reply.sources;  message = "Osservazione aggiornata · geometria e significato restano distinti"
             return ["accepted":true,"text":reply.text,"objects":objects.map(\.summary),"note":"Posizioni stimate al momento della foto, non garanzia di comprensione completa. Il pianoforte richiede calibrazione tasti."]
         } catch { if observationID == id { message = error.localizedDescription }; return ["accepted":false,"reason":error is CancellationError ? "Osservazione annullata dalla nuova richiesta." : error.localizedDescription] }
