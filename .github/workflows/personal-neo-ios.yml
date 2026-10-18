@@ -25,6 +25,8 @@ jobs:
           xcrun simctl list devices available -j > /tmp/neo-simulators.json
           NEO_SIMULATOR_ID=$(python3 -c 'import json; d=json.load(open("/tmp/neo-simulators.json")); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')
           echo "NEO_SIMULATOR_ID=$NEO_SIMULATOR_ID" >> "$GITHUB_ENV"
+          # Boot concurrently with compilation; xcodebuild still verifies launch/test success.
+          xcrun simctl boot "$NEO_SIMULATOR_ID" || true
       - name: Compile native app and tests
         run: xcodebuild build-for-testing -project ios/MyPersonalNeo.xcodeproj -scheme MyPersonalNeo -destination "platform=iOS Simulator,id=$NEO_SIMULATOR_ID" -derivedDataPath /tmp/NeoDerived ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO
       - name: Compile optimized iPhone app without signing

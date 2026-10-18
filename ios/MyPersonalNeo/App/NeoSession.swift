@@ -10,6 +10,7 @@ final class NeoSession: ObservableObject {
     private var startID = UUID()
     private var perceptionInFlight = false
     private var knownSpatialEpoch: UUID?
+    private var knownTrackingNormal: Bool?
     @Published var controlsVisible = false
     @Published var avatar = AvatarProfile(rawValue: UserDefaults.standard.string(forKey:"neo.avatar") ?? "") ?? .woman
     private var observedAt = Date.distantPast
@@ -47,6 +48,10 @@ final class NeoSession: ObservableObject {
                 self.objects=[]; self.observedAt = .distantPast
                 self.piano=nil; self.pianoReady=false; self.cancelCalibration(); self.stopPerformance()
                 self.voice.updateContext(["objects":[],"pianoCalibrated":false,"tracking":self.room.trackingNormal])
+            }
+            if self.knownTrackingNormal != self.room.trackingNormal {
+                self.knownTrackingNormal=self.room.trackingNormal
+                self.voice.updateContext(["tracking":self.room.trackingNormal])
             }
             if !self.room.trackingNormal && self.playing { self.stopPerformance(); self.message = "Tracking perso: musica e contatto virtuale sospesi. Riallinea e riavvia." }
             if self.controlsVisible || !self.active {self.objectWillChange.send()}
