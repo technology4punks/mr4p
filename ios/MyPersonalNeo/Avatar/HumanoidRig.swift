@@ -63,7 +63,7 @@ final class HumanoidRig {
                 let end = SIMD3<Float>(globals[tip].columns.3.x, globals[tip].columns.3.y, globals[tip].columns.3.z)
                 guard simd_length(end - origin) > 0.001, simd_length(target - origin) > 0.001 else { continue }
                 let delta = simd_quatf(from: simd_normalize(end-origin), to: simd_normalize(target-origin))
-                let parent = parents[joint].map { simd_quatf(globals[$0]) } ?? simd_quatf(angle: 0, axis: [0,1,0])
+                let parent = parents[joint].map { Transform(matrix: globals[$0]).rotation } ?? simd_quatf(angle: 0, axis: [0,1,0])
                 let limited = simd_slerp(simd_quatf(angle: 0, axis: [0,1,0]), delta, 0.45)
                 pose[joint].rotation = simd_normalize(parent.inverse * limited * parent * pose[joint].rotation)
             }

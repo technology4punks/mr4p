@@ -24,6 +24,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     private var pendingUser = false, pendingTool = false, speaking = false, greeted = false
     private var timeout: Task<Void, Never>?
     private var speechStart: Date?
+    private var speechOverlapped = false
     private var lastEvent = Date()
     private var responseID: String?
     private var cancelled = Set<String>()
@@ -110,15 +111,16 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         if type.hasPrefix("response.") || type.hasPrefix("output_audio_buffer.") { lastEvent = Date() }
         if let id = event["response_id"] as? String, cancelled.contains(id), type != "response.done" { return }
         switch type {
-        case "input_audio_buffer.speech_started": speechStart = Date(); message = "Sto ricevendo audio…"; changed?()
+        case "input_audio_buffer.speech_started": speechStart = Date(); speechOverlapped = speaking || gate.responseActive; message = "Sto ricevendo audio…"; changed?()
         case "input_audio_buffer.speech_stopped":
             let item = event["item_id"] as? String ?? UUID().uuidString
+            let canRecover = !speechOverlapped && Date().timeIntervalSince(speechStart ?? Date()) >= 0.45
             transcriptTimer?.cancel(); let run = generation
             transcriptTimer = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(3))
                 guard let self, !Task.isCancelled, self.generation == run else { return }
                 // Preserve the committed audio for an audio-only answer when ASR is absent.
-                if !self.speaking && !self.answered.contains(item) { self.answered.insert(item); self.audioFallback.insert(item); self.pendingUser = true; self.gate.mayAuthorizeAudio(); self.flush() }
+                if canRecover && !self.speaking && !self.answered.contains(item) { self.answered.insert(item); self.audioFallback.insert(item); self.pendingUser = true; self.gate.mayAuthorizeAudio(); self.flush() }
                 self.message = "Se non ho capito, ripeti la domanda."; self.changed?()
             }
         case "conversation.item.input_audio_transcription.delta":
@@ -137,7 +139,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         case "response.output_audio_transcript.delta", "response.audio_transcript.delta":
             said += event["delta"] as? String ?? ""; if said.count > 2000 { said = String(said.suffix(2000)) }; changed?()
         case "response.function_call_arguments.done":
-            guard gate.mayUseTools, let id = event["call_id"] as? String, !calls.contains(id), let name = event["name"] as? String, let args = event["arguments"] as? String else { return }
+            guard gate.mayUseTools, gate.responseActive, let id = event["call_id"] as? String, !calls.contains(id), let name = event["name"] as? String, let args = event["arguments"] as? String else { return }
             calls.insert(id); let run = generation, turn = gate.turn
             jobs[id] = Task { [weak self] in
                 guard let self else { return }
@@ -164,6 +166,10 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         gate.reset(); calls.removeAll(); answered.removeAll(); audioFallback.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false; muted = false; state = .off; self.message = message; changed?()
     }
     nonisolated func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
+        if dataChannel.readyState == .closed {
+            Task { @MainActor [weak self] in guard self?.channel === dataChannel else { return }; self?.stop(message:"Canale voce chiuso. Premi Avvia voce per riconnettere.") }
+            return
+        }
         guard dataChannel.readyState == .open else { return }
         Task { @MainActor [weak self] in
             guard let self, self.channel === dataChannel, !self.greeted else { return }

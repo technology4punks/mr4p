@@ -22,7 +22,7 @@ struct NeoView: View {
                     Text("Un compagno umanoide che unisce ciò che vede a ciò che la stanza misura.").font(.title3).foregroundStyle(.white.opacity(0.75))
                     HStack(spacing:12) { Image(systemName:"viewfinder");Text("ARKit · LiDAR quando disponibile · voce") }.font(.footnote).foregroundStyle(mint)
                     Button { Task { await neo.start() } } label: { Label("Entra con NEO",systemImage:"sparkles").frame(maxWidth:.infinity).padding(.vertical,10) }.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black)
-                    Text("La scansione resta sull’iPhone. Quando chiedi di osservare, un fotogramma viene inviato a OpenAI; avviando la voce condividi l’audio della conversazione. Non salviamo foto o dialoghi nel nostro backend.").font(.caption).foregroundStyle(.white.opacity(0.58))
+                    Text("La scansione resta sull’iPhone. Quando chiedi di osservare o attivi la modalità assistita, singoli fotogrammi vengono inviati a OpenAI; avviando la voce condividi l’audio della conversazione. Non salviamo foto o dialoghi nel nostro backend.").font(.caption).foregroundStyle(.white.opacity(0.58))
                     Text(neo.message).font(.footnote).foregroundStyle(mint)
                 }.padding(30)
             } else {
@@ -52,7 +52,7 @@ struct NeoView: View {
                             if neo.busy {ProgressView().tint(mint)}
                             Button {neo.showDetails.toggle()} label:{Image(systemName:neo.showDetails ? "chevron.down" : "text.bubble")}.accessibilityLabel("Mostra osservazioni")
                         }
-                        Text(neo.message).font(.caption).foregroundStyle(.white.opacity(0.75)).lineLimit(3)
+                        Text((neo.assistedObservation ? "◉ Assistita · " : "")+neo.message).font(.caption).foregroundStyle(.white.opacity(0.75)).lineLimit(3)
                         if !neo.voice.heard.isEmpty { Text("Tu: "+neo.voice.heard).font(.caption).foregroundStyle(mint).lineLimit(2) }
                         if !neo.voice.said.isEmpty { Text(neo.voice.said).font(.callout).lineLimit(3) }
                         HStack(spacing:10) {
@@ -70,6 +70,9 @@ struct NeoView: View {
         VStack(alignment:.leading,spacing:12) {
             Text(neo.room.supportsLiDAR ? "LiDAR + ARKit · \(neo.room.meshCount) parti mesh" : "ARKit · LiDAR non disponibile").font(.caption).foregroundStyle(mint)
             Text("\(neo.room.planeCount) superfici misurate · la mesh non riconosce da sola ogni oggetto.").font(.caption)
+            Toggle(isOn:Binding(get:{neo.assistedObservation},set:{neo.setAssistedObservation($0)})) {
+                VStack(alignment:.leading) {Text("Osservazione assistita");Text("Invia un fotogramma a OpenAI ogni 15 s, solo con tracking stabile.").font(.caption2).foregroundStyle(.secondary)}
+            }.tint(mint)
             Button("Calibra un pianoforte a 88 tasti") {do{try neo.beginPiano();menu=false}catch{neo.message=error.localizedDescription}}
             Button("Siediti su una superficie reale") {do{try neo.beginSeat();menu=false}catch{neo.message=error.localizedDescription}}
             if neo.pianoReady {

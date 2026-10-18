@@ -16,7 +16,7 @@ open ios/MyPersonalNeo.xcodeproj
 2. Target **MyPersonalNeo → Signing & Capabilities → Team**: seleziona il tuo account Apple Developer; lascia Automatic Signing. Se necessario cambia `com.technology4punks.MyPersonalNeo` con un bundle ID disponibile nel tuo team. Nessun certificato/team è incorporato nel repository.
 3. Collega l’iPhone, autorizza il Mac e abilita **Impostazioni → Privacy e sicurezza → Modalità sviluppatore**. Scegli l’iPhone come destinazione e premi Run.
 4. Tocca **Entra con NEO** e consenti la fotocamera. Muovi lentamente il telefono; quando il tracking è stabile, tocca una superficie del pavimento per posizionare l’avatar.
-5. Tocca **Avvia voce** e consenti il microfono. Prova «Cosa vedi?», «Indica la sedia» e «Cerca il manuale di [marca e modello]». Fotocamera e voce si attivano separatamente. Un fotogramma viene inviato a OpenAI soltanto su richiesta, non uno streaming video continuo.
+5. Tocca **Avvia voce** e consenti il microfono. Prova «Cosa vedi?», «Indica la sedia» e «Cerca il manuale di [marca e modello]». Fotocamera e voce si attivano separatamente. Un fotogramma viene inviato a OpenAI soltanto su richiesta, non uno streaming video continuo. Nel menu puoi attivare esplicitamente **Osservazione assistita**: invia un fotogramma ogni 15 secondi solo con tracking stabile, aggiornando il contesto senza avviare monologhi o azioni. È disattivata di default e si spegne in background.
 
 Backend iniziale: `https://neo-mr-avatar-test.sk1kko.chatgpt.site`. Gli endpoint sono `/api/personal-neo/token` e `/api/personal-neo/knowledge`. Non inserire chiavi OpenAI in Xcode, Info.plist o nel bundle. Il server mantiene la chiave già configurata per NEO, separando prompt/tool dalle sessioni di Robot Buddy.
 

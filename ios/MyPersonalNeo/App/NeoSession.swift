@@ -7,6 +7,8 @@ import AVFoundation
 final class NeoSession: ObservableObject {
     @Published var active = false
     @Published var busy = false
+    @Published private(set) var assistedObservation = false
+    private var observationLoop: Task<Void,Never>?
     @Published var message = "Un compagno che osserva, comprende e impara con te."
     @Published var answer = ""
     @Published var sources: [NeoSource] = []
@@ -49,26 +51,38 @@ final class NeoSession: ObservableObject {
         catch { message = error.localizedDescription }
     }
     func suspend() {
+        setAssistedObservation(false)
         work?.cancel(); observationID = UUID(); busy = false
         stopPerformance(); voice.stop(message:"App sospesa. Riprendi scansione e voce quando torni."); room.stop(); active = false
     }
     func startVoice() { Task { await voice.start(backend:backend) } }
     func look() { work?.cancel(); work = Task { _ = await inspect("Descrivi l’ambiente e gli oggetti con cui possiamo interagire.") } }
     func search(_ query: String) { work?.cancel(); work = Task { _ = await research(query) } }
-    private func inspect(_ question: String) async -> [String:Any] {
+    func setAssistedObservation(_ enabled: Bool) {
+        observationLoop?.cancel(); observationLoop = nil; assistedObservation = enabled && active
+        guard assistedObservation else { return }
+        message = "Osservazione assistita attiva · un fotogramma ogni 15 secondi con tracking stabile."
+        observationLoop = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(15)) } catch { return }
+                guard let self, self.active, self.assistedObservation else { return }
+                guard self.room.trackingNormal, !self.busy, self.voice.state != .speaking, self.voice.state != .thinking else { continue }
+                _ = await self.inspect("Aggiorna gli oggetti utili e ciò che è cambiato. Descrivi solo elementi visibili, senza azioni autonome.", interactive:false)
+            }
+        }
+    }
+    private func inspect(_ question: String, interactive: Bool = true) async -> [String:Any] {
         let id = UUID(); observationID = id; busy = true; message = "Osservo un fotogramma e lo collego alla geometria…"
         defer { if observationID == id { busy = false } }
         do {
-            let jpeg = try room.frameJPEG()
-            guard let frame = room.view.session.currentFrame else { throw NeoFailure("Fotogramma assente.") }
-            let orientation = room.view.window?.windowScene?.interfaceOrientation ?? .portrait
-            let reply = try await backend.look(question:question,jpeg:jpeg)
+            let capture = try room.capture()
+            let reply = try await backend.look(question:question,jpeg:capture.jpeg)
             try Task.checkCancellation(); guard observationID == id, active, room.trackingNormal else { throw NeoFailure("Scansione cambiata: ripeti l’osservazione con tracking stabile.") }
-            objects = SceneFusion.locate(reply.objects ?? [],frame:frame,orientation:orientation,session:room.view.session)
+            objects = SceneFusion.locate(reply.objects ?? [],frame:capture.frame,orientation:capture.orientation,session:room.view.session)
             voice.updateContext(["objects":objects.map(\.summary),"pianoCalibrated":pianoReady,"tracking":room.trackingNormal])
             markers.forEach { $0.removeFromParent() }; markers.removeAll()
             for object in objects { if let p = object.position { let dot = ModelEntity(mesh:.generateSphere(radius:0.012),materials:[UnlitMaterial(color:.cyan)]);dot.position=p;room.world.addChild(dot);markers.append(dot) } }
-            answer = reply.text; sources = reply.sources; showDetails = true; message = "Osservazione aggiornata · geometria e significato restano distinti"
+            answer = reply.text; sources = reply.sources; if interactive { showDetails = true }; message = "Osservazione aggiornata · geometria e significato restano distinti"
             return ["accepted":true,"text":reply.text,"objects":objects.map(\.summary),"note":"Posizioni stimate al momento della foto, non garanzia di comprensione completa. Il pianoforte richiede calibrazione tasti."]
         } catch { if observationID == id { message = error.localizedDescription }; return ["accepted":false,"reason":error is CancellationError ? "Osservazione annullata dalla nuova richiesta." : error.localizedDescription] }
     }

@@ -50,7 +50,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         }
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) { config.frameSemantics.insert(.sceneDepth) }
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) { config.frameSemantics.insert(.personSegmentationWithDepth) }
-        view.session.run(config); running = true; status = "Muovi lentamente l’iPhone per rilevare pavimento e superfici."; changed?()
+        trackingNormal = false; view.session.run(config); running = true; status = "Muovi lentamente l’iPhone per rilevare pavimento e superfici."; changed?()
     }
     func stop() { view.session.pause(); running = false; trackingNormal = false; rig.stop(); status = "Scansione sospesa · riprendi per riallineare"; changed?() }
     func place(at position: SIMD3<Float>) {
@@ -70,7 +70,7 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         let p = result.worldTransform.columns.3, position = SIMD3<Float>(p.x,p.y,p.z)
         if let tap { tap(position) } else { place(at: position) }
     }
-    func frameJPEG() throws -> Data {
+    func capture() throws -> (jpeg: Data, frame: ARFrame, orientation: UIInterfaceOrientation) {
         guard running, trackingNormal, let frame = view.session.currentFrame else { throw NeoFailure("Attiva la scansione e attendi tracking stabile prima di osservare.") }
         let orientation = view.window?.windowScene?.interfaceOrientation ?? .portrait
         let exif: CGImagePropertyOrientation
@@ -80,13 +80,13 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
         let input = UIImage(cgImage: cg), factor = min(1, 960 / max(input.size.width,input.size.height))
         let format = UIGraphicsImageRendererFormat(); format.scale = 1
         let jpeg = UIGraphicsImageRenderer(size: CGSize(width: input.size.width*factor,height: input.size.height*factor), format: format).image { _ in input.draw(in: CGRect(origin: .zero,size: CGSize(width: input.size.width*factor,height: input.size.height*factor))) }.jpegData(compressionQuality: 0.62)
-        guard let jpeg, jpeg.count < 550000 else { throw NeoFailure("Fotogramma troppo grande. Riprova.") }; return jpeg
+        guard let jpeg, jpeg.count < 550000 else { throw NeoFailure("Fotogramma troppo grande. Riprova.") }; return (jpeg, frame, orientation)
     }
     nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
         let normal: Bool
         switch frame.camera.trackingState { case .normal: normal = true; default: normal = false }
         Task { @MainActor [weak self] in
-            guard let self else { return }; self.trackingNormal = normal
+            guard let self, self.running else { return }; self.trackingNormal = normal
             let message = normal ? "Tracking stabile · tocca il pavimento per posizionare NEO" : "Tracking limitato · interazioni spaziali sospese"
             if message != self.lastReport { self.status = message; self.lastReport = message; self.changed?() }
         }
