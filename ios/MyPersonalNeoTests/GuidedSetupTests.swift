@@ -88,6 +88,24 @@ final class GuidedSetupTests:XCTestCase {
             residual.sort();if !residual.isEmpty {XCTAssertLessThan(residual[residual.count/2],0.1,"Stance foot should remain nearly still while the avatar advances: \(profile)")}
         }
     }
+    @MainActor func testCrossfadesKeepIndependentFeetAttachedThroughoutTransitions() throws {
+        for profile in AvatarProfile.allCases {
+            let rig=HumanoidRig();try rig.load(profile)
+            let model=try XCTUnwrap(rig.models.first),names=model.jointNames
+            let shinName=profile.isHuman ? "LowerLeg_L" : "BackLowerLeg_L",footName=profile.isHuman ? "Foot_L" : "IKBackLeg_L"
+            let shin=try XCTUnwrap(names.firstIndex {$0.split(separator:"/").last.map(String.init)==shinName})
+            let foot=try XCTUnwrap(names.firstIndex {$0.split(separator:"/").last.map(String.init)==footName})
+            let before=globalPose(model.jointTransforms,names:names),length=simd_distance(before[shin],before[foot])
+            for step in 0..<150 {
+                rig.walkAmount=step<50 ? 1 : 0
+                if step==50 {rig.play("wave")}
+                if step==100 {rig.stop();rig.seated=profile.isHuman}
+                rig.update(delta:1.0/30)
+                let actual=globalPose(model.jointTransforms,names:names)
+                XCTAssertEqual(simd_distance(actual[shin],actual[foot]),length,accuracy:0.003)
+            }
+        }
+    }
     @MainActor func testSeatedOverlayKeepsIndependentFeetAttachedToShins() throws {
         for profile in [AvatarProfile.man,.woman] {
             let rig=HumanoidRig();try rig.load(profile)

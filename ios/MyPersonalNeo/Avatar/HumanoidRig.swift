@@ -11,6 +11,7 @@ final class HumanoidRig {
     private var animatedModels: [ModelEntity] = []
     private var globalPose: [simd_float4x4] = []
     private var bindGlobal:[simd_float4x4]=[]
+    private var footChains:[(Int,Int)]=[]
     private var names: [String] = []
     private var parents: [Int?] = []
     private var rest: [Transform] = []
@@ -60,6 +61,8 @@ final class HumanoidRig {
         let importedNames=Dictionary(uniqueKeysWithValues:names.enumerated().map { ($0.element.split(separator:"/").last.map(String.init) ?? $0.element,$0.offset) })
         jointIndex=importedNames
         for (semantic, source) in profile.isHuman ? Self.humanAliases : Self.dogAliases { jointIndex[semantic]=importedNames[source] }
+        let footNames=profile.isHuman ? [("shinL","footL"),("shinR","footR")] : [("BackLowerLeg_L","IKBackLeg_L"),("BackLowerLeg_R","IKBackLeg_R"),("FrontLowerLeg_L","IKFrontLeg_L"),("FrontLowerLeg_R","IKFrontLeg_R")]
+        footChains=footNames.compactMap {a,b in guard let shin=jointIndex[a],let foot=jointIndex[b] else {return nil};return (shin,foot)}
         animatedModels=models.filter { $0.jointNames == names }
         globalPose=Array(repeating: matrix_identity_float4x4, count: names.count)
         parents = names.map { name in
@@ -71,7 +74,7 @@ final class HumanoidRig {
         motion=loadedMotion
         relaxed=rest;motion?.sample("idle",time:0,into:&relaxed)
         pose=relaxed;walkingPose=relaxed;previousPose=relaxed;time=0;walkTime=0;walkAmount=0;gaze=nil;talking=false;poseMode="idle";blendTime=1;stop()
-        applyPose()
+        stabilizeFeet();applyPose()
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
     func stop(stand: Bool = true) { demo = nil; target = nil; smoothedTarget = nil; if stand { seated = false } }
@@ -122,12 +125,11 @@ final class HumanoidRig {
             }
         }
     }
-    private func reconnectSeatedFeet() {
-        // In the source rig feet are independent root children, not shin children.
-        // An explicit seated overlay must move those controls along with the shins.
-        for side in ["L","R"] {
-            guard let shin=index("shin"+side),let foot=index("foot"+side) else {continue}
-            updateHierarchy()
+    private func stabilizeFeet() {
+        // Independent foot controls must stay attached to the shin endpoints even
+        // while interpolating between clips. Otherwise a crossfade stretches ankles.
+        updateHierarchy()
+        for (shin,foot) in footChains {
             let a=bindGlobal[shin].columns.3,b=bindGlobal[foot].columns.3
             let endpoint=globalPose[shin]*SIMD4<Float>(b.x-a.x,b.y-a.y,b.z-a.z,1)
             var footWorld=globalPose[foot];footWorld.columns.3=endpoint
@@ -161,7 +163,6 @@ final class HumanoidRig {
             rotate("thighL",angle:-1.35);rotate("thighR",angle:-1.35)
             rotate("shinL",angle:1.3);rotate("shinR",angle:1.3)
             rotate("forearmL",angle:-0.4);rotate("forearmR",angle:-0.4)
-            reconnectSeatedFeet()
         }
         if spatialTracking, let gaze, finite(gaze), let head = index("head"), let model = models.first {
             let local = model.convert(position: gaze, from: nil)
@@ -181,7 +182,7 @@ final class HumanoidRig {
         } else { smoothedTarget = nil }
         blendTime=min(1,blendTime+elapsed/0.25)
         if blendTime<1 {for i in pose.indices {pose[i]=AvatarMotionLibrary.blend(previousPose[i],pose[i],blendTime)}}
-        if seated,profile?.isHuman != false {reconnectSeatedFeet()}
+        stabilizeFeet()
         applyPose()
     }
 }
