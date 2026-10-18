@@ -1,6 +1,6 @@
 # My Personal Neo · iPhone nativo
 
-SwiftUI + ARKit + RealityKit, iOS 17+, OpenAI Realtime/WebRTC. App separata da Robot Buddy; chiavi solo nel backend già configurato. **Revisione 4**: correzione dei pivot del rig, acquisizione AR a finestre e snapshot indipendenti dalla camera, dopo blocco video e T-pose segnalati su **iPhone 14 Pro**. Il codice corregge cause concrete; continuità camera, FPS e termica devono ancora essere verificati sul dispositivo.
+SwiftUI + ARKit + RealityKit, iOS 17+, OpenAI Realtime/WebRTC. App separata da Robot Buddy; chiavi nel backend esistente. **Revisione 5 · versione 0.1.2, build 5**: preparazione guidata prima dell’avatar, orientamento verticale e animazioni originali Quaternius al posto della camminata articolare manuale. La voce mantiene il motore e le soglie della revisione 4. Verifica fisica della nuova build su iPhone 14 Pro ancora necessaria.
 
 ## Installazione / aggiornamento
 
@@ -13,27 +13,28 @@ open ios/MyPersonalNeo.xcodeproj
 ```
 
 1. Lascia risolvere **stasel/WebRTC 155.0.0**. Scegli il tuo team Apple Developer in Signing & Capabilities; Automatic Signing. Nessun certificato o team nel progetto.
-2. Collega l’iPhone, autorizza il Mac e abilita Modalità sviluppatore nelle Impostazioni iOS. Scegli il dispositivo e premi Run: lo schema usa **Release** per provare le prestazioni, mentre i test restano Debug. Nei controlli verifica **build 4 / versione 0.1.1**. Se hai già installato una revisione, aggiorna la branch e ricompila: il sito non aggiorna il binario iOS.
-3. Scegli **Donna, Uomo o Cane**, poi **Entra con NEO**. Camera e microfono richiedono consenso. Scansiona lentamente il pavimento senza camminare: il compagno appare a circa 1,3 m su superficie misurata. Un tocco singolo riposiziona sul pavimento.
-4. La voce si avvia con l’esperienza e ascolta anche durante le risposte. Prova «Cosa vedi?», «Indica la sedia», «Avvicinati alla sedia», «Cerca il manuale di [marca/modello]».
+2. Collega l’iPhone, autorizza il Mac e abilita Modalità sviluppatore nelle Impostazioni iOS. Scegli il dispositivo e premi Run: lo schema usa **Release** per provare le prestazioni, mentre i test restano Debug. Nei controlli verifica **build 5 / versione 0.1.2**. Se hai già installato una revisione, aggiorna la branch e ricompila: il sito non aggiorna il binario iOS.
+3. Scegli **Donna, Uomo o Cane**, poi **Prepara la stanza**. Dopo i permessi si apre una guida sulla camera, senza avatar. Inquadra una zona libera di pavimento a circa 1,3 m e muovi lentamente il telefono, restando fermo. Una superficie sufficientemente ampia deve rimanere stabile per 1,5 s; tracking instabile, piani piccoli/inclinati e arredi noti impediscono l’inserimento. La preparazione ha un budget massimo di 30 s, con riprova esplicita.
+4. Quando compare **Inserisci NEO**, verifica che la zona sia pavimento libero e premi il pulsante: l’avatar compare, la guida scompare e parte la voce. La voce ascolta anche durante le risposte e ascolta anche durante le risposte. Prova «Cosa vedi?», «Indica la sedia», «Avvicinati alla sedia», «Cerca il manuale di [marca/modello]».
 5. **Nessun HUD o pannello automatico**: doppio tocco a due dita, oppure «apri i controlli», per menu, stato voce, diagnostica, fonti e sospensione. Gli indicatori privacy iOS restano. Background sospende camera e voce; ripresa esplicita.
 
 Backend: `https://neo-mr-avatar-test.sk1kko.chatgpt.site`, endpoint `/api/personal-neo/token` e `/api/personal-neo/knowledge`. Nessuna chiave in Xcode/Info.plist/bundle. Token effimeri diretti WebRTC; prompt/tool isolati da Buddy. Fotogrammi singoli solo su richiesta; osservazione assistita opzionale invia un frame ogni 15 secondi con tracking stabile, senza avviare azioni/monologhi. Nessun archivio foto/dialoghi nel nostro backend. Ultimi otto messaggi solo in RAM per recupero voce, cancellati alla fine; la scelta avatar viene conservata sul dispositivo.
 
-## Profilo leggero e diagnostica
+## Preparazione, movimento e prestazioni
 
-La revisione 3 non ha risolto il blocco segnalato sul dispositivo. La revisione 4 corregge tre percorsi distinti: buffer camera trattenuti durante la rete, lavoro continuo sul main actor e rig convertito con pivot della posa animata anziché della posa bind.
+La preparazione verifica un **appoggio locale**, non certifica una scansione completa della stanza. Usa piani e profondità disponibili, senza RoomPlan, mesh/colliders triangolari, foto AI o archivi. L’inserimento richiede una superficie di 60×60 cm per i personaggi, 90×90 cm per il cane, approssimativamente orizzontale e stabile; tavoli/sedute classificati e ostacoli planari noti vengono esclusi. Classificazione e geometria restano stime: controllare la zona scelta. Il timeout offre una riprova e non inserisce l’avatar su coordinate inventate.
 
-- **Acquisizione iniziale di 6 secondi**: piani orizzontali/verticali e `sceneDepth` opzionale; poi world tracking senza richiesta continua di piani, profondità, mesh o colliders. Il controllo nascosto **Riscansiona superfici** apre una nuova finestra. Togliere `sceneDepth` interrompe il flusso richiesto dall’app, non controlla direttamente l’accensione hardware del LiDAR.
-- **Una osservazione per volta**: finestra di misura fino a 1 s, JPEG massimo 960 px e 550 KB; posa, intrinseci, piani e profondità vengono copiati. Nessun `ARFrame`, `ARDepthData` o buffer camera viene conservato durante richieste AI. Immagine materializzata senza rendering differito, compressione JPEG su task di utilità. Risposte precedenti a un cambio tracking/sessione o oltre 30 s scartate.
-- **Nessun task per frame o occlusore generato**: massimo 64 piani numerici in RAM. Rimossa la rigenerazione di mesh planari sul main actor. Nessuna occlusione fisica degli arredi promessa in questa revisione; sono prioritari camera stabile e rig animato. Segmentation, cubemap, motion blur, profondità di campo, grain e grounding shadows disabilitati.
-- **Camera a 30 FPS quando il formato è supportato**, scegliendo la risoluzione più bassa disponibile a quella frequenza. È una richiesta di configurazione, non una misura ottenuta. Pose a 30 Hz, adattive a 20 Hz sotto carico, rendering indipendente.
-- **Rig corretto**: pivot recuperati dalle inverse bind matrices glTF; postura rilassata assegnata prima del primo tick; idle e gesti continuano durante tracking limitato, mentre navigazione e IK spaziale si fermano. Import asincrono prima della camera, cache degli indici/gerarchia e due iterazioni IK. Una sola mesh/materiale, palette 64 px, uno solo dei tre compagni caricato.
-- **Audio**: notifiche `categoryChange` ignorate; cambi dispositivo filtrati, raggruppati e deduplicati, senza riattivare AVAudioSession o ricreare WebRTC. Configurazione audio idempotente, microfono full duplex conservato.
+Un errore di orientamento usava un quaternion `from/to` per girarsi: a 180° poteva scegliere un asse orizzontale, inclinando il corpo. Ora ogni orientamento del corpo è **solo yaw**, incluso il pianoforte. I test coprono l’intero giro e l’esatto dietrofront.
 
-I controlli nascosti mostrano separatamente FPS scena e camera, frequenza richiesta, età dell’ultimo frame, gap massimo camera, massimo tempo CPU dell’aggiornamento e fase di acquisizione. I valori della scena non sono tempo GPU. Nessun HUD aggiunto.
+I rig sorgenti hanno piedi con controlli indipendenti. Ruotare soltanto anche/ginocchia lasciava i piedi fermi, deformando la posa. I movimenti standard usano adesso le clip CC0 **Idle_Neutral/Idle, Walk, Wave/Idle_2 e Interact**, convertite offline nello stesso bind degli USDZ. Sono conservate anche le traslazioni dei piedi. Campioni a 24 Hz interpolati con slerp, transizioni di 250 ms, scala articolare sempre unitaria, root motion orizzontale rimosso e appoggio delle suole normalizzato. La seduta esplicita aggiorna anche i controlli indipendenti dei piedi; IK limitata allo spazio raggiungibile davanti al corpo.
 
-La geometria è una cache temporanea, non una stanza salvata: il seguito si ferma dopo **20 s senza misure recenti**, lo sguardo continua. Un nuovo scan/«osserva» aggiorna le superfici viste; ostacoli ignoti, sottili o mobili possono sfuggire. La ripresa dopo background ricrea il riferimento e invalida oggetti/calibrazioni precedenti.
+[Anteprima delle mesh deformate](../docs/validation/personal-neo/authored-motion-r5.png): verifica CPU delle pose, **non cattura RealityKit o iPhone**. Niente clip di armi/combattimento o oggetti aggiuntivi. Le piccole dimostrazioni di judo restano illustrazioni locali, non addestramento.
+
+Dopo l’inserimento si sospendono discovery e profondità continui. Le osservazioni AI rimangono seriali con JPEG/snapshot propri, senza buffer ARKit durante la rete. Se NEO deve seguire e il supporto è scaduto, si ferma e tenta una finestra di misura di 1 s, al massimo ogni 8 s. Il pavimento viene riconsiderato recente solo con misure aggiornate o profondità coerente con il punto attuale; una misura non disponibile non autorizza il passo. Pareti/arredi noti e supporto ai piedi limitano la navigazione, senza garanzia su ostacoli ignoti o mobili.
+
+Un solo avatar, una mesh/materiale e palette 64 px; niente person segmentation, cubemap, occlusori generati o post-processing. Camera richiesta a 30 FPS quando disponibile, pose 30 Hz adattive a 20 Hz. Le clip sono dati locali preparati prima della camera, non modelli caricati per frame. Nessun nuovo invio AI durante la guida.
+
+Dopo la preparazione lo schermo torna a **camera e avatar**. Controlli su doppio tocco a due dita o voce, senza HUD: FPS camera/scena, età/gap dei frame, CPU update e fase. Non sono misure GPU; FPS/termica su iPhone 14 Pro devono essere rilevati sul dispositivo.
 
 ### Stanze salvate: prossima fase
 
@@ -65,14 +66,15 @@ Watchdog RTP dall’apertura canale, recupero traccia/connessione e cambi uscita
 | Woman | 62 | 6,482 | 678,613 B | 1.66 m |
 | Dog | 46 | 1,950 | 219,626 B | 0.6 m |
 
-Una texture 64px ciascuno: budget teorico RGBA8 16 KiB prima dei mipmap, non misura GPU. File dei tre USDZ complessivi circa **1,59 MB**, rispetto ai precedenti 18,14 MB; non tutti sono caricati contemporaneamente. [Anteprima geometrie/texture convertite](../docs/validation/personal-neo/toon-companions-r3.png); è un rendering di controllo, non una cattura RealityKit sul telefono.
+Una texture 64px ciascuno: budget teorico RGBA8 16 KiB prima dei mipmap, non misura GPU. Le clip aggiungono circa **1,80 MB** complessivi, una sola libreria caricata. File dei tre USDZ complessivi circa **1,59 MB**, rispetto ai precedenti 18,14 MB; non tutti sono caricati contemporaneamente. [Anteprima geometrie/texture convertite](../docs/validation/personal-neo/toon-companions-r3.png); è un rendering di controllo, non una cattura RealityKit sul telefono.
 
-Fonti: [uomo](https://quaternius.com/packs/ultimatemodularcharacters.html), [donna](https://quaternius.com/packs/ultimatemodularwomen.html), [cane](https://quaternius.com/packs/ultimateanimatedanimals.html). Dati glTF gratuiti, nessun DCC o modellazione manuale. Script recupera i pivot dalle inverse bind matrices, verifica la discesa effettiva dei vertici pesati delle mani, conserva rig/pesi, uniforma assi/scala e unisce mesh/materiali in una palette locale. Le clip sorgenti non sono caricate; gesti/locomozione/IK locali in Swift.
+Fonti: [uomo](https://quaternius.com/packs/ultimatemodularcharacters.html), [donna](https://quaternius.com/packs/ultimatemodularwomen.html), [cane](https://quaternius.com/packs/ultimateanimatedanimals.html). Dati glTF gratuiti, nessun DCC o modellazione manuale. Script recupera i pivot dalle inverse bind matrices, verifica la discesa effettiva dei vertici pesati delle mani, conserva rig/pesi, uniforma assi/scala e unisce mesh/materiali in una palette locale. Le quattro clip selezionate vengono preparate da `bake-avatar-motions.py`; il runtime campiona solo i dati TRS locali. Fonti, hash e verifiche in `MotionManifest.json`.
 
 ```sh
 python3 -m venv /tmp/neo-usd-tools
 /tmp/neo-usd-tools/bin/pip install usd-core==26.8 numpy==2.5.4 Pillow==12.2.0
 /tmp/neo-usd-tools/bin/python scripts/native/convert-humanoid.py
+/tmp/neo-usd-tools/bin/python scripts/native/bake-avatar-motions.py
 python3 scripts/native/generate-project.py
 ```
 
@@ -82,4 +84,4 @@ Il vecchio convertitore Rocketbox è conservato come `convert-rocketbox.py` per 
 
 `MyPersonalNeoTests` esercita import reale di tutti e tre i rig, un solo materiale/mesh, texture, proporzioni, pose/camminata, geometria tastiera/calibrazione, proiezione foto/depth, filtro rumore/turni e budget adattivo. CI macOS/Xcode: build simulatore/test Debug e app iPhone Release senza firma. Dettagli e risultati finali in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
 
-Test fisico necessario su **iPhone 14 Pro**: ricompilare dalla branch aggiornata e provare ogni compagno. Per almeno 3 minuti muovere lentamente la camera; controllare passaggio acquisizione→esplorazione dopo 6 s, assenza di T-pose, età/gap camera e voce. Chiedere «cosa vedi?» più volte, anche con rete lenta: una sola osservazione in corso e camera sempre libera. Poi riscansione, dieci turni voce/rumori/interruzioni, Bluetooth/chiamata, background/ripresa e calibrazioni. Annotare iOS, commit/build, FPS camera/scena, massimi gap/update, latenza e termica. Non sono stati creati certificati, provisioning o upload TestFlight/App Store. Per TestFlight usare il proprio team, scheda App Store Connect, Product→Archive→Distribute App e verifica privacy/provider.
+Test fisico necessario su **iPhone 14 Pro**: ricompilare dalla branch aggiornata e provare ogni compagno. Ruotare attorno all’avatar fino all’esatto dietrofront; camminare solo dove sicuro. Per almeno 3 minuti muovere lentamente la camera; verificare guida e avatar nascosto fino alla conferma, assenza di T-pose, età/gap camera e voce. Chiedere «cosa vedi?» più volte, anche con rete lenta: una sola osservazione in corso e camera sempre libera. Poi riscansione, dieci turni voce/rumori/interruzioni, Bluetooth/chiamata, background/ripresa e calibrazioni. Annotare iOS, commit/build, FPS camera/scena, massimi gap/update, latenza e termica. Non sono stati creati certificati, provisioning o upload TestFlight/App Store. Per TestFlight usare il proprio team, scheda App Store Connect, Product→Archive→Distribute App e verifica privacy/provider.

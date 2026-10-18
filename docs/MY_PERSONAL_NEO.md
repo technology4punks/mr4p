@@ -1,4 +1,4 @@
-> **Stato corrente: revisione 4** — corrette conversione bind/posa iniziale, durata delle acquisizioni, conservazione dei buffer camera e notifiche audio. Uomo/donna/cane CC0 restano leggeri. Le sezioni sulle revisioni 1–3 sotto sono cronologia. Guida corrente: [ios/README.md](../ios/README.md); progetto futuro: [stanze salvate](SAVED_ROOMS_DESIGN.md). Le prove fisiche della nuova build su iPhone 14 Pro sono ancora necessarie.
+> **Stato corrente: revisione 5 · 0.1.2 / build 5** — guida iniziale prima dell’avatar, corpo vincolato all’asse verticale e clip originali con piedi coordinati. La voce mantiene il motore della R4. Le sezioni 1–4 sono cronologia; guida corrente in [ios/README.md](../ios/README.md). La qualità su iPhone fisico deve essere verificata.
 
 # My Personal Neo · app nativa iPhone
 
@@ -116,3 +116,16 @@ Diagnostica solo nei controlli: FPS scena/camera separati, formato camera richie
 [Report strutturato della revisione 4](validation/personal-neo/native-r4-validation.json). Nessun nuovo deploy Sites richiesto: questa consegna aggiorna il binario nativo e la documentazione.
 
 Per provare le correzioni è necessario **aggiornare `codex/my-personal-neo` e ricompilare/installare da Xcode**. Il sito/backend già pubblicato non aggiorna l’app installata; non è stato effettuato upload TestFlight. FPS, memoria residente, continuità audio/camera e termica sul 14 Pro restano da misurare con la nuova build.
+
+
+## Revisione 5 · animazioni originali e preparazione guidata
+
+Il test utente conferma voce migliorata ma postura/animazione ancora insoddisfacenti. Individuati due difetti distinti: quaternion `from/to` ambiguo nel dietrofront, capace di inclinare il corpo, e camminata manuale che non aggiornava i piedi indipendenti del rig sorgente. Ora il corpo usa esclusivamente yaw; le clip authored aggiornano tutte le articolazioni, incluse le traslazioni dei piedi. I test verificano segmenti anatomici reali e orientamento, oltre alla posa.
+
+Quaternius CC0: `Idle_Neutral`, `Walk`, `Wave`, `Interact` per uomo/donna; `Idle`, `Walk`, `Idle_2` per il cane. Dati retargeted al bind esatto, validato al caricamento; campioni 24 Hz, interpolazione e crossfade 250 ms. Nessuna clip di combattimento o prop, nessun nuovo DCC/runtime. USDZ invariati; dati movimento circa 1,80 MB complessivi, uno solo caricato. [Manifest](../ios/MyPersonalNeo/Resources/MotionManifest.json), [anteprima CPU delle mesh](validation/personal-neo/authored-motion-r5.png), non una cattura del telefono. Verifica offline di tutti i frame: trasformazioni rigide, coordinate finite e suole a quota zero. Contatto durante interpolazione e sul pavimento reale richiede comunque verifica fisica.
+
+Preparazione visibile **prima** dell’esperienza: camera e guida, avatar nascosto. Tracking normale, superficie orizzontale sufficientemente ampia e 1,5 s di stabilità rendono disponibile **Inserisci NEO**. Arredi classificati, superfici troppo piccole e ostacoli planari conosciuti bloccano l’appoggio. Budget massimo 30 s, riprova o annullamento; nessun inserimento automatico su timeout. Conferma esplicita, avatar e voce insieme, poi guida rimossa. Durante l’esperienza restano camera e avatar, controlli solo su richiesta. È verifica di un appoggio locale, non comprensione totale della stanza; mappe/foto non vengono salvate.
+
+Seguito: fermata su supporto scaduto, tentativo di nuova misura limitato a 1 s ogni 8 s quando necessario. La camera deve vedere un punto del pavimento coerente con la profondità per riattualizzare il supporto. Nessuna richiesta AI aggiunta. Motore vocale, soglie VAD e backend preservati. La seduta mantiene i piedi collegati agli stinchi; dimostrazioni/contatti precisi restano sperimentali e da calibrare.
+
+Validazione R5 in corso: build simulatore Debug, build iPhone Release senza firma e test core/rig/scansione. `npm run check`: lint/typecheck/build, bundle e **223 test passati**. Suite browser in corso. I dati hardware restano non disponibili; non è dichiarata perfezione o fluidità sul dispositivo prima di un nuovo test sul 14 Pro.

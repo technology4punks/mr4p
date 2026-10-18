@@ -2,10 +2,10 @@ name: My Personal Neo iOS
 on:
   push:
     branches: [codex/my-personal-neo]
-    paths: ['ios/**', 'scripts/native/**', '.github/workflows/personal-neo-ios.yml']
+    paths: ['ios/**', '!ios/**/*.md', 'scripts/native/**', '.github/workflows/personal-neo-ios.yml']
   pull_request:
     branches: [main]
-    paths: ['ios/**', 'scripts/native/**', '.github/workflows/personal-neo-ios.yml']
+    paths: ['ios/**', '!ios/**/*.md', 'scripts/native/**', '.github/workflows/personal-neo-ios.yml']
   workflow_dispatch:
 permissions:
   contents: read
