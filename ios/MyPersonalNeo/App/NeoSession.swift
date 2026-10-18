@@ -6,6 +6,9 @@ import AVFoundation
 @MainActor
 final class NeoSession: ObservableObject {
     @Published var active = false
+    @Published private(set) var starting = false
+    private var startID = UUID()
+    private var perceptionInFlight = false
     @Published var controlsVisible = false
     @Published var avatar = AvatarProfile(rawValue: UserDefaults.standard.string(forKey:"neo.avatar") ?? "") ?? .woman
     private var observedAt = Date.distantPast
@@ -47,22 +50,29 @@ final class NeoSession: ObservableObject {
         voice.onTool = { [weak self] name,args in guard let self else { return ["accepted":false,"reason":"Sessione chiusa."] }; return await self.tool(name,args) }
     }
     func start() async {
+        guard !starting, !active else {return}
+        starting=true; let id=UUID();startID=id
+        defer {if startID == id {starting=false}}
         let allowed = await AVCaptureDevice.requestAccess(for:.video)
-        guard UIApplication.shared.applicationState != .background else { return }
+        guard startID == id, UIApplication.shared.applicationState != .background else { return }
         guard allowed else { message = "Consenti la fotocamera nelle Impostazioni per avviare la scansione AR."; return }
         do {
-            try room.start(profile:avatar); UserDefaults.standard.set(avatar.rawValue,forKey:"neo.avatar")
+            try await room.start(profile:avatar)
+            guard startID == id, UIApplication.shared.applicationState != .background else {room.stop();return}
+            UserDefaults.standard.set(avatar.rawValue,forKey:"neo.avatar")
             active = true; controlsVisible = false; message = "Scansiona lentamente il pavimento: NEO apparirà davanti a te."
             voice.updateContext(["avatarKind":avatar.rawValue,"hasHands":avatar.isHuman])
             await voice.start(backend:backend)
-            if voice.state == .error { controlsVisible = true }
+            if startID == id, active, voice.state == .error { controlsVisible = true }
         }
-        catch { message = error.localizedDescription }
+        catch { if startID == id, !(error is CancellationError) {message = error.localizedDescription} }
     }
     func suspend() {
+        startID=UUID();starting=false
         setAssistedObservation(false)
         work?.cancel(); observationID = UUID(); busy = false; controlsVisible = false; showDetails = false
-        stopPerformance(); voice.stop(message:"App sospesa. Riprendi scansione e voce quando torni."); room.stop(); active = false
+        stopPerformance(); cancelCalibration(); piano=nil; pianoReady=false; objects=[]; observedAt = .distantPast
+        voice.stop(message:"App sospesa. Riprendi scansione e voce quando torni."); room.stop(); active = false
     }
     func startVoice() { Task { await voice.start(backend:backend) } }
     func look() { work?.cancel(); work = Task { _ = await inspect("Descrivi l’ambiente e gli oggetti con cui possiamo interagire.") } }
@@ -81,13 +91,17 @@ final class NeoSession: ObservableObject {
         }
     }
     private func inspect(_ question: String, interactive: Bool = true) async -> [String:Any] {
-        let id = UUID(); observationID = id; busy = true; message = "Osservo un fotogramma e lo collego alla geometria…"
-        defer { if observationID == id { busy = false } }
+        guard !perceptionInFlight else {return ["accepted":false,"reason":"Sto già osservando. Attendi il risultato: non serve una seconda foto."]}
+        let id = UUID(); observationID = id; perceptionInFlight=true; busy = true
+        message = "Osservo un fotogramma e lo collego alla geometria…"
+        defer {perceptionInFlight=false;if observationID == id {busy=false}}
         do {
-            let capture = try room.capture()
+            let capture = try await room.capture()
             let reply = try await backend.look(question:question,jpeg:capture.jpeg)
-            try Task.checkCancellation(); guard observationID == id, active, room.trackingNormal else { throw NeoFailure("Scansione cambiata: ripeti l’osservazione con tracking stabile.") }
-            objects = SceneFusion.locate(reply.objects ?? [],frame:capture.frame,orientation:capture.orientation,session:room.view.session)
+            try Task.checkCancellation()
+            guard observationID == id, active, room.trackingNormal, capture.epoch == room.spatialEpoch,
+                  ProcessInfo.processInfo.systemUptime-capture.capturedAt<30 else {throw NeoFailure("Osservazione superata o tracking cambiato: ripeti l’osservazione.")}
+            objects = SceneFusion.locate(reply.objects ?? [],snapshot:capture.snapshot)
             voice.updateContext(["objects":objects.map(\.summary),"pianoCalibrated":pianoReady,"tracking":room.trackingNormal])
             observedAt = Date()
             answer = reply.text; sources = reply.sources;  message = "Osservazione aggiornata · geometria e significato restano distinti"
@@ -159,7 +173,7 @@ final class NeoSession: ObservableObject {
                 stopPerformance();try room.walkNear(target);message="Mi avvicino sul pavimento misurato; mi fermo se il percorso non è libero."
             case "follow_user": room.followUser=true;room.stopWalking();message="Ti resto vicino se il pavimento misurato è libero."
             case "show_controls": controlsVisible=true;message="Controlli aperti. Doppio tocco con due dita per nasconderli."
-            case "point_at_object":guard room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};room.stopWalking();room.followUser=false;if !avatar.isHuman {room.lookToward(target);return ["accepted":true,"reason":"Il cane guarda l’oggetto; non possiede mani."]};let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
+            case "point_at_object":guard Date().timeIntervalSince(observedAt)<30, room.trackingNormal,let id=args["objectId"] as? String,let object=objects.first(where:{$0.id==id}),let target=object.position,room.rig.root.isEnabled else {throw NeoFailure("Oggetto non localizzato o avatar non posizionato. Osserva di nuovo e tocca il pavimento.")};room.stopWalking();room.followUser=false;if !avatar.isHuman {room.lookToward(target);return ["accepted":true,"reason":"Il cane guarda l’oggetto; non possiede mani."]};let origin=room.rig.root.position+[0,1.15,0],v=target-origin;room.rig.target=origin+simd_normalize(v)*min(0.55,simd_length(v));message="NEO indica "+object.observation.label
             case "demonstrate":guard avatar.isHuman || args["animation"] as? String == "wave" else {throw NeoFailure("Il cane non esegue dimostrazioni umane.")};guard let id=args["animation"] as? String,["wave","explain","judo_rei","judo_tai_sabaki"].contains(id),room.rig.root.isEnabled,room.trackingNormal,!room.rig.seated else {throw NeoFailure("Posiziona NEO e scegli una dimostrazione disponibile.")};demo(id)
             case "stop_demonstration":cancelCalibration();stopPerformance();room.stopWalking();room.followUser=false;room.rig.stop(stand:false)
             default:throw NeoFailure("Azione non disponibile.")

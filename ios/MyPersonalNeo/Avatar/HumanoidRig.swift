@@ -1,12 +1,15 @@
 import Foundation
 import RealityKit
 import simd
+import Combine
 
 @MainActor
 final class HumanoidRig {
     let root = Entity()
     private(set) var models: [ModelEntity] = []
     private var jointIndex: [String:Int] = [:]
+    private var animatedModels: [ModelEntity] = []
+    private var globalPose: [simd_float4x4] = []
     private var names: [String] = []
     private var parents: [Int?] = []
     private var rest: [Transform] = []
@@ -28,74 +31,107 @@ final class HumanoidRig {
     func load(_ profile: AvatarProfile = .woman) throws {
         guard let url = Bundle.main.url(forResource: profile.resource, withExtension: "usdz") else { throw NeoFailure("Modello umanoide assente dal bundle.") }
         let entity = try Entity.load(contentsOf: url)
-        models.removeAll(); root.children.removeAll(); root.addChild(entity); self.profile = profile
+        try install(entity, profile: profile)
+    }
+    func loadAsync(_ profile: AvatarProfile = .woman) async throws {
+        guard let url = Bundle.main.url(forResource: profile.resource, withExtension: "usdz") else { throw NeoFailure("Modello umanoide assente dal bundle.") }
+        guard let entity = try await Entity.loadAsync(contentsOf: url).values.first(where: { _ in true }) else { throw NeoFailure("Caricamento avatar interrotto.") }
+        try Task.checkCancellation()
+        try install(entity, profile: profile)
+    }
+    private func install(_ entity: Entity, profile: AvatarProfile) throws {
+        var importedModels: [ModelEntity] = []
         func collect(_ node: Entity) {
-            if let model = node as? ModelEntity, !model.jointNames.isEmpty { models.append(model) }
+            if let model = node as? ModelEntity, !model.jointNames.isEmpty { importedModels.append(model) }
             node.children.forEach { collect($0) }
         }
         collect(entity)
-        guard let first = models.first, first.jointNames.count >= 20, first.jointTransforms.count == first.jointNames.count else { throw NeoFailure("Scheletro umanoide non disponibile.") }
+        guard let first = importedModels.first, first.jointNames.count >= 20, first.jointTransforms.count == first.jointNames.count else { throw NeoFailure("Scheletro umanoide non disponibile.") }
+        models=importedModels;root.children.removeAll();root.addChild(entity);self.profile=profile
         names = first.jointNames; rest = first.jointTransforms; pose = rest
-        jointIndex=Dictionary(uniqueKeysWithValues:names.enumerated().map { ($0.element.split(separator:"/").last.map(String.init) ?? $0.element,$0.offset) })
+        let importedNames=Dictionary(uniqueKeysWithValues:names.enumerated().map { ($0.element.split(separator:"/").last.map(String.init) ?? $0.element,$0.offset) })
+        jointIndex=importedNames
+        for (semantic, source) in profile.isHuman ? Self.humanAliases : Self.dogAliases { jointIndex[semantic]=importedNames[source] }
+        animatedModels=models.filter { $0.jointNames == names }
+        globalPose=Array(repeating: matrix_identity_float4x4, count: names.count)
         parents = names.map { name in
             let parts = name.split(separator: "/").dropLast()
             return parts.isEmpty ? nil : names.firstIndex(of: parts.joined(separator: "/"))
         }
-        if let hip = index("thighL") { seatedHipHeight = matrices()[hip].columns.3.y - 0.04 }
+        updateHierarchy()
+        if let hip = index("thighL") { seatedHipHeight = globalPose[hip].columns.3.y - 0.04 }
         relaxed = rest
         for side in profile.isHuman ? ["L", "R"] : [] {
             if let arm = index("upper_arm" + side), let elbow = index("forearm" + side) {
-                relaxed[arm].rotation = simd_quatf(from: simd_normalize(rest[elbow].translation), to: [0,-1,0])
+                let direction=rest[elbow].translation
+                if finite(direction), simd_length_squared(direction)>0.000001 { relaxed[arm].rotation = safe(simd_quatf(from: simd_normalize(direction), to: [0,-1,0]), fallback:rest[arm].rotation) }
             }
         }
-        pose = relaxed; stop()
+        pose = relaxed; time=0; walkAmount=0; gaze=nil; talking=false; stop()
+        // Bind geometry is a T pose. Apply the relaxed skin immediately, even before
+        // AR tracking becomes normal or the first scene-update callback arrives.
+        applyPose()
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
     func stop(stand: Bool = true) { demo = nil; target = nil; smoothedTarget = nil; if stand { seated = false } }
     private static let humanAliases=["thighL":"UpperLeg_L","thighR":"UpperLeg_R","shinL":"LowerLeg_L","shinR":"LowerLeg_R","footL":"Foot_L","footR":"Foot_R","spine002":"Torso","spine003":"Chest","head":"Head","upper_armL":"UpperArm_L","upper_armR":"UpperArm_R","forearmL":"LowerArm_L","forearmR":"LowerArm_R","handL":"Wrist_L","handR":"Wrist_R","f_index02L":"Index3_L","f_index02R":"Index3_R"]
     private static let dogAliases=["head":"Head","spine003":"Torso3","spine002":"Torso2","thighL":"BackUpperLeg_L","thighR":"BackUpperLeg_R","shinL":"BackLowerLeg_L","shinR":"BackLowerLeg_R"]
     private func index(_ suffix: String) -> Int? {
-        return jointIndex[(profile?.isHuman == false ? Self.dogAliases : Self.humanAliases)[suffix] ?? suffix]
+        jointIndex[suffix]
     }
     private func rotate(_ name: String, angle: Float, axis: SIMD3<Float> = [1,0,0]) {
         guard let i = index(name) else { return }
-        pose[i].rotation = relaxed[i].rotation * simd_quatf(angle: angle, axis: axis)
+        guard angle.isFinite else { return }
+        pose[i].rotation = safe(relaxed[i].rotation * simd_quatf(angle: angle, axis: axis), fallback:relaxed[i].rotation)
     }
-    private func matrices() -> [simd_float4x4] {
-        var values = Array(repeating: matrix_identity_float4x4, count: pose.count)
-        for i in pose.indices { values[i] = (parents[i].map { values[$0] } ?? matrix_identity_float4x4) * pose[i].matrix }
-        return values
+    private func updateHierarchy() {
+        for i in pose.indices { globalPose[i] = (parents[i].map { globalPose[$0] } ?? matrix_identity_float4x4) * pose[i].matrix }
+    }
+    private func finite(_ value: SIMD3<Float>) -> Bool { value.x.isFinite && value.y.isFinite && value.z.isFinite }
+    private func safe(_ value: simd_quatf, fallback: simd_quatf) -> simd_quatf {
+        let v=value.vector
+        guard v.x.isFinite, v.y.isFinite, v.z.isFinite, v.w.isFinite, simd_length_squared(v).isFinite, simd_length_squared(v)>0.000001 else { return fallback }
+        return simd_normalize(value)
+    }
+    private func applyPose() {
+        for model in animatedModels { model.jointTransforms = pose }
     }
     private func reach(world: SIMD3<Float>, right: Bool) {
         let side = right ? "R" : "L"
         guard let tip = index("f_index02" + side), let first = models.first else { return }
+        guard finite(world) else { return }
         let target = first.convert(position: world, from: nil)
+        guard finite(target) else { return }
+        // Six bounded CCD steps, using one reusable hierarchy buffer.
         for _ in 0..<2 {
             for name in ["hand", "forearm", "upper_arm"] {
                 guard let joint = index(name + side) else { continue }
-                let globals = matrices(), origin = SIMD3<Float>(globals[joint].columns.3.x, globals[joint].columns.3.y, globals[joint].columns.3.z)
-                let end = SIMD3<Float>(globals[tip].columns.3.x, globals[tip].columns.3.y, globals[tip].columns.3.z)
+                updateHierarchy()
+                let origin = SIMD3<Float>(globalPose[joint].columns.3.x, globalPose[joint].columns.3.y, globalPose[joint].columns.3.z)
+                let end = SIMD3<Float>(globalPose[tip].columns.3.x, globalPose[tip].columns.3.y, globalPose[tip].columns.3.z)
                 guard simd_length(end - origin) > 0.001, simd_length(target - origin) > 0.001 else { continue }
                 let delta = simd_quatf(from: simd_normalize(end-origin), to: simd_normalize(target-origin))
-                let parent = parents[joint].map { Transform(matrix: globals[$0]).rotation } ?? simd_quatf(angle: 0, axis: [0,1,0])
+                let parent = parents[joint].map { Transform(matrix: globalPose[$0]).rotation } ?? simd_quatf(angle: 0, axis: [0,1,0])
                 let limited = simd_slerp(simd_quatf(angle: 0, axis: [0,1,0]), delta, 0.45)
-                pose[joint].rotation = simd_normalize(parent.inverse * limited * parent * pose[joint].rotation)
+                pose[joint].rotation = safe(parent.inverse * limited * parent * pose[joint].rotation, fallback:pose[joint].rotation)
             }
         }
     }
-    private func updateDog() {
-        let phase=sin(time*6.5)*min(1,walkAmount)
+    private func updateDog(walking: Float) {
+        let phase=sin(time*6.5)*min(1,walking)
         rotate("FrontUpperLeg_L",angle:phase*0.35);rotate("FrontUpperLeg_R",angle:-phase*0.35)
         rotate("thighL",angle:-phase*0.3);rotate("thighR",angle:phase*0.3)
         rotate("FrontLowerLeg_L",angle:max(0,-phase)*0.3);rotate("FrontLowerLeg_R",angle:max(0,phase)*0.3)
         rotate("Tail1",angle:sin(time*(talking ? 6 : 2.5))*0.3,axis:[0,1,0])
         rotate("spine003",angle:sin(time*1.5)*0.01)
     }
-    func update(delta: Float) {
-        time += min(0.05, delta); pose = relaxed
+    func update(delta: Float, spatialTracking: Bool = true) {
+        guard delta.isFinite, delta>0 else { return }
+        let elapsed=min(0.05,delta), walking=spatialTracking && walkAmount.isFinite ? max(0,walkAmount) : 0
+        time += elapsed; pose = relaxed
         guard !pose.isEmpty else { return }
         if profile?.isHuman == false {
-            updateDog()
+            updateDog(walking:walking)
         } else if seated {
             rotate("thighL", angle: -1.35); rotate("thighR", angle: -1.35)
             rotate("shinL", angle: 1.30); rotate("shinR", angle: 1.30)
@@ -106,10 +142,10 @@ final class HumanoidRig {
                 rotate("forearmR", angle: sin(time * 2) * 0.12 - 0.18)
                 rotate("jaw", angle: max(0,sin(time*13)) * 0.045)
             }
-            let stride = sin(time * 6.5) * min(1,walkAmount)
+            let stride = sin(time * 6.5) * min(1,walking)
             rotate("thighL", angle: stride * 0.36); rotate("thighR", angle: -stride * 0.36)
             rotate("shinL", angle: max(0,-stride) * 0.5); rotate("shinR", angle: max(0,stride) * 0.5)
-            if walkAmount > 0.05 { rotate("forearmL", angle: -stride*0.18-0.10); rotate("forearmR", angle: stride*0.18-0.10) }
+            if walking > 0.05 { rotate("forearmL", angle: -stride*0.18-0.10); rotate("forearmR", angle: stride*0.18-0.10) }
         }
         if profile?.isHuman != false, let name = demo {
             let t = time - demoStarted
@@ -124,19 +160,20 @@ final class HumanoidRig {
             default: rotate("forearmR", angle: sin(t*2)*0.2-0.3); if t > 5 { demo = nil }
             }
         }
-        if let gaze, let head = index("head"), let model = models.first {
-            let local = model.convert(position: gaze, from: nil), globals = matrices()
-            let p = globals[head].columns.3, direction = local - SIMD3<Float>(p.x,p.y,p.z)
+        if spatialTracking, let gaze, finite(gaze), let head = index("head"), let model = models.first {
+            let local = model.convert(position: gaze, from: nil)
+            updateHierarchy()
+            let p = globalPose[head].columns.3, direction = local - SIMD3<Float>(p.x,p.y,p.z)
             let yaw = max(-0.7,min(0.7,atan2(direction.x,direction.z)))
             let pitch = max(-0.3,min(0.3,-atan2(direction.y,max(0.1,simd_length(SIMD2<Float>(direction.x,direction.z))))))
-            pose[head].rotation = simd_quatf(angle:yaw,axis:[0,1,0]) * simd_quatf(angle:pitch,axis:[1,0,0])
+            pose[head].rotation = safe(simd_quatf(angle:yaw,axis:[0,1,0]) * simd_quatf(angle:pitch,axis:[1,0,0]), fallback:relaxed[head].rotation)
         }
-        if profile?.isHuman != false, let target {
+        if spatialTracking, profile?.isHuman != false, let target, finite(target) {
             let start = smoothedTarget ?? target
-            let point = start + (target-start) * min(1,delta*14)
+            let point = start + (target-start) * min(1,elapsed*14)
             smoothedTarget = point
             reach(world: point, right: rightHand)
         } else { smoothedTarget = nil }
-        for model in models where model.jointNames == names { model.jointTransforms = pose }
+        applyPose()
     }
 }

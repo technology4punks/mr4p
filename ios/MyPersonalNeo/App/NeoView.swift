@@ -33,7 +33,7 @@ struct NeoView: View {
                         Image(uiImage:image).resizable().scaledToFit().frame(maxHeight:220).clipShape(RoundedRectangle(cornerRadius:24))
                     }
                     Text("Scansiona il pavimento: NEO si posiziona davanti a te. Parlagli liberamente, anche mentre risponde.").foregroundStyle(.secondary)
-                    Button { Task { await neo.start() } } label: { Label("Entra con NEO",systemImage:"sparkles").frame(maxWidth:.infinity).padding(.vertical,10) }.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black)
+                    Button { Task { await neo.start() } } label: { Label(neo.starting ? "Preparo NEO…" : "Entra con NEO",systemImage:"sparkles").frame(maxWidth:.infinity).padding(.vertical,10) }.buttonStyle(.borderedProminent).tint(mint).foregroundStyle(.black).disabled(neo.starting)
                     Label("Doppio tocco con due dita per i controlli",systemImage:"hand.tap").font(.callout).foregroundStyle(mint)
                     Text("Durante l’esperienza lo schermo mostra solo camera e avatar. Per i controlli puoi anche dire “apri i controlli”. Rimani fermo mentre scansioni, senza seguire l’avatar.").font(.caption).foregroundStyle(.secondary)
                     Text("Entra attiva camera e microfono. L’audio viene inviato a OpenAI; singole foto solo quando chiedi di osservare o abiliti la modalità assistita. Non archiviamo foto o dialoghi nel backend. Puoi sospendere tutto dai controlli o portando l’app in background.").font(.caption).foregroundStyle(.secondary)
@@ -55,10 +55,12 @@ struct NeoView: View {
                 }
                 Section("Spazio") {
                     Text(neo.room.status).font(.caption)
-                    Text(String(format:"%.0f FPS · animazione %.0f Hz",neo.room.performance.fps,neo.room.performance.animationHz)).font(.caption.monospacedDigit())
-                    Toggle("Scansione mesh dettagliata",isOn:Binding(get:{neo.room.detailedMesh},set:{neo.room.setDetailedMesh($0)})).disabled(!neo.room.supportsLiDAR)
-                    Text("La modalità leggera usa superfici e profondità LiDAR. La mesh dettagliata aumenta il carico e resta opzionale.").font(.caption)
-                    Text(neo.room.supportsLiDAR ? "LiDAR depth · \(neo.room.meshCount) mesh opzionali" : "ARKit · senza LiDAR").font(.caption)
+                    Text(String(format:"Scena %.0f FPS · camera %.0f FPS (richiesti %d) · rig %.0f Hz",neo.room.performance.fps,neo.room.cameraCadence.fps,neo.room.cameraTargetFPS,neo.room.performance.animationHz)).font(.caption.monospacedDigit())
+                    Text(neo.room.sensingLabel).font(.caption)
+                    Text(String(format:"Età frame %.2f s · gap camera massimo %.0f ms · update CPU massimo %.1f ms",neo.room.cameraAge,neo.room.cameraCadence.largestGap*1000,neo.room.longestUpdateMS)).font(.caption.monospacedDigit())
+                    Button("Riscansiona superfici · 6 secondi") {neo.room.rescan()}.disabled(neo.busy)
+                    Text("Dopo l’acquisizione iniziale la scansione continua è sospesa. Le osservazioni richiedono una breve misura; i piani conservati non rilevano ostacoli mobili. NEO smette di camminare dopo 20 s senza nuove misure.").font(.caption)
+                    Text("\(neo.room.planeCount) superfici in memoria · \(neo.room.supportsLiDAR ? "profondità LiDAR disponibile" : "senza LiDAR")").font(.caption)
                     Toggle("NEO mi resta vicino",isOn:Binding(get:{neo.room.followUser},set:{neo.room.followUser=$0;neo.room.stopWalking()}))
                     Button("Osserva l’ambiente") {neo.look();neo.controlsVisible=false}.disabled(neo.busy || !neo.room.trackingNormal)
                     Toggle("Osservazione assistita · foto ogni 15 s",isOn:Binding(get:{neo.assistedObservation},set:{neo.setAssistedObservation($0)}))

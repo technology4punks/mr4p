@@ -44,6 +44,8 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     private var cancelled = Set<String>()
     private var observer: NSObjectProtocol?
     private var routeObserver: NSObjectProtocol?
+    private var routeUpdate: Task<Void,Never>?
+    private var lastAudioRoute: AudioRouteSnapshot?
     override init() {
         super.init()
         observer = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
@@ -58,18 +60,41 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
                 }
             }
         }
-        routeObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
+        routeObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
+            let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt ?? 0
             Task { @MainActor in
-                guard let self, self.desiredRunning, !self.interruptedBySystem else { return }
-                do { try self.configureAudio(); self.track?.isEnabled = !self.muted }
-                catch { self.recover() }
+                guard let self, let reason = AVAudioSession.RouteChangeReason(rawValue:raw),
+                      AudioRoutePolicy.observes(reason), self.desiredRunning, !self.interruptedBySystem else { return }
+                self.scheduleRouteRefresh()
             }
+        }
+    }
+    private func scheduleRouteRefresh() {
+        routeUpdate?.cancel()
+        let run = generation
+        routeUpdate = Task { [weak self] in
+            do { try await Task.sleep(for:.milliseconds(300)) } catch { return }
+            guard let self else { return }
+            self.routeUpdate=nil
+            guard self.generation == run, self.desiredRunning, !self.interruptedBySystem else { return }
+            let current = AudioRouteSnapshot(AVAudioSession.sharedInstance().currentRoute)
+            guard AudioRoutePolicy.changed(from:self.lastAudioRoute,to:current) else { return }
+            self.lastAudioRoute=current
+            // WebRTC handles device changes. Preserve the session and its duplex track;
+            // a route notification is never a reason to reactivate or reconnect audio.
+            if let track = self.track, track.isEnabled != !self.muted { track.isEnabled = !self.muted }
         }
     }
     private func configureAudio() throws {
         let audio = AVAudioSession.sharedInstance()
-        try audio.setCategory(.playAndRecord,mode:.voiceChat,options:[.defaultToSpeaker,.allowBluetooth])
+        let options: AVAudioSession.CategoryOptions = [.defaultToSpeaker,.allowBluetooth]
+        if audio.category != .playAndRecord || audio.mode != .voiceChat || audio.categoryOptions != options {
+            try audio.setCategory(.playAndRecord,mode:.voiceChat,options:options)
+        }
+        // Called only by explicit start or its interruption/network recovery path.
+        // In particular, route notifications must not call setActive again.
         try audio.setActive(true)
+        lastAudioRoute=AudioRouteSnapshot(audio.currentRoute)
     }
     private func recover() {
         guard desiredRunning, !interruptedBySystem, let backend, recovery == nil else { return }
@@ -268,6 +293,7 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
         closeTransport(); heard="";said="";context=[:];muted=false; state = .off; self.message=message;changed?()
     }
     private func closeTransport() {
+        routeUpdate?.cancel();routeUpdate=nil;lastAudioRoute=nil
         generation = UUID(); timeout?.cancel();health?.cancel();health=nil; transcriptTimers.values.forEach {$0.cancel()};transcriptTimers.removeAll();evidence.removeAll();lastBytes=nil;stalledSince=nil; jobs.values.forEach { $0.cancel() }; jobs.removeAll(); channel?.close(); channel = nil; pc?.close(); pc = nil; track?.isEnabled = false; track = nil
         gate.reset(); calls.removeAll(); answered.removeAll(); cancelled.removeAll(); responseID = nil; pendingUser = false; pendingTool = false; speaking = false; greeted = false;pendingAnnouncement=nil
     }

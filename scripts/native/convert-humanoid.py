@@ -37,13 +37,52 @@ def build(asset,id,height,url,original):
  joints=sorted(originalJoints,key=depth);lookup={j:i for i,j in enumerate(joints)};remap=np.array([lookup[j] for j in originalJoints])
  def jp(j):return (jp(parents[j])+'/' if parents.get(j) in lookup else '')+re.sub('[^a-zA-Z0-9_]','_',g['nodes'][j]['name'])
  paths=[jp(j) for j in joints];bind=[]
+ # glTF node TRS may contain the first animation pose (the kits ship with a
+ # combat pose), while mesh vertices remain in bind/T pose. Using node origins
+ # as bind pivots bends the wrong parts of the skin and leaves arms outstretched.
+ skin=g['skins'][0];ibm=accessor(skin['inverseBindMatrices']).reshape((-1,4,4)).transpose((0,2,1))
+ bindMesh=wm(parts[0][0]);sourceBind={j:bindMesh@np.linalg.inv(ibm[i]) for i,j in enumerate(originalJoints)}
+ assert all(np.allclose(wm(node),bindMesh,atol=1e-5) and g['nodes'][node]['skin']==0 for node,_,_ in parts), 'Meshes must share one bind space'
  for j in joints:
-  b=np.eye(4);b[:3,3]=(N@wm(j))[:3,3];bind.append(b)
+  # Keep world-aligned axes for the small local Swift rig, with anatomically
+  # correct bind pivots from IBM. Identity rest rotation leaves vertices intact.
+  b=np.eye(4);b[:3,3]=(N@sourceBind[j])[:3,3];bind.append(b)
  rest=[np.linalg.inv(bind[lookup[parents[j]]])@b if parents.get(j) in lookup else b for j,b in zip(joints,bind)]
  positions=[];normals=[];indices=[];uv=[];ji=[];jw=[];count=0
  for node,p,v in parts:
   a=p['attributes'];positions.append((N@np.c_[v,np.ones(len(v))].T).T[:,:3]);n=accessor(a['NORMAL'])@np.linalg.inv((N@wm(node))[:3,:3]);n/=np.linalg.norm(n,axis=1)[:,None];normals.append(n);indices.extend((accessor(p['indices']).flatten()+count).tolist());count+=len(v)
   mat=p.get('material',0);uv.extend([[(mat%8+0.5)/8,(mat//8+0.5)/8]]*len(v));ji.extend(remap[accessor(a['JOINTS_0']).astype(np.int32)].flatten().tolist());w=accessor(a['WEIGHTS_0']);assert np.isfinite(w).all() and (w.sum(1)>0).all();w/=w.sum(1)[:,None];jw.extend(w.flatten().tolist())
+ # Validate the actual weighted vertices, not merely a changed quaternion. The
+ # initial relaxed arm pose must lower both hand meshes from their source T pose.
+ handDrops=[]
+ if asset!='NeoDog':
+  posed=[m.copy() for m in rest]
+  def from_to(a,b):
+   a=a/np.linalg.norm(a);b=b/np.linalg.norm(b);v=np.cross(a,b);c=np.dot(a,b)
+   if c>1-1e-8:return np.eye(3)
+   assert c>-1+1e-7
+   k=np.array([[0,-v[2],v[1]],[v[2],0,-v[0]],[-v[1],v[0],0]])
+   return np.eye(3)+k+k@k/(1+c)
+  byName={path.split('/')[-1]:i for i,path in enumerate(paths)}
+  for side in ['L','R']:
+   arm=byName['UpperArm_'+side];elbow=byName['LowerArm_'+side]
+   posed[arm][:3,:3]=from_to(rest[elbow][:3,3],np.array([0,-1,0]))
+   # A bind-pose arm is horizontal. This fails for the previous animated-node
+   # origins, which placed the elbow ~17cm below the shoulder.
+   assert abs(bind[elbow][1,3]-bind[arm][1,3])<0.015
+  globalPose=[]
+  for j,m in zip(joints,posed):globalPose.append((globalPose[lookup[parents[j]]] if parents.get(j) in lookup else np.eye(4))@m)
+  points=np.concatenate(positions);jix=np.array(ji).reshape((-1,4));weights=np.array(jw).reshape((-1,4))
+  skinMatrices=np.array(globalPose)@np.linalg.inv(np.array(bind))
+  transformed=np.einsum('nkij,nj->nki',skinMatrices[jix],np.c_[points,np.ones(len(points))])[:,:,:3]
+  relaxedPoints=(transformed*weights[:,:,None]).sum(1)
+  assert np.isfinite(relaxedPoints).all()
+  for side in ['L','R']:
+   hand=byName['Wrist_'+side];descendants=[i for i,path in enumerate(paths) if path==paths[hand] or path.startswith(paths[hand]+'/')]
+   handVertices=(np.isin(jix,descendants)*weights).sum(1)>.5
+   assert handVertices.sum()>5
+   drop=float(np.mean(points[handVertices,1]-relaxedPoints[handVertices,1]));handDrops.append(drop)
+   assert drop>.25, 'The weighted hand skin must lower at least 25cm from bind pose'
  with tempfile.TemporaryDirectory() as temp:
   temp=pathlib.Path(temp);image=Image.new('RGB',(64,64))
   for i,m in enumerate(g['materials']):
@@ -62,7 +101,7 @@ def build(asset,id,height,url,original):
   reader=UsdShade.Shader.Define(stage,'/Neo/Palette/UV');reader.CreateIdAttr('UsdPrimvarReader_float2');reader.CreateInput('varname',Sdf.ValueTypeNames.Token).Set('st')
   tex=UsdShade.Shader.Define(stage,'/Neo/Palette/color');tex.CreateIdAttr('UsdUVTexture');tex.CreateInput('file',Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath('palette.png'));tex.CreateInput('st',Sdf.ValueTypeNames.Float2).ConnectToSource(reader.ConnectableAPI(),'result');tex.CreateInput('sourceColorSpace',Sdf.ValueTypeNames.Token).Set('sRGB');tex.CreateOutput('rgb',Sdf.ValueTypeNames.Float3);shader.CreateInput('diffuseColor',Sdf.ValueTypeNames.Color3f).ConnectToSource(tex.ConnectableAPI(),'rgb');material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(),'surface');UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
   stage.GetRootLayer().Save();target=OUT/(asset+'.usdz');target.unlink(missing_ok=True);assert UsdUtils.CreateNewUsdzPackage(Sdf.AssetPath(str(temp/(asset+'.usdc'))),str(target));assert Usd.Stage.Open(str(target))
- return dict(asset=asset+'.usdz',person=original,source=url,download='https://drive.google.com/uc?export=download&id='+id,author='Quaternius',license='CC0-1.0',sourceSha256=digest(source),sha256=digest(target),joints=len(joints),triangles=len(indices)//3,skinnedMeshes=1,materials=1,textures=1,maxTexture=64,bytes=target.stat().st_size,heightMeters=height,modifications='Only skinned body, no weapon/accessory props. One merged mesh/material; 64px sRGB palette. World-aligned rest axes and topological joints, skin remapped. No source combat clips included; local Swift gestures/locomotion.')
+ return dict(asset=asset+'.usdz',person=original,source=url,download='https://drive.google.com/uc?export=download&id='+id,author='Quaternius',license='CC0-1.0',sourceSha256=digest(source),sha256=digest(target),joints=len(joints),triangles=len(indices)//3,skinnedMeshes=1,materials=1,textures=1,maxTexture=64,bytes=target.stat().st_size,heightMeters=height,minRelaxedHandDropMeters=min(handDrops) if handDrops else None,modifications='Only skinned body, no weapon/accessory props. One merged mesh/material; 64px sRGB palette. Bind pivots recovered from glTF inverseBindMatrices (not animated node TRS), world-aligned rest axes and topological joints; skin remapped. Weighted hand vertices verified to lower from T pose. No source combat clips included; local Swift gestures/locomotion.')
 OUT.mkdir(exist_ok=True,parents=True);manifest=[build(*s) for s in SPECS];(OUT/'AvatarManifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 licenses=[get(name,id).read_text() for name,id in [('Men-CC0.txt','1TTvylHa1CsiJuHFWWiv6PFGhLM-aAH5z'),('Women-CC0.txt','1lIFL16xEpoPbr0j_HUATgmcEnAmYoIK2'),('Animals-CC0.txt','1F2uy8T2fRpdc6gZ4mnS02_C2E63WvKtn')]]
 (OUT/'Quaternius-CC0.txt').write_text('\n'.join(line.rstrip() for line in ('\n\n'.join(licenses)+'\nSources:\n'+'\n'.join(s[3] for s in SPECS)).splitlines())+'\n');print(json.dumps(manifest,indent=2))
