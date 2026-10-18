@@ -1,0 +1,203 @@
+{
+  "revision": 5,
+  "version": "0.1.2",
+  "build": 5,
+  "sourceCommit": "979ff2fdb0de87b4a8f3b2affdf98864b5053184",
+  "dateUTC": "2026-10-18T16:44:31.270855+00:00",
+  "native": {
+    "status": "passed",
+    "expectedTests": 33,
+    "builds": [
+      "simulator Debug",
+      "iPhone Release unsigned"
+    ],
+    "runURL": "https://github.com/technology4punks/mr4p/actions/runs/39145719716",
+    "testsPassed": 33,
+    "testsFailed": 0,
+    "xcode": "16.4",
+    "simulatorBuild": "passed",
+    "unsignedIPhoneReleaseBuild": "passed",
+    "xctestSeconds": 4.649,
+    "stanceWalkingTestSeconds": 1.275
+  },
+  "web": {
+    "check": "passed",
+    "testsPassed": 223,
+    "browserInitialPassed": 32,
+    "browserInitialFailed": 1,
+    "browserInitialTotal": 33,
+    "browserInitialFailure": "Android software renderer timed out waiting for a stable button (cumulative V4 visit), unchanged product web code.",
+    "browserTargetedRetryPassed": 1,
+    "browserDistinctVerified": 33,
+    "singleGreenFullRun": false
+  },
+  "motionAssets": [
+    {
+      "asset": "NeoMan",
+      "nominalWalkSpeedMetersPerSecond": 1.2566574718420556,
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "sourceSha256": "6c89fbb31b96c1a63ad94e3dee0942bd7b34bc789a5d39fd6a6a1738a9214fb3",
+      "motionFile": "NeoMan.motion.json",
+      "bytes": 521905,
+      "sha256": "790e2f6aecaa583b9739e01cc55881f8ce900ba8575da788be0ae315a0d66e3d",
+      "clips": [
+        {
+          "clip": "idle",
+          "source": "Idle_Neutral",
+          "frames": 41,
+          "seconds": 1.6666666269302368,
+          "maxExtentMeters": 1.7127314544216317,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "walk",
+          "source": "Walk",
+          "frames": 33,
+          "seconds": 1.3333333730697632,
+          "maxExtentMeters": 1.7178492855283696,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "wave",
+          "source": "Wave",
+          "frames": 41,
+          "seconds": 1.6666666269302368,
+          "maxExtentMeters": 1.777833239186842,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "interact",
+          "source": "Interact",
+          "frames": 31,
+          "seconds": 1.2666666507720947,
+          "maxExtentMeters": 1.698813085846519,
+          "maxSoleGroundErrorMeters": 0.0
+        }
+      ]
+    },
+    {
+      "asset": "NeoWoman",
+      "nominalWalkSpeedMetersPerSecond": 0.9655477913118978,
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "sourceSha256": "937d5c8d08fb5570f6a4e1dd79a3878335444d175aae3b0e9e2babdac36a17f7",
+      "motionFile": "NeoWoman.motion.json",
+      "bytes": 656240,
+      "sha256": "b008924b8bcdeead8faa817e8be3c5b5fce7ab8a7a709bc42cda609f34864abf",
+      "clips": [
+        {
+          "clip": "idle",
+          "source": "Idle_Neutral",
+          "frames": 51,
+          "seconds": 2.0833332538604736,
+          "maxExtentMeters": 1.6537679910122705,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "walk",
+          "source": "Walk",
+          "frames": 41,
+          "seconds": 1.6666666269302368,
+          "maxExtentMeters": 1.6492361389455126,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "wave",
+          "source": "Wave",
+          "frames": 51,
+          "seconds": 2.0833332538604736,
+          "maxExtentMeters": 1.7139383864598816,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "interact",
+          "source": "Interact",
+          "frames": 39,
+          "seconds": 1.5833333730697632,
+          "maxExtentMeters": 1.6377527302649362,
+          "maxSoleGroundErrorMeters": 0.0
+        }
+      ]
+    },
+    {
+      "asset": "NeoDog",
+      "nominalWalkSpeedMetersPerSecond": 0.5068672973864163,
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "sourceSha256": "3236979b94a840eb72d9ce091b1361da327a96f5ce068e666680297480f30f6b",
+      "motionFile": "NeoDog.motion.json",
+      "bytes": 626814,
+      "sha256": "f4af947799bcb5f753d088335129f740011969035140c07f87310c9f91ea179a",
+      "clips": [
+        {
+          "clip": "idle",
+          "source": "Idle",
+          "frames": 81,
+          "seconds": 3.3333332538604736,
+          "maxExtentMeters": 0.8081500135592918,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "walk",
+          "source": "Walk",
+          "frames": 27,
+          "seconds": 1.0666667222976685,
+          "maxExtentMeters": 0.813009464873555,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "wave",
+          "source": "Idle_2",
+          "frames": 81,
+          "seconds": 3.3333332538604736,
+          "maxExtentMeters": 0.8084417776808087,
+          "maxSoleGroundErrorMeters": 0.0
+        },
+        {
+          "clip": "interact",
+          "source": "Idle_2",
+          "frames": 81,
+          "seconds": 3.3333332538604736,
+          "maxExtentMeters": 0.8084417776808087,
+          "maxSoleGroundErrorMeters": 0.0
+        }
+      ]
+    }
+  ],
+  "motionDataTotalBytes": 1804959,
+  "geometry": {
+    "authoredFrames": "finite rigid transforms, unit scales, CPU skinning verified",
+    "minimumSoleHeightAtBakedFramesMeters": 0,
+    "cpuPreview": "docs/validation/personal-neo/authored-motion-r5.png",
+    "previewIsDeviceCapture": false,
+    "stanceStabilization": "Bounded two-bone IK locks world X/Z during low backward stance; releases on lift, tracking loss or unreachable target; independent feet remain attached through crossfades."
+  },
+  "setup": {
+    "maximumScanSeconds": 30,
+    "stabilitySeconds": 1.5,
+    "humanFootprintMeters": [
+      0.6,
+      0.6
+    ],
+    "dogFootprintMeters": [
+      0.9,
+      0.9
+    ],
+    "explicitAvatarPlacement": true,
+    "conversationStartsAfterPlacement": true,
+    "newPhotoUploadsDuringSetup": false,
+    "savedRoomsEnabled": false
+  },
+  "hardware": {
+    "iPhone14ProTested": false,
+    "actualFPS": null,
+    "thermal": null,
+    "realFloorAlignmentValidated": false,
+    "perfectAvatarBehaviorCertified": false
+  },
+  "distribution": {
+    "testFlightUploaded": false,
+    "installedAppUpdate": "Pull codex/my-personal-neo and run Release in Xcode with the developer team."
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "/models/personal-neo/NeoSofia.jpg": {
+    "status": 200,
+    "bytes": 13480
+  },
+  "/models/personal-neo/LICENSE.txt": {
+    "status": 200,
+    "bytes": 1066
+  },
+  "/": {
+    "status": 200,
+    "bytes": 7936
+  },
+  "/api/control-room/experiences": {
+    "status": 401,
+    "bytes": 116
+  },
+  "token": {
+    "status": 200,
+    "ephemeralPresent": true,
+    "hasExpiry": true
+  },
+  "pageStatus": 200,
+  "jsErrors": []
+}

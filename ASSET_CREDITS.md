@@ -51,3 +51,16 @@ Non sono stati scaricati nuovi asset esterni per la V4: avatar e materiali/model
 ## Riordino spaziale · 13 ottobre 2026
 
 Nessun asset esterno aggiunto. Pianta, lotti e percorsi sono originali e deterministici; le geometrie instanziate, i materiali PBR e gli asset locali già attribuiti sono riutilizzati. [Documentazione della pianta](docs/CITY_LAYOUT.md).
+
+## My Personal Neo iPhone · 18 ottobre 2026
+La prima revisione usava il robot joney_lol; la revisione 2 lo rimuove dal bundle iOS. Il web Robot Buddy conserva i propri avatar.
+
+Tre avatar realistici **Microsoft Rocketbox**, Copyright (c) 2020 Microsoft, **MIT**. Originali `Female_Adult_01`, `Male_Adult_01`, `Female_Adult_02` da [fonte ufficiale](https://github.com/microsoft/Microsoft-Rocketbox), revisione `0943055db6ec570bcef9f2c8b41c9e5467c808f9`. Acquisiti il 18 ottobre 2026: FBX, diffuse/normal TGA e preview PNG. [Licenza upstream](https://github.com/microsoft/Microsoft-Rocketbox/blob/master/LICENSE.md), copia in `ios/MyPersonalNeo/Resources/Rocketbox-MIT.txt` e `public/models/personal-neo/LICENSE.txt`. Conversione automatica senza DCC: Assimp→OpenUSD, texture PNG 1k, joint ordinati, assi/scala e pesi rimappati. Modelli USDZ e manifest/hash nel bundle, preview JPG nel portale; nessun download a runtime. 80 joint ciascuno, 7.440–8.940 triangoli, 5,6–6,6 MB per modello. Pose/IK/camminata e bocca semplificata originali, non animazioni scaricate. Dettagli e riproduzione nella [guida iOS](ios/README.md).
+
+MakeHuman valutato come generatore gratuito con asset core/output CC0, non integrato. Non sono usati servizi generativi, account Mixamo o modelli di licenza incerta. WebRTC iOS da stasel/WebRTC, package binario upstream con avvisi/licenza propri.
+
+## My Personal Neo · revisione 3 fumettosa
+
+Sostituiti dal bundle nativo i tre Rocketbox realistici con **uomo Suit, donna Suit, cane ShibaInu** di **Quaternius**, CC0 1.0. Fonti ufficiali: [Ultimate Modular Men](https://quaternius.com/packs/ultimatemodularcharacters.html), [Ultimate Modular Women](https://quaternius.com/packs/ultimatemodularwomen.html), [Ultimate Animated Animals](https://quaternius.com/packs/ultimateanimatedanimals.html). Download glTF gratuiti e licenze dei tre pacchetti verificati il 18 ottobre 2026. Nessun asset proprietario Ready Player Me: il riferimento dell’utente riguarda lo stile.
+
+Conversione automatica senza DCC: solo corpi skinnati, senza armi/accessori; una mesh/materiale e palette 64×64; assi, scala, ordine joint/pesi uniformati. Revisione 5: clip originali CC0 `Idle_Neutral`, `Walk`, `Wave`, `Interact` (uomo/donna) e `Idle`, `Walk`, `Idle_2` (cane), convertite offline in dati TRS 24 Hz sul bind degli USDZ. Campionamento/crossfade e stabilizzazione dei piedi locali in Swift; nessuna clip di combattimento o prop. `ios/MyPersonalNeo/Resources/MotionManifest.json` documenta fonte/hash, dimensioni, clip e verifiche CPU; `scripts/native/bake-avatar-motions.py` rende riproducibile la conversione. Manifest/hash/download URL in `ios/MyPersonalNeo/Resources/AvatarManifest.json`; licenze in `Quaternius-CC0.txt` e portale pubblico. Nuove preview ricavate dai modelli convertiti. Robot Buddy e le sue licenze non cambiano. [Budget e riproduzione](ios/README.md).

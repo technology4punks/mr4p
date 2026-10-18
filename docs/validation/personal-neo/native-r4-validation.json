@@ -1,0 +1,94 @@
+{
+  "revision": 4,
+  "appVersion": "0.1.1",
+  "appBuild": 4,
+  "sourceCommit": "781e0bc6880be9a682e4053a74b6e32da072ef8a",
+  "dateUTC": "2026-10-18T15:35:03.879659+00:00",
+  "native": {
+    "status": "success",
+    "workflowRun": 39140448293,
+    "url": "https://github.com/technology4punks/mr4p/actions/runs/39140448293",
+    "xcode": "16.4",
+    "simulatorDebugBuild": "passed",
+    "unsignedIPhoneReleaseBuild": "passed",
+    "testsPassed": 22,
+    "testFailures": 0,
+    "xctestExecutionSeconds": 1.145,
+    "threeCompanionImportAndAnimationTestSeconds": 0.729,
+    "asyncImportRelaxedPoseTestSeconds": 0.084,
+    "note": "Simulator CPU import/test timings, not physical iPhone FPS or voice latency."
+  },
+  "web": {
+    "check": "passed",
+    "nodeTests": 223,
+    "lintAfterTestChange": "passed",
+    "browserInitial": {
+      "passed": 32,
+      "failed": 1,
+      "total": 33,
+      "failure": "Android restart invitation wait timed out at 15 seconds"
+    },
+    "browserTargetedFinal": {
+      "passed": 6,
+      "failed": 0,
+      "projects": [
+        "desktop-chromium",
+        "android-chromium",
+        "iphone-webkit"
+      ],
+      "cases": [
+        "restart and storage decline",
+        "narrative timing with canvas RAF suspended"
+      ]
+    },
+    "browserDistinctVerified": 33,
+    "browserNote": "All distinct cases verified across full suite and targeted rerun, not a single green full run. Only restart assertion wait increased to 30 seconds after diagnostics; no product web code changed."
+  },
+  "assets": [
+    {
+      "file": "NeoMan.usdz",
+      "bytes": 692018,
+      "triangles": 6634,
+      "joints": 62,
+      "sha256": "fb68b069ba72841eb92c8d3e1d2bf2af8686fe98537a911a8fa5c8bd383ec219",
+      "usdTopologyAndWeights": "passed",
+      "minimumWeightedHandDropMeters": 0.5275733456271658
+    },
+    {
+      "file": "NeoWoman.usdz",
+      "bytes": 678613,
+      "triangles": 6482,
+      "joints": 62,
+      "sha256": "2414aabd71ca38c3df3c5e2a216883bd204387d2c6c942aad51f555fc9505e1a",
+      "usdTopologyAndWeights": "passed",
+      "minimumWeightedHandDropMeters": 0.5343210568140194
+    },
+    {
+      "file": "NeoDog.usdz",
+      "bytes": 219626,
+      "triangles": 1950,
+      "joints": 46,
+      "sha256": "a49f3fad30e1e82c3199a340d1c86619cc159e075c6da017f79046b317594684",
+      "usdTopologyAndWeights": "passed",
+      "minimumWeightedHandDropMeters": null
+    }
+  ],
+  "hardware": {
+    "iPhone14ProTestedByAgent": false,
+    "fpsCameraMeasured": null,
+    "fpsSceneMeasured": null,
+    "memoryMeasured": null,
+    "thermalMeasured": null,
+    "cameraRequestedFPSWhenAvailable": 30
+  },
+  "savedRooms": {
+    "status": "design_only",
+    "document": "docs/SAVED_ROOMS_DESIGN.md",
+    "persistentPhotosOrMapsEnabled": false,
+    "lidarROIControlAvailable": false
+  },
+  "distribution": {
+    "signedOrUploadedToTestFlight": false,
+    "requiredToUpdateInstalledApp": "Pull codex/my-personal-neo and build/run with Xcode on the device. Sites does not update the installed binary."
+  }
+}

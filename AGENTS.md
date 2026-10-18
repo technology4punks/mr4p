@@ -20,3 +20,6 @@ Visita guidata predefinita (aggiornamento 13 ottobre): dopo i saluti il passaggi
 
 ## Consegna e verifiche
 Branch dedicata, nessuna sovrascrittura della branch precedente. Eseguire `npm run check` e `npm run test:e2e`; documentare misure software separatamente dai test hardware. Aggiornare README, catalogo, interdipendenze, API/persistenza, crediti e checklist dispositivo. Per Sites usare il progetto pubblico esistente e preservare i segreti runtime. Non richiedere conferme per decisioni tecniche ordinarie già autorizzate.
+
+## Nuovo progetto iPhone (18 ottobre 2026)
+My Personal Neo è separato: `ios/AGENTS.md` e `ios/README.md`. Il requisito nativo sostituisce la nuova pagina AR web, non il prodotto Robot Buddy esistente. Riutilizzare segreti/backend autorizzati, isolare i prompt delle due app. Non applicare timer o percorso educativo V4 al client nativo. Fotocamera e LiDAR non garantiscono comprensione universale o azionamento fisico degli oggetti.

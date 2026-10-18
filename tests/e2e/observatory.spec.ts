@@ -170,9 +170,12 @@ test("returns while entering, declines storage, then restarts cleanly", async ({
     .getByRole("button", { name: "Continua senza salvare", exact: true })
     .click();
   await page.getByRole("button", { name: "Ricomincia", exact: true }).click();
+  // Restoring preview shaders can stall Android's software renderer before the
+  // new five-second portal starts. This case checks restart/privacy; the next
+  // test independently bounds narrative timing with canvas RAF suspended.
   await expect(
     page.getByRole("button", { name: "Entra nell’osservatorio", exact: true }),
-  ).toBeVisible({ timeout: 15000 });
+  ).toBeVisible({ timeout: 30000 });
   expect(writes).toBe(0);
 });
 

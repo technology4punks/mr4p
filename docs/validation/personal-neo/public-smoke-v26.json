@@ -1,0 +1,33 @@
+{
+  "/models/personal-neo/NeoWoman.jpg": {
+    "status": 200,
+    "bytes": 25166
+  },
+  "/models/personal-neo/NeoMan.jpg": {
+    "status": 200,
+    "bytes": 24173
+  },
+  "/models/personal-neo/NeoDog.jpg": {
+    "status": 200,
+    "bytes": 26985
+  },
+  "/models/personal-neo/LICENSE.txt": {
+    "status": 200,
+    "bytes": 1256
+  },
+  "/": {
+    "status": 200,
+    "bytes": 7936
+  },
+  "/api/control-room/experiences": {
+    "status": 401,
+    "bytes": 116
+  },
+  "token": {
+    "status": 200,
+    "ephemeralPresent": true,
+    "hasExpiry": true
+  },
+  "pageStatus": 200,
+  "jsErrors": []
+}

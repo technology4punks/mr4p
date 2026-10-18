@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "reason": "Data channel did not open in this cloud runtime",
+  "sdpStatus": 201,
+  "peerState": "failed",
+  "iceState": "disconnected",
+  "channelState": "connecting",
+  "events": []
+}

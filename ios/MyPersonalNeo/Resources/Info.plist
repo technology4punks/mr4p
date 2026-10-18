@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDisplayName</key><string>My Personal Neo</string>
+<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+<key>LSRequiresIPhoneOS</key><true/>
+<key>NSCameraUsageDescription</key><string>NEO usa la fotocamera per ricostruire lo spazio con ARKit e, quando lo chiedi, inviare un fotogramma a OpenAI per descrivere oggetti e ambiente.</string>
+<key>NSMicrophoneUsageDescription</key><string>NEO invia a OpenAI l’audio della conversazione vocale quando avvii la voce. Puoi disattivarlo in ogni momento.</string>
+<key>UIRequiredDeviceCapabilities</key><array><string>arkit</string><string>arm64</string></array>
+<key>UILaunchScreen</key><dict/>
+<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
+<key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+<key>ITSAppUsesNonExemptEncryption</key><false/>
+</dict></plist>

@@ -1,11 +1,13 @@
 import { turnDetection } from "../src/audio/turnDetection";
 import { storyInstructions, storyTools } from "./story-config";
+import { personalInstructions, personalTools } from "./personal/config";
 export type RealtimeConfig = {
   apiKey?: string;
   model?: string;
   voice?: string;
   origin?: string;
   allowAnonymous?: boolean;
+  personal?: boolean;
 };
 export const instructions = storyInstructions;
 const json = (
@@ -91,8 +93,8 @@ export async function createTokenResponse(
           session: {
             type: "realtime",
             model: config.model || "gpt-realtime-2.1-mini",
-            instructions,
-            tools: storyTools,
+            instructions: config.personal ? personalInstructions : instructions,
+            tools: config.personal ? personalTools : storyTools,
             tool_choice: "auto",
             output_modalities: ["audio"],
             audio: {

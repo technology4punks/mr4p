@@ -13,3 +13,10 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Native iPhone build/signing state
+ios/**/xcuserdata/
+ios/**/DerivedData/
+*.ipa
+*.p12
+*.mobileprovision
