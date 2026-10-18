@@ -90,7 +90,7 @@ final class NeoSession: ObservableObject {
         guard active,room.trackingNormal else { throw NeoFailure("Attiva la scansione con tracking stabile.") }
         stopPerformance(); calibrationStep = 0; selectingSeat = true; message = "Tocca una superficie orizzontale misurata all’altezza della seduta."
         room.tap = { [weak self] point in
-            guard let self else { return }; self.room.place(at:point-[0,0.76,0]);self.room.rig.seated=true;self.room.tap=nil;self.selectingSeat=false;self.message="Seduta virtuale calibrata · controlla l’allineamento alla sedia reale."
+            guard let self else { return }; self.room.place(at:point-[0,self.room.rig.seatedHipHeight,0]);self.room.rig.seated=true;self.room.tap=nil;self.selectingSeat=false;self.message="Seduta virtuale calibrata · controlla l’allineamento alla sedia reale."
         }
     }
     func cancelCalibration() { calibrationStep = 0; selectingSeat = false; calibrationPoints.removeAll();room.tap=nil;message="Selezione annullata." }
@@ -103,7 +103,7 @@ final class NeoSession: ObservableObject {
     }
     func sitAtPiano() throws {
         guard let piano,room.trackingNormal else { throw NeoFailure("Prima calibra la tastiera e attendi tracking stabile.") }
-        room.place(at:piano.seat); room.rig.root.orientation=simd_quatf(from:[0,0,1],to:piano.depthAxis);room.rig.seated=true;message="NEO è alla tastiera · dita virtuali e audio sintetico."
+        room.place(at:piano.seat-piano.up*room.rig.seatedHipHeight); room.rig.root.orientation=simd_quatf(from:[0,0,1],to:piano.depthAxis);room.rig.seated=true;message="NEO è alla tastiera · dita virtuali e audio sintetico."
     }
     func playPiano(_ piece: String) throws {
         guard piano != nil,let score=PianoScore.notes(piece) else { throw NeoFailure("Calibra una tastiera a 88 tasti e scegli una melodia disponibile.") }

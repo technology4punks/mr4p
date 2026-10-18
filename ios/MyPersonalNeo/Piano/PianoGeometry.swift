@@ -34,7 +34,7 @@ struct PianoCalibration {
         return low + axis * (width * index / 51) + depthAxis * (Self.isWhite(midi) ? 0 : depth * 0.50) + up * (Self.isWhite(midi) ? 0.004 : 0.015)
     }
     var middle: SIMD3<Float> { (low + high) / 2 }
-    var seat: SIMD3<Float> { middle - depthAxis * 0.34 - up * 0.76 }
+    var seat: SIMD3<Float> { middle - depthAxis * 0.34 - up * 0.28 }
 }
 struct PianoNote: Equatable {
     let midi: Int

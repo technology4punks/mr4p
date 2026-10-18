@@ -2,6 +2,7 @@ import ARKit
 import RealityKit
 import UIKit
 import CoreImage
+import ImageIO
 import Combine
 
 @MainActor

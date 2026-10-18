@@ -41,7 +41,7 @@ final class NeoCoreTests: XCTestCase {
         gate.complete();gate.mayAuthorizeAudio();XCTAssertEqual(gate.turn,3)
         gate.reset();XCTAssertFalse(gate.responseActive);XCTAssertFalse(gate.mayUseTools)
     }
-    @MainActor func testPackagedUSDLoadsFortyEightJointsAndSixSkinnedParts() throws {
+    @MainActor func testPackagedUSDLoadsFortyEightJointsAndSixSkinnedParts() async throws {
         let rig=HumanoidRig();try rig.load()
         XCTAssertTrue(rig.isLoaded);XCTAssertEqual(rig.models.count,6)
         XCTAssertTrue(rig.models.allSatisfy { $0.jointNames.count == 48 && $0.jointTransforms.count == 48 })

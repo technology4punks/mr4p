@@ -1,3 +1,4 @@
+import Foundation
 import RealityKit
 import simd
 
@@ -10,6 +11,8 @@ final class HumanoidRig {
     private var rest: [Transform] = []
     private var pose: [Transform] = []
     private var time: Float = 0
+    private var smoothedTarget: SIMD3<Float>?
+    private(set) var seatedHipHeight: Float = 0.80
     private var demo: String?
     private var demoStarted: Float = 0
     var seated = false
@@ -32,9 +35,10 @@ final class HumanoidRig {
             let parts = name.split(separator: "/").dropLast()
             return parts.isEmpty ? nil : names.firstIndex(of: parts.joined(separator: "/"))
         }
+        if let hip = index("thighL") { seatedHipHeight = matrices()[hip].columns.3.y - 0.04 }
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
-    func stop() { demo = nil; target = nil; seated = false }
+    func stop() { demo = nil; target = nil; smoothedTarget = nil; seated = false }
     private func index(_ suffix: String) -> Int? { names.firstIndex { $0.split(separator: "/").last.map(String.init) == suffix } }
     private func rotate(_ name: String, angle: Float, axis: SIMD3<Float> = [1,0,0]) {
         guard let i = index(name) else { return }
@@ -85,7 +89,12 @@ final class HumanoidRig {
             default: rotate("forearmR", angle: sin(t*2)*0.2-0.3); if t > 5 { demo = nil }
             }
         }
-        if let target { reach(world: target, right: rightHand) }
+        if let target {
+            let start = smoothedTarget ?? target
+            let point = start + (target-start) * min(1,delta*14)
+            smoothedTarget = point
+            reach(world: point, right: rightHand)
+        } else { smoothedTarget = nil }
         for model in models where model.jointNames == names { model.jointTransforms = pose }
     }
 }
