@@ -1,10 +1,10 @@
 # My Personal Neo · iPhone nativo
 
-App separata da Robot Buddy/Future Observatory. **SwiftUI + ARKit + RealityKit**, iOS 17+, tre avatar umani realistici USD Skel a 80 articolazioni; OpenAI Realtime via WebRTC e backend condiviso per visione e ricerca web. Nessuna chiave API nell’app.
+SwiftUI + ARKit + RealityKit, iOS 17+, OpenAI Realtime/WebRTC. App separata da Robot Buddy; chiavi solo nel backend già configurato. **Revisione 3**: compagni fumettosi uomo/donna/cane e modalità AR leggera predefinita, dopo il grave rallentamento segnalato nell’app nativa su **iPhone 14 Pro**. FPS reali della nuova build ancora da misurare sul dispositivo.
 
-## Prova sul tuo iPhone
+## Installazione / aggiornamento
 
-Serve un Mac con Xcode 16+ e un iPhone con iOS 17+. LiDAR è consigliato per ricostruzione/depth; senza LiDAR rimangono tracking, superfici, voce e visione, con localizzazioni più limitate.
+Serve un Mac con Xcode 16+ e un iPhone iOS 17+. LiDAR opzionale; iPhone 14 Pro lo supporta.
 
 ```sh
 git clone --branch codex/my-personal-neo https://github.com/technology4punks/mr4p.git mr4p-personal-neo
@@ -12,65 +12,67 @@ cd mr4p-personal-neo
 open ios/MyPersonalNeo.xcodeproj
 ```
 
-1. Lascia risolvere il package **WebRTC 155.0.0** da `stasel/WebRTC`.
-2. Target **MyPersonalNeo → Signing & Capabilities → Team**: seleziona il tuo account Apple Developer; lascia Automatic Signing. Se necessario cambia `com.technology4punks.MyPersonalNeo` con un bundle ID disponibile nel tuo team. Nessun certificato/team è incorporato nel repository.
-3. Collega l’iPhone, autorizza il Mac e abilita **Impostazioni → Privacy e sicurezza → Modalità sviluppatore**. Scegli l’iPhone come destinazione e premi Run.
-4. Scegli **Sofia, Luca o Elena**, tocca **Entra con NEO** e consenti camera e microfono. Scansiona lentamente il pavimento: l’avatar appare automaticamente a circa 1,3 m davanti al telefono su una superficie misurata. Puoi riposizionarlo toccando il pavimento. Non seguire fisicamente l’avatar.
-5. La voce parte con l’esperienza e il microfono resta attivo anche mentre NEO parla. Prova «Cosa vedi?», «Indica la sedia» e «Cerca il manuale di [marca e modello]». Durante l’esperienza non compaiono HUD, trascrizioni, punti o pannelli automatici. **Doppio tocco a due dita** oppure «apri i controlli» richiama il menu; qui puoi disattivare il microfono, vedere diagnostica/fonti o sospendere tutto. Restano gli indicatori privacy di iOS. In background entrambi si spengono; ripresa esplicita. Un fotogramma viene inviato a OpenAI soltanto su richiesta, non uno streaming video continuo. Nel menu puoi attivare esplicitamente **Osservazione assistita**: invia un fotogramma ogni 15 secondi solo con tracking stabile, aggiornando il contesto senza avviare monologhi o azioni. È disattivata di default e si spegne in background.
+1. Lascia risolvere **stasel/WebRTC 155.0.0**. Scegli il tuo team Apple Developer in Signing & Capabilities; Automatic Signing. Nessun certificato o team nel progetto.
+2. Collega l’iPhone, autorizza il Mac e abilita Modalità sviluppatore nelle Impostazioni iOS. Scegli il dispositivo e premi Run. Se hai già installato una revisione, aggiorna la branch e ricompila: il sito non aggiorna il binario iOS.
+3. Scegli **Donna, Uomo o Cane**, poi **Entra con NEO**. Camera e microfono richiedono consenso. Scansiona lentamente il pavimento senza camminare: il compagno appare a circa 1,3 m su superficie misurata. Un tocco singolo riposiziona sul pavimento.
+4. La voce si avvia con l’esperienza e ascolta anche durante le risposte. Prova «Cosa vedi?», «Indica la sedia», «Avvicinati alla sedia», «Cerca il manuale di [marca/modello]».
+5. **Nessun HUD o pannello automatico**: doppio tocco a due dita, oppure «apri i controlli», per menu, stato voce, diagnostica, fonti e sospensione. Gli indicatori privacy iOS restano. Background sospende camera e voce; ripresa esplicita.
 
-Backend iniziale: `https://neo-mr-avatar-test.sk1kko.chatgpt.site`. Gli endpoint sono `/api/personal-neo/token` e `/api/personal-neo/knowledge`. Non inserire chiavi OpenAI in Xcode, Info.plist o nel bundle. Il server mantiene la chiave già configurata per NEO, separando prompt/tool dalle sessioni di Robot Buddy.
+Backend: `https://neo-mr-avatar-test.sk1kko.chatgpt.site`, endpoint `/api/personal-neo/token` e `/api/personal-neo/knowledge`. Nessuna chiave in Xcode/Info.plist/bundle. Token effimeri diretti WebRTC; prompt/tool isolati da Buddy. Fotogrammi singoli solo su richiesta; osservazione assistita opzionale invia un frame ogni 15 secondi con tracking stabile, senza avviare azioni/monologhi. Nessun archivio foto/dialoghi nel nostro backend. Ultimi otto messaggi solo in RAM per recupero voce, cancellati alla fine; la scelta avatar viene conservata sul dispositivo.
 
-## Cosa significa comprensione dell’ambiente
+## Profilo leggero e diagnostica
 
-ARKit rileva geometria e tracking; LiDAR aggiunge profondità, mesh, occlusione e collisioni stimate. L’LLM riconosce oggetti in una foto e propone bounding box 2D e categorie. La fusione usa il frame/posa della foto, non la posizione della camera dopo la risposta: proietta il centro osservato nella depth map oppure esegue un raycast su superfici misurate. Se manca una misura, l’oggetto resta **solo visivo**, senza coordinate inventate. Le posizioni sono stime del centro, non sagome complete, riconoscimento universale o prova di un contatto preciso.
+La revisione non attribuisce il problema ai soli poligoni: la precedente configurazione combinava texture fotografiche, mesh classificata continua, colliders mesh, occlusione persone, cubemap e aggiornamenti del rig ogni frame. La nuova configurazione:
 
-Il registro degli oggetti dura nella memoria della visita; una nuova osservazione sostituisce la precedente e cambia gli ID, così un tool tardivo non punta per errore un oggetto nuovo. Il modello chiama soltanto azioni disponibili, validate nell’app. Non eseguiamo codice, animazioni o procedure arbitrarie estratte dal web.
+- Carica **un solo compagno**, una mesh e un materiale con palette **64×64**; rimossi dal bundle gli avatar realistici Rocketbox e le loro texture 1k.
+- Usa tracking, piani orizzontali/verticali e profondità LiDAR. **Mesh dettagliata opzionale**, spenta di default: niente classificazione o cottura di colliders triangolari continua. Occlusione di base con massimo 24 superfici misurate, aggiornate al massimo due volte al secondo.
+- Disabilita person segmentation, cubemap automatiche, motion blur, profondità di campo, camera grain e grounding shadows. Non dichiara occlusione di persone o geometria universale.
+- Aggiorna pose e locomozione a **30 Hz**, con rendering/tracking indipendenti; riduce a 20 Hz dopo due finestre sotto 40 FPS e recupera 30 Hz oltre 52 FPS. Indici joint precalcolati, IK ridotta a due iterazioni, niente ricerca/dizionari per joint a ogni posa. I pannelli SwiftUI non vengono ridisegnati per ogni evento vocale quando sono nascosti.
+- Controlla pavimento e ostacoli con piani misurati; niente nove raycast fisici su mesh ogni frame. Cache breve dei controlli geometrici, invalidata su stop/tracking perso. Ostacoli sottili/mobili/non scansionati possono sfuggire: non è navigazione garantita.
 
-## Interazioni iniziali
+Nei controlli: **FPS scena** (cadence di SceneEvents.Update, non GPU time), frequenza animazione e switch mesh dettagliata. Nessuna diagnostica sovrapposta nell’esperienza. Servono misure su 14 Pro di FPS, termica, memoria e latenza voce prima di dichiarare risolto il problema prestazionale.
 
-- **Camminare e seguire**: passo procedurale lento (0,42 m/s), distanza discreta dall’utente, sguardo verso la camera. «Avvicinati alla sedia» usa solo un oggetto localizzato meno di 30 secondi fa, entro 3 m, con arresto a 75 cm. Ogni tratto verifica pavimento sotto i piedi e sweep a nove raggi su mesh/furniture misurati; geometria ignota, ostacoli o tracking limitato fermano il movimento. Non è navigazione universale: percorsi diretti, nessun aggiramento automatico, ostacoli sottili/mobili/non scansionati possono sfuggire.
-- **Indicare** un oggetto localizzato, fermando la camminata.
-- **Sedere** su una superficie orizzontale selezionata esplicitamente: posizione virtuale da controllare visivamente.
-- **Pianoforte** come prima interazione precisa: tastiera a 88 tasti, calibrazione di tre punti reali (LA0 e DO8 alla stessa profondità, poi bordo posteriore di un tasto centrale). Raycast solo su superfici misurate. La geometria ricostruisce tutti gli 88 tasti e distingue bianchi/neri.
-- **Suonare** una scala di DO o l’Inno alla gioia: posa seduta, IK di braccio/mano verso la posizione del tasto, **suono sintetico nell’app**, senza indicatori sovrapposti. Non vengono mossi tasti fisici. Per suono di uno strumento esterno servirebbe un’integrazione MIDI; per pressione meccanica serve un attuatore esterno, non implementati.
-- **Judo**: saluto e schema illustrativo di spostamento sul rig. Non è motion capture, una lezione certificata o apprendimento automatico di nuove mosse da un manuale. Non invita a replicare con telefono in mano.
+## Interazioni e limiti
 
-Il contatto dita/tasti, la posa seduta e la geometria vanno validati su iPhone/pianoforte reale; la sola build non li certifica. Per altri oggetti aggiungere un adattatore di interazione e relativa calibrazione, senza cambiare voce o fusione di scena.
+ARKit misura; OpenAI riconosce oggetti in una foto. La fusione usa frame/posa della foto e depth/raycast reali: nessuna coordinata inventata, nessuna comprensione totale. Le localizzazioni sono centri stimati, non superfici complete; scadono per avvicinamento dopo 30 secondi.
 
-## Test e distribuzione
+Passo lento 0,42 m/s; seguito discreto e avvicinamento entro 3 m con arresto a 75 cm. Supporto ignoto/tracking limitato/ostacoli misurati fermano il movimento; nessun aggiramento automatico. Sguardo verso la camera e pose locali; il cane cammina, guarda l’oggetto e muove la coda, **non esegue gesti umani**.
 
-Lo schema **MyPersonalNeo** comprende `MyPersonalNeoTests`: mapping tasti e rotazione, calibrazioni non valide, coordinate immagine/depth, autorizzazione dei turni e caricamento effettivo del rig USDZ. La pipeline `.github/workflows/personal-neo-ios.yml` esegue `xcodebuild test` su macOS con simulatore iPhone senza firma. Il simulatore non può verificare ARKit/LiDAR fisici. I risultati verificati sono in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
+Uomo/donna: indicazione con braccio, seduta selezionata su superficie misurata, pianoforte 88 tasti calibrato in tre punti (LA0, DO8, bordo posteriore), scala/Inno alla gioia con IK e audio sintetico. Nessuna pressione meccanica dei tasti. Judo solo saluto/spostamento illustrativi predefiniti, non addestramento o motion capture dal web. Per cane pianoforte/seduta su sedia/judo sono respinti dal client e dal prompt.
 
-Per distribuire via TestFlight: dopo il test dispositivo, imposta bundle ID/team/versione, crea la scheda App Store Connect, seleziona **Any iOS Device → Product → Archive → Distribute App → App Store Connect**. Aggiungi tester e verifica le dichiarazioni privacy (il manifest include foto/video, audio e contenuti utente inviati all’AI per funzionalità dell’app, senza tracking o identificativo utente allegato), inclusa la trasmissione a OpenAI e le eventuali conservazioni del provider. Non è stato eseguito alcun upload né creata una distribuzione TestFlight; non servono certificati per leggere o testare il progetto nel simulatore.
+La calibrazione è guidata a voce senza punti/etichette sovrapposti. Per istruzioni su oggetti viene cercato un manuale con fonti: un documento generico non identifica il modello specifico.
 
-## Asset e riproducibilità
+## Voce
 
-**Microsoft Rocketbox**, [repository ufficiale](https://github.com/microsoft/Microsoft-Rocketbox), [MIT](https://github.com/microsoft/Microsoft-Rocketbox/blob/master/LICENSE.md), revisione `0943055db6ec570bcef9f2c8b41c9e5467c808f9`. Tre persone virtuali adulte con texture di pelle/vestiti/capelli; nomi Sofia/Luca/Elena solo nell’app. Licenza completa nel bundle. Non richiedono account, un generatore esterno o download a runtime. Non è scansione di una persona scelta dall’utente né qualità cinematografica: asset realistici per mobile, volto animato in modo essenziale.
+WebRTC con eco/noise suppression e near-field. VAD nativo: threshold 0,6, silenzio 650 ms, nessun interrupt/response automatico. Parole e durata audio validano il turno: frasi da 320 ms possono interrompere, «stop/aspetta/no» da 180 ms. Rumori e sillabe non autorizzano azioni; item rifiutati rimossi dal contesto. Nomi/risposte brevi ammessi quando NEO ascolta. Soglie euristiche, non identificazione del parlante.
 
-| Avatar | Originale | Joint | Triangoli | USDZ | Altezza |
-|---|---|---|---|---|---|
-| Sofia | Female_Adult_01 | 80 | 8,732 | 5,914,705 B | 1.68 m |
-| Luca | Male_Adult_01 | 80 | 7,440 | 5,610,896 B | 1.78 m |
-| Elena | Female_Adult_02 | 80 | 8,940 | 6,610,954 B | 1.65 m |
+Watchdog RTP dall’apertura canale, recupero traccia/connessione e cambi uscita audio; interruzioni iOS sospendono e tentano ripristino al termine. Una trascrizione mancante chiede di ripetere senza strumenti e non può generare chiarimenti tardivi dopo un nuovo turno. Le restrizioni iOS possono impedire audio in chiamata/background. Non è certificata equivalenza con ChatGPT Voice.
 
-Tre mesh skinnate per persona, cinque texture diffuse/normal PNG fino a 1024 px, hair alpha cutout. Si carica un solo avatar per volta. Conversione FBX→glTF con Assimp 5.4.3→USD Skel con OpenUSD; joint riordinati e assi uniformati, pesi rimappati, scala metrica. Manifest con hash sorgenti e bundle. Pose, camminata, sguardo, bocca semplificata e IK sono locali; nessun motion clip scaricato. Preview JPG dagli originali, fonte e licenza identiche. Il robot precedente resta nel progetto web, non è più incluso nel bundle iOS.
+## Asset CC0 e riproducibilità
 
-Per creare corpi personalizzati esiste anche [MakeHuman](https://static.makehumancommunity.org/makehuman/faq/are_makehuman_files_free.html), con output del core CC0; non è integrato e gli asset community hanno licenze proprie. Per questa revisione abbiamo integrato direttamente tre modelli pronti, senza passare da servizi con quote o condizioni di esportazione variabili.
+[Quaternius](https://quaternius.com), **CC0 1.0**, licenze dei tre pacchetti incluse in `Quaternius-CC0.txt`; sorgenti/download/hash nel manifest del bundle. Uomo **Suit**, donna **Suit**, cane **ShibaInu**. Stile fumettoso e geometria essenziale; non modelli/servizi proprietari Ready Player Me. Solo corpo riggato: armi/accessori e clip di combattimento dei pacchetti non sono inclusi. Nessuna AI genera animazioni durante la conversazione.
 
-Rigenerazione opzionale, non necessaria per aprire Xcode:
+| Compagno | Joint | Triangoli | USDZ | Altezza |
+|---|---|---|---|---|
+| Man | 62 | 6,634 | 692,018 B | 1.72 m |
+| Woman | 62 | 6,482 | 678,613 B | 1.66 m |
+| Dog | 46 | 1,950 | 219,626 B | 0.6 m |
+
+Una texture 64px ciascuno: budget teorico RGBA8 16 KiB prima dei mipmap, non misura GPU. File dei tre USDZ complessivi circa **1,59 MB**, rispetto ai precedenti 18,14 MB; non tutti sono caricati contemporaneamente. [Anteprima geometrie/texture convertite](../docs/validation/personal-neo/toon-companions-r3.png); è un rendering di controllo, non una cattura RealityKit sul telefono.
+
+Fonti: [uomo](https://quaternius.com/packs/ultimatemodularcharacters.html), [donna](https://quaternius.com/packs/ultimatemodularwomen.html), [cane](https://quaternius.com/packs/ultimateanimatedanimals.html). Dati glTF gratuiti, nessun DCC o modellazione manuale. Script conserva rig/pesi, uniforma assi/scala e unisce mesh/materiali in una palette locale. Le clip sorgenti non sono caricate; gesti/locomozione/IK locali in Swift.
 
 ```sh
 python3 -m venv /tmp/neo-usd-tools
 /tmp/neo-usd-tools/bin/pip install usd-core==26.8 numpy==2.5.4 Pillow==12.2.0
-# Assimp 5.4.3 deve essere disponibile nel PATH (oppure ASSIMP=/percorso/assimp).
 /tmp/neo-usd-tools/bin/python scripts/native/convert-humanoid.py
 python3 scripts/native/generate-project.py
 ```
 
-Xcode project e USDZ sono già versionati. WebRTC resta un package esterno con la propria licenza e gli avvisi upstream.
+Il vecchio convertitore Rocketbox è conservato come `convert-rocketbox.py` per riprodurre la revisione precedente; quei modelli non sono più risorse dell’app. Xcode project e nuovi USDZ sono versionati. WebRTC mantiene licenze/avvisi upstream.
 
-## Ascolto e recupero · revisione 2
+## Verifica e distribuzione
 
-WebRTC con cancellazione eco/rumore, near-field e VAD dedicato al nativo (threshold 0,6, silenzio 650 ms; Robot Buddy invariato). VAD non cancella risposte. Una frase riconosciuta di almeno due parole e 320 ms può interrompere; «stop», «aspetta», «no» e altre interruzioni esplicite funzionano da 180 ms. Una parola isolata generica durante il parlato non interrompe, mentre un nome o una risposta breve a NEO fermo restano validi. Le soglie sono euristiche, non riconoscimento del parlante; vanno tarate sul dispositivo. Si usa la durata audio del singolo item, sottraendo padding/silenzio: un ASR lento non trasforma un click in parlato lungo. Se manca l’ASR, viene chiesto di ripetere senza autorizzare strumenti.
+`MyPersonalNeoTests` esercita import reale di tutti e tre i rig, un solo materiale/mesh, texture, proporzioni, pose/camminata, geometria tastiera/calibrazione, proiezione foto/depth, filtro rumore/turni e budget adattivo. CI macOS/Xcode senza firma. Dettagli e risultati finali in [docs/MY_PERSONAL_NEO.md](../docs/MY_PERSONAL_NEO.md).
 
-Watchdog risposta e invio RTP, riattivazione della traccia e riconnessione automatica quando il trasporto si ferma. Cambio uscita audio senza spegnere il microfono; chiamate iOS sospendono l’audio e la fine dell’interruzione tenta il ripristino. Gli ultimi otto messaggi restano solo in RAM per recuperare contesto/nome dopo una riconnessione, cancellati alla fine dell’esperienza; nessuna nuova persistenza di dialoghi. Le restrizioni iOS possono impedire registrazione durante chiamate/background. Nessuna equivalenza prestazionale con la modalità vocale ChatGPT è certificata.
+Test fisico necessario su **iPhone 14 Pro**: ricompilare, confrontare mesh dettagliata off/on dai controlli, muovere camera e avatar, dieci turni voce con rumori/interruzioni, uscita Bluetooth/chiamata, background, calibrazioni. Annotare iOS, build, FPS scena, latenza e termica. Non sono stati creati certificati, provisioning o upload TestFlight/App Store. Per TestFlight usare il proprio team, scheda App Store Connect, Product→Archive→Distribute App e verifica privacy/provider.

@@ -1,3 +1,5 @@
+> **Stato corrente: revisione 3** — dopo il feedback su iPhone 14 Pro nativo, i tre umani realistici sono sostituiti da uomo/donna/cane Quaternius CC0, con profilo AR leggero. Le sezioni sulle revisioni 1/2 sotto sono cronologia; guida corrente in [ios/README.md](../ios/README.md). Nessuna misura prestazionale fisica della revisione 3 ancora disponibile.
+
 # My Personal Neo · app nativa iPhone
 
 Nuovo progetto sulla branch `codex/my-personal-neo`, affiancato all’esperienza web esistente. Il requisito aggiornato dell’utente sostituisce il prototipo AR web con un’app nativa: riconoscere lo spazio e gli oggetti, conversarci e agire su riferimenti misurati. Il pianoforte è un esempio di interazione, non l’architettura dell’intero sistema.
@@ -62,3 +64,25 @@ Tre avatar umani realistici selezionabili prima dello start; movimento lento e i
 Microfono full duplex dall’ingresso; filtro delle interruzioni su durata audio e parole riconosciute, isolamento degli item ASR e recupero canale/trasporto. Nessun cambio a prompt o microfono di Robot Buddy. Il recupero conserva al massimo otto messaggi in RAM e non crea archivi. Il menu e il sistema operativo consentono sempre sospensione.
 
 Verifica hardware richiesta: ogni avatar (volto, capelli, ombre, sguardo), ancoraggio e posa seduta, pavimento/ostacoli con e senza LiDAR, dieci turni audio con brevi rumori e vere interruzioni, uscita Bluetooth/chiamata, ritorno dall’app in background e gesto controlli. Non sono disponibili nuove misure FPS, latenza o termica su dispositivo. I raggi stimano collisioni, non garantiscono contatto o comprensione totale. Nessun upload TestFlight eseguito.
+
+### Validazione e pubblicazione revisione 2
+
+Sites **versione 25**, `succeeded` il **18 ottobre 2026 alle 11:44:12 UTC**, runtime revision **6** preservato. Sorgente Sites `478f0bab7d1a5283c129305980d5a22bb7f1da44`, deploy `appgdep_6ad4b0f893cc819194a82d24a26bd1ac`. [Pagina pubblica](https://neo-mr-avatar-test.sk1kko.chatgpt.site/personal-neo), [smoke](validation/personal-neo/public-smoke-v25.json), [cattura pagina](validation/personal-neo/public-v25.png). Pagina/preview/licenza e ingresso Buddy **200**, creazione token effimero personale **200**, control room anonima **401**, zero errori JavaScript. Non sono state modificate variabili segrete, database, accessi o prompt/microfono di Robot Buddy.
+
+`npm run check`: lint, typecheck, build, scansione bundle e **223 test** passati. Sites: typecheck, build e **209 test** passati. **33 casi browser** passati fra suite completa (30) e ritest mirato del portale (3) su Chromium desktop/Android e WebKit iPhone; il test del portale cercava il titolo precedente ed è stato aggiornato dopo la prima esecuzione. Questi test browser non verificano il microfono nativo.
+
+Rendering di controllo delle geometrie e texture estratte dai tre USDZ: [anteprima](validation/personal-neo/human-assets-r2.png), non cattura RealityKit/dispositivo. Verifica statica: Y-up, altezza 1,65–1,78 m, profondità 0,33–0,36 m, cinque texture incluse e 80 joint ciascuno. Nessuna misura FPS/latency/termica iPhone disponibile.
+
+Probe WebRTC di integrazione nel browser cloud con traccia sintetica vuota, senza microfono: creazione token e scambio SDP **201** riusciti, ma il peer è passato a `failed` senza aprire il data channel. Non è stata generata una risposta vocale né verificato `session.updated`. [Esito](validation/personal-neo/realtime-session-v25.json). Questo ambiente non certifica trasporto audio o configurazione runtime della sessione nativa: occorre il test iPhone. Gli errori ASR, rumori brevi, turni consecutivi e geometria vengono invece esercitati dai test core iOS.
+
+Per aggiornare l’app già installata, scaricare la branch `codex/my-personal-neo` e ricompilare da Xcode con il proprio team. La pubblicazione Sites aggiorna backend e guida; non distribuisce un nuovo binario iOS.
+
+## Revisione 3 · iPhone 14 Pro, compagni fumettosi e profilo leggero
+
+Feedback utente: rallentamento grave nell’app nativa installata su iPhone 14 Pro. Non è dimostrata una causa unica negli asset. Cambiati sia contenuti sia lavoro continuo AR/rendering.
+
+Uomo/donna **Suit**, cane **ShibaInu**, tutti Quaternius CC0. Una mesh/materiale e texture palette 64 px per modello; rig umano 62 joint, cane 46. Circa 1,59 MB complessivi dei tre USDZ, uno solo caricato. Rimossi Rocketbox/texture 1k dal bundle; le immagini precedenti restano soltanto nella documentazione storica. [Anteprima nuova](validation/personal-neo/toon-companions-r3.png), [manifest](../ios/MyPersonalNeo/Resources/AvatarManifest.json). Non è un render su dispositivo.
+
+Modalità predefinita: ARKit piani + sceneDepth LiDAR, occlusori planari limitati; niente mesh classificata/colliders continui, person segmentation, cubemap automatiche o post-processing. Mesh dettagliata opzionale nei controlli nascosti. Pose/locomozione 30 Hz adattive a 20 Hz, lookup joint precalcolato, IK due iterazioni e verifica ostacoli su piani senza nove raycast fisici per frame. La camera/render non dipendono dal tick ridotto dell’animazione. I segnali vocali non ridisegnano i pannelli nascosti.
+
+Cane: locomozione/coda/sguardo verso camera o oggetto; niente mano/pianoforte/sedia/judo. Tool e prompt rispettano la forma selezionata. Voce e esperienza senza HUD conservate. Nuova diagnostica soltanto nei controlli: FPS di aggiornamento scena e frequenza animazione. La diagnostica non è una misura GPU né una prova di fluidità su 14 Pro: verifica fisica ancora necessaria.

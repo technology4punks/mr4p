@@ -17,6 +17,8 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     private(set) var detailedMesh=false
     private var occluders: [UUID:ModelEntity]=[:]
     private var lastPlaneUpdate=Date.distantPast
+    private var attention: SIMD3<Float>?
+    private var attentionUntil=Date.distantPast
     private var destination: SIMD3<Float>?
     private var lastGeometryCheck = Date.distantPast
     private var checkedPosition: SIMD3<Float>?
@@ -95,6 +97,9 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
     }
     @objc private func recallControls() { revealControls?() }
     func stopWalking() { destination = nil; rig.walkAmount = 0; checkedPosition=nil }
+    func lookToward(_ point: SIMD3<Float>) {
+        stopWalking();followUser=false;attention=point;attentionUntil=Date().addingTimeInterval(5)
+    }
     func walkNear(_ object: SIMD3<Float>) throws {
         guard trackingNormal, placed, !rig.seated else { throw NeoFailure("Serve un avatar in piedi su pavimento misurato.") }
         let offset = rig.root.position - SIMD3<Float>(object.x,rig.root.position.y,object.z)
@@ -135,14 +140,14 @@ final class RoomUnderstanding: NSObject, ARSessionDelegate {
                 }
             }
         }
-        guard placed else { return }; rig.gaze = camera
+        guard placed else { return }; let interest=Date()<attentionUntil ? attention : nil;rig.gaze=interest ?? camera
         if rig.seated || tap != nil { stopWalking(); return }
         let p = rig.root.position, toCamera = SIMD3<Float>(camera.x-p.x,0,camera.z-p.z)
         if destination == nil, followUser, simd_length(toCamera)>1.9, Date().timeIntervalSince(lastFollow)>1 {
             lastFollow=Date(); let direction=simd_normalize(toCamera), side=SIMD3<Float>(direction.z,0,-direction.x)
             destination = SIMD3<Float>(camera.x,p.y,camera.z)-direction*1.2+side*0.4
         }
-        var facing = toCamera
+        var facing = interest.map { SIMD3<Float>($0.x-p.x,0,$0.z-p.z) } ?? toCamera
         if let target=destination {
             if let candidate=AvatarMotion.step(from:p,to:target,delta:delta) {
                 // Floor must be known at centre and both feet, not merely at the destination.
