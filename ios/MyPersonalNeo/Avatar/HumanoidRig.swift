@@ -39,7 +39,10 @@ final class HumanoidRig {
     }
     func play(_ name: String) { demo = name; demoStarted = time; seated = false; target = nil }
     func stop() { demo = nil; target = nil; smoothedTarget = nil; seated = false }
-    private func index(_ suffix: String) -> Int? { names.firstIndex { $0.split(separator: "/").last.map(String.init) == suffix } }
+    private func index(_ suffix: String) -> Int? {
+        let key = suffix.filter { $0.isLetter || $0.isNumber }
+        return names.firstIndex { ($0.split(separator:"/").last.map(String.init) ?? "").filter { $0.isLetter || $0.isNumber } == key }
+    }
     private func rotate(_ name: String, angle: Float, axis: SIMD3<Float> = [1,0,0]) {
         guard let i = index(name) else { return }
         pose[i].rotation = rest[i].rotation * simd_quatf(angle: angle, axis: axis)
