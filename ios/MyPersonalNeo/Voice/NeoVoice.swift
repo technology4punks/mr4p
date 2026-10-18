@@ -13,7 +13,11 @@ final class NeoVoice: NSObject, RTCPeerConnectionDelegate, RTCDataChannelDelegat
     private(set) var said = ""
     private(set) var muted = false
     private var pc: RTCPeerConnection?, channel: RTCDataChannel?, track: RTCAudioTrack?
-    private let factory = RTCPeerConnectionFactory()
+    private static let sharedFactory: RTCPeerConnectionFactory = {
+        _ = RTCInitializeSSL()
+        return RTCPeerConnectionFactory()
+    }()
+    private let factory = NeoVoice.sharedFactory
     private var gate = VoiceTurnGate()
     private var generation = UUID()
     private var calls = Set<String>()
