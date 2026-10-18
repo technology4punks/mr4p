@@ -63,6 +63,12 @@ final class NeoSession: ObservableObject {
         let allowed = await AVCaptureDevice.requestAccess(for:.video)
         guard startID == id, UIApplication.shared.applicationState != .background else { return }
         guard allowed else { message = "Consenti la fotocamera nelle Impostazioni per avviare la scansione AR."; return }
+        // Resolve system permission dialogs before starting the bounded scan. Reading
+        // the microphone prompt must not consume the six seconds of floor discovery.
+        _ = await withCheckedContinuation { (continuation:CheckedContinuation<Bool,Never>) in
+            AVAudioApplication.requestRecordPermission {continuation.resume(returning:$0)}
+        }
+        guard startID == id, UIApplication.shared.applicationState != .background else {return}
         do {
             let chosenAvatar=avatar
             try await room.start(profile:chosenAvatar)
