@@ -126,6 +126,7 @@ final class NeoSession: ObservableObject {
         } else { calibrationStep += 1; message=calibrationPrompt };voice.announce(message)
     }
     func sitAtPiano() throws {
+        guard avatar.isHuman else {throw NeoFailure("Il cane non può sedersi o suonare come un avatar umano.")}
         guard let piano,room.trackingNormal else { throw NeoFailure("Prima calibra la tastiera e attendi tracking stabile.") }
         room.place(at:piano.seat-piano.up*room.rig.seatedHipHeight); room.rig.root.orientation=simd_quatf(from:[0,0,1],to:piano.depthAxis);room.rig.seated=true;message="NEO è alla tastiera · dita virtuali e audio sintetico."
     }
